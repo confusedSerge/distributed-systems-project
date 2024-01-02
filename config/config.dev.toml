@@ -1,0 +1,6 @@
+name = "Development Configuration"
+
+[multicast.discovery-group]
+group = "224.1.1.1"
+port = "5007"
+ttl = 32

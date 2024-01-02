@@ -1,0 +1,9 @@
+# Ignore certain directories
+tmp/
+other/
+.vscode/
+.venv/
+
+# Ignore python cache files
+*.pyc
+__pycache__/
