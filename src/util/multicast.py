@@ -1,5 +1,6 @@
 import socket
 import struct
+import os
 
 
 class Multicast:
@@ -27,7 +28,11 @@ class Multicast:
         self.multicast_receiver = socket.socket(
             socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP
         )
-        self.multicast_receiver.bind(self.multicast_group)
+        if os.name == "nt":
+            self.multicast_receiver.bind(("", self.port))
+        else:
+            self.multicast_receiver.bind(self.multicast_group)
+
         self.multicast_receiver.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.multicast_receiver.setsockopt(
             socket.IPPROTO_IP,
