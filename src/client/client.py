@@ -2,6 +2,7 @@ import time
 import inquirer
 
 from util.logger import create_logger
+from constant import interaction as inter
 
 from .auctioneer import Auctioneer
 from .bidder import Bidder
@@ -41,8 +42,12 @@ class Client:
                 [
                     inquirer.List(
                         "action",
-                        message="What do you want to do?",
-                        choices=["Auctioneer", "Bidder", "Abort"],
+                        message=inter.CLIENT_ACTION_QUESTION,
+                        choices=[
+                            inter.CLIENT_ACTION_AUCTIONEER,
+                            inter.CLIENT_ACTION_BIDDER,
+                            inter.CLIENT_ACTION_STOP,
+                        ],
                     )
                 ]
             )
@@ -52,7 +57,7 @@ class Client:
                     self.auctioneer.interact()
                 case "Bidder":
                     self.bidder.interact()
-                case "Abort":
+                case "Stop":
                     abort = True
                 case _:
                     raise ValueError("Invalid action")

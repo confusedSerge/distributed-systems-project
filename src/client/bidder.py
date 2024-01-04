@@ -1,3 +1,8 @@
+import inquirer
+
+from constant import interaction as inter
+
+
 class Bidder:
     """The bidder class handles the bidding process of the client.
 
@@ -23,4 +28,33 @@ class Bidder:
 
         This should be run in the main thread (process), handling user input.
         """
-        print("Bidder")
+        while True:
+            answer = inquirer.prompt(
+                [
+                    inquirer.List(
+                        "action",
+                        message=inter.BIDDER_ACTION_QUESTION,
+                        choices=[
+                            inter.BIDDER_ACTION_LIST_AUCTIONS,
+                            inter.BIDDER_ACTION_JOIN_AUCTION,
+                            inter.BIDDER_ACTION_LEAVE_AUCTION,
+                            inter.BIDDER_ACTION_BID,
+                            inter.BIDDER_ACTION_GO_BACK,
+                        ],
+                    )
+                ]
+            )
+
+            match answer["action"]:
+                case inter.BIDDER_ACTION_LIST_AUCTIONS:
+                    pass
+                case inter.BIDDER_ACTION_JOIN_AUCTION:
+                    pass
+                case inter.BIDDER_ACTION_LEAVE_AUCTION:
+                    pass
+                case inter.BIDDER_ACTION_BID:
+                    pass
+                case inter.BIDDER_ACTION_GO_BACK:
+                    break
+                case _:
+                    pass

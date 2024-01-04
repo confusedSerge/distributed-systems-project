@@ -1,3 +1,8 @@
+import inquirer
+
+from constant import interaction as inter
+
+
 class Auctioneer:
     """Auctioneer class handles the auctioning of items, keeping track of the highest bid and announcing the winner.
 
@@ -20,7 +25,28 @@ class Auctioneer:
 
         This should be run in the main thread (process), handling user input.
         """
-        print("Auctioneer")
+        while True:
+            answer = inquirer.prompt(
+                [
+                    inquirer.List(
+                        "action",
+                        message=inter.AUCTIONEER_ACTION_QUESTION,
+                        choices=[
+                            inter.AUCTIONEER_ACTION_START,
+                            inter.AUCTIONEER_ACTION_LIST_OWN_AUCTIONS,
+                            inter.AUCTIONEER_ACTION_GO_BACK,
+                        ],
+                    )
+                ]
+            )
+
+            match answer["action"]:
+                case inter.AUCTIONEER_ACTION_START:
+                    pass
+                case inter.AUCTIONEER_ACTION_LIST_OWN_AUCTIONS:
+                    pass
+                case inter.AUCTIONEER_ACTION_GO_BACK:
+                    break
 
 
 class _SubAuctioneer:
