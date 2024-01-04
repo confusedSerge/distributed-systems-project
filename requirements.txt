@@ -1,6 +1,14 @@
+blessed==1.20.0
+inquirer==3.1.4
 marshmallow==3.20.1
 marshmallow-dataclass==8.6.0
 mypy-extensions==1.0.0
 packaging==23.2
+Pygments==2.17.2
+python-editor==1.0.4
+readchar==4.0.5
+regex==2023.12.25
+six==1.16.0
 typing-inspect==0.9.0
 typing_extensions==4.9.0
+wcwidth==0.2.12
