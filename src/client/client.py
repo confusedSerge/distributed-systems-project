@@ -1,6 +1,8 @@
 import time
 import inquirer
 
+from util.logger import create_logger
+
 from .auctioneer import Auctioneer
 from .bidder import Bidder
 
@@ -16,13 +18,17 @@ class Client:
 
     def __init__(self) -> None:
         """Initializes the client class."""
+        self.logger = create_logger("client")
+
         self.auctioneer = Auctioneer()
         self.bidder = Bidder()
 
     def run(self) -> None:
         """Runs the background tasks of the client."""
+        self.logger.info("Client is starting background tasks")
         while True:
-            time.sleep(100)
+            time.sleep(10)
+            self.logger.info("Client is running background tasks")
 
     def interact(self) -> None:
         """Handles the interactive command line interface for the client.

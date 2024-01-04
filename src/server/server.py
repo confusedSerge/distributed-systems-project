@@ -1,5 +1,7 @@
 import time
 
+from util.logger import create_logger
+
 
 class Server:
     """Server class.
@@ -12,9 +14,11 @@ class Server:
 
     def __init__(self) -> None:
         """Initializes the server class."""
-        self.replicas = []
+        self.logger = create_logger("server")
 
     def run(self) -> None:
         """Runs the server background tasks."""
+        self.logger.info("Server is starting background tasks")
         while True:
-            time.sleep(100)
+            time.sleep(10)
+            self.logger.info("Server is running background tasks")
