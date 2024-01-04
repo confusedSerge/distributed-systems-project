@@ -9,3 +9,18 @@ class Bidder:
     - Leaving an auction: The bidder leaves the auction by leaving the multicast group of the auction, and stops listening for messages from the auction.
     - Leaving as a bidder: The bidder leaves the multicast group, stops listening for auction announcements and clears the list of auctions.
     """
+
+    def __init__(self) -> None:
+        """Initializes the bidder class."""
+        self.auctions = []
+
+    def run(self) -> None:
+        """Runs the bidder background tasks."""
+        pass
+
+    def interact(self) -> None:
+        """Handles the interactive command line interface for the bidder.
+
+        This should be run in the main thread (process), handling user input.
+        """
+        print("Bidder")

@@ -6,3 +6,11 @@ class Replica:
     The other replicas are followers, which are responsible for keeping a heartbeat of the leader replica. If the leader replica fails, a new leader replica is elected.
     In the background, each replica updates its own state on update requests (new bids).
     """
+
+    def __init__(self) -> None:
+        """Initializes the replica class."""
+        pass
+
+    def run(self) -> None:
+        """Runs the replica background tasks."""
+        pass

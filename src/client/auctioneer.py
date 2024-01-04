@@ -7,6 +7,21 @@ class Auctioneer:
     - Information about an auction: The auctioneer lists information about a specific auction.
     """
 
+    def __init__(self) -> None:
+        """Initializes the auctioneer class."""
+        pass
+
+    def run(self) -> None:
+        """Runs the auctioneer background tasks."""
+        pass
+
+    def interact(self) -> None:
+        """Handles the interactive command line interface for the auctioneer.
+
+        This should be run in the main thread (process), handling user input.
+        """
+        print("Auctioneer")
+
 
 class _SubAuctioneer:
     """Sub-Auctioneer class handles the auctioning of items, keeping track of the highest bid and announcing the winner.

@@ -47,3 +47,7 @@ class Unicast:
         """
         assert not self.sender, "The unicast object is not a receiver."
         return self.socket.recvfrom(buffer_size)
+
+    def close(self) -> None:
+        """Close the unicast socket."""
+        self.socket.close()

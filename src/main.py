@@ -3,6 +3,9 @@ from constant import multicast as constant_multicast
 
 from multiprocessing import Process
 
+from client import Client
+from server import Server
+
 sender = Multicast(
     constant_multicast.MULTICAST_DISCOVERY_GROUP,
     constant_multicast.MULTICAST_DISCOVERY_PORT,
@@ -36,11 +39,21 @@ def receive():
 
 
 if __name__ == "__main__":
-    send_process = Process(target=send)
-    receive_process = Process(target=receive)
+    # Create server process
+    server = Server()
+    server_process = Process(target=server.run)
 
-    receive_process.start()
-    send_process.start()
+    # Create client process
+    client = Client()
+    client_process = Process(target=client.run)
 
-    send_process.join()
-    receive_process.join()
+    # Start background processes
+    server_process.start()
+    client_process.start()
+
+    # Interact with client
+    client.interact()
+
+    # Terminate client and server processes when client interaction is done
+    server_process.terminate()
+    client_process.terminate()
