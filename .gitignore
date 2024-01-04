@@ -1,6 +1,7 @@
 # Ignore certain directories
 tmp/
 other/
+log/
 .vscode/
 .venv/
 

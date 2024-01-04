@@ -1,24 +1,46 @@
-import tomllib
-from util import Multicast
+from util import Multicast, FindReplicaRequest
+from constant import multicast as constant_multicast
 
-with open("./config/config.dev.toml", "rb") as f:
-    config = tomllib.load(f)
+from multiprocessing import Process
 
-sender = True
+sender = Multicast(
+    constant_multicast.MULTICAST_DISCOVERY_GROUP,
+    constant_multicast.MULTICAST_DISCOVERY_PORT,
+    sender=True,
+    ttl=constant_multicast.MULTICAST_DISCOVERY_TTL,
+)
+receiver = Multicast(
+    constant_multicast.MULTICAST_DISCOVERY_GROUP,
+    constant_multicast.MULTICAST_DISCOVERY_PORT,
+    sender=False,
+    ttl=constant_multicast.MULTICAST_DISCOVERY_TTL,
+)
 
-if sender:
-    print("Sender")
-    multicast = Multicast(
-        group=config["multicast"]["discovery-group"]["group"],
-        port=config["multicast"]["discovery-group"]["port"],
-        ttl=config["multicast"]["discovery-group"]["ttl"],
-    )
-    multicast.send("Hello World!")
-else:
-    print("Receiver")
-    multicast = Multicast(
-        group=config["multicast"]["discovery-group"]["group"],
-        port=config["multicast"]["discovery-group"]["port"],
-        ttl=config["multicast"]["discovery-group"]["ttl"],
-    )
-    print(multicast.receive())
+
+def send():
+    message: FindReplicaRequest = FindReplicaRequest(data="Hello, world!")
+
+    sender.send(message.encode())
+
+    print("Sent message:", message)
+
+    sender.close()
+
+
+def receive():
+    message, address = receiver.receive()
+
+    print("Received message:", FindReplicaRequest.decode(message), " from ", address)
+
+    receiver.close()
+
+
+if __name__ == "__main__":
+    send_process = Process(target=send)
+    receive_process = Process(target=receive)
+
+    receive_process.start()
+    send_process.start()
+
+    send_process.join()
+    receive_process.join()
