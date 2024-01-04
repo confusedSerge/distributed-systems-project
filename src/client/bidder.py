@@ -1,9 +1,13 @@
+import time
+import multiprocessing
+
 import inquirer
 
+from util.helper import create_logger
 from constant import interaction as inter
 
 
-class Bidder:
+class Bidder(multiprocessing.Process):
     """The bidder class handles the bidding process of the client.
 
     The bidder class is responsible for the following:
@@ -15,13 +19,23 @@ class Bidder:
     - Leaving as a bidder: The bidder leaves the multicast group, stops listening for auction announcements and clears the list of auctions.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, config: dict) -> None:
         """Initializes the bidder class."""
-        self.auctions = []
+        multiprocessing.Process.__init__(self)
+        self.exit = multiprocessing.Event()
+
+        self.logger = create_logger("bidder")
+        self.config = config
 
     def run(self) -> None:
         """Runs the bidder background tasks."""
-        pass
+        self.logger.info("Bidder is starting background tasks")
+
+        while not self.exit.is_set():
+            self.logger.info("Bidder is running background tasks")
+            time.sleep(30)
+
+        self.logger.info("Bidder is terminating background tasks")
 
     def interact(self) -> None:
         """Handles the interactive command line interface for the bidder.

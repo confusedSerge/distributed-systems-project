@@ -1,8 +1,9 @@
 import tomllib
 import logging
 
-with open("./config/config.dev.toml", "rb") as f:
-    config = tomllib.load(f)
+from util.helper import load_config
+
+config = load_config()
 
 # Logger
 LOGGING_PATH: str = config["logger"]["path"]

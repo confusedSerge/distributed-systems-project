@@ -1,9 +1,12 @@
+import time
+import multiprocessing
+
 import inquirer
 
 from constant import interaction as inter
 
 
-class Auctioneer:
+class Auctioneer(multiprocessing.Process):
     """Auctioneer class handles the auctioning of items, keeping track of the highest bid and announcing the winner.
 
     The auctioneer class is responsible for the following:
@@ -12,9 +15,16 @@ class Auctioneer:
     - Information about an auction: The auctioneer lists information about a specific auction.
     """
 
-    def __init__(self) -> None:
-        """Initializes the auctioneer class."""
-        pass
+    def __init__(self, config: dict) -> None:
+        """Initializes the auctioneer class.
+
+        Args:
+            config (dict): The configuration of the auctioneer.
+        """
+        multiprocessing.Process.__init__(self)
+        self.exit = multiprocessing.Event()
+
+        self.config = config
 
     def run(self) -> None:
         """Runs the auctioneer background tasks."""

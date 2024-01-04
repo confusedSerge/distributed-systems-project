@@ -1,14 +1,16 @@
+import multiprocessing
 import time
+
 import inquirer
 
-from util.logger import create_logger
+from util.helper import create_logger
 from constant import interaction as inter
 
 from .auctioneer import Auctioneer
 from .bidder import Bidder
 
 
-class Client:
+class Client(multiprocessing.Process):
     """Client class for the client side of the peer-to-peer network.
 
     The client class runs in a separate thread (process) from the server class.
@@ -17,19 +19,41 @@ class Client:
     The client actions are given through an interactive command line interface, which will cause to run the respective methods.
     """
 
-    def __init__(self) -> None:
-        """Initializes the client class."""
-        self.logger = create_logger("client")
+    def __init__(self, config: dict) -> None:
+        """Initializes the client class.
 
-        self.auctioneer = Auctioneer()
-        self.bidder = Bidder()
+        Args:
+            config (dict): The configuration of the client.
+
+        """
+        multiprocessing.Process.__init__(self)
+        self.exit = multiprocessing.Event()
+
+        self.logger = create_logger("client")
+        self.config = config
+
+        self.auctioneer = Auctioneer(config=config)
+        self.bidder = Bidder(config=config)
 
     def run(self) -> None:
         """Runs the background tasks of the client."""
         self.logger.info("Client is starting background tasks")
-        while True:
+
+        auctioneer_process = multiprocessing.Process(target=self.auctioneer.run)
+        auctioneer_process.start()
+        self.logger.info("Auctioneer process started")
+
+        bidder_process = multiprocessing.Process(target=self.bidder.run)
+        bidder_process.start()
+        self.logger.info("Bidder process started")
+
+        while not self.exit.is_set():
             time.sleep(10)
             self.logger.info("Client is running background tasks")
+
+        self.logger.info("Client is terminating background tasks")
+        auctioneer_process.terminate()
+        bidder_process.terminate()
 
     def interact(self) -> None:
         """Handles the interactive command line interface for the client.
@@ -61,3 +85,8 @@ class Client:
                     abort = True
                 case _:
                     raise ValueError("Invalid action")
+
+    def stop(self) -> None:
+        """Stops the client."""
+        self.exit.set()
+        self.logger.info("Client is stopping")
