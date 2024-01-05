@@ -1,5 +1,6 @@
-import logging
+import os
 import tomllib
+import logging
 
 from constant import logger as constant_logger
 
@@ -12,6 +13,8 @@ def create_logger(name: str) -> logging.Logger:
     """
     path = constant_logger.LOGGING_PATH + name + ".log"
 
+    if os.path.isdir("log") == False:
+        os.mkdir("log")
     handler = logging.FileHandler(path)
     handler.setFormatter(logging.Formatter(constant_logger.LOGGING_FORMAT))
 
