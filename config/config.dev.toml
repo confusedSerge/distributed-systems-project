@@ -12,3 +12,4 @@ ttl = 32
 
 [message]
 find-replica-request = "FIND_REPLICA_REQUEST"
+auction-announcement = "AUCTION_ANNOUNCEMENT"

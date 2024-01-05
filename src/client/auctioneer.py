@@ -1,5 +1,6 @@
 import multiprocessing
 from multiprocessing.managers import BaseManager
+import uuid
 
 import re
 import inquirer
@@ -34,10 +35,11 @@ class Auctioneer:
 
         self.background: multiprocessing.Process = None
 
-        self.auctions: dict[str, Auction] = {}
-        AuctionManager.register("Auction", Auction)
+        # Shared memory
+        _AuctionManager.register("Auction", Auction)
 
-        self.manager: AuctionManager = AuctionManager()
+        self.manager: _AuctionManager = _AuctionManager()
+        self.auctions: dict[int, Auction] = {}
 
     def start(self) -> None:
         """Starts the auctioneer background tasks."""
@@ -88,6 +90,8 @@ class Auctioneer:
                     self._list_auctions()
                 case inter.AUCTIONEER_ACTION_GO_BACK:
                     break
+                case _:
+                    self.logger.error(f"Invalid action {answer['action']}")
 
     def _list_auctions(self) -> None:
         """Lists all auctions."""
@@ -102,14 +106,10 @@ class Auctioneer:
         This reads in the item, price and time from the user and instantiates a sub-auctioneer.
         """
         item, price, time = self._define_auction_item()
+        _uuid = uuid.uuid4().int  # TODO: Generate unique id in a better way
 
-        # TODO: Later, generate a unique ID for the auction , like a UUID5
-        if item in self.auctions:
-            print("\nAuction already exists for this item, please try again\n")
-            return
-
-        self.auctions[item] = Auction(item, price, time)
-        # TODO: Instantiate auction process
+        self.auctions[uuid] = Auction(item, price, time, _uuid)
+        # TODO: Start sub-auctioneer with auction
 
     def _define_auction_item(self) -> tuple[str, float, int]:
         """Defines the item of the auction.
@@ -152,5 +152,5 @@ class _SubAuctioneer(multiprocessing.Process):
         pass
 
 
-class AuctionManager(BaseManager):
+class _AuctionManager(BaseManager):
     pass

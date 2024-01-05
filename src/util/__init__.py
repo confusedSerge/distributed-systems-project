@@ -1,4 +1,4 @@
 from .multicast import Multicast
-from .message import FindReplicaRequest
+from .message import *
 
 from .helper import create_logger

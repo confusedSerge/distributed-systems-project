@@ -1,7 +1,11 @@
 import multiprocessing
+from multiprocessing import Manager
+from multiprocessing.managers import BaseManager
 
 import inquirer
 
+from model.auction import Auction
+from util.message import AuctionAnnouncement
 from util.helper import create_logger, logging
 from constant import interaction as inter
 
@@ -32,6 +36,16 @@ class Bidder:
         self.config: dict = config
 
         self.background: multiprocessing.Process = None
+
+        # Shared memory
+        _AuctionManager.register("AuctionAnnouncementStore", _AuctionAnnouncementStore)
+        _AuctionManager.register("Auction", Auction)
+
+        self.manager: _AuctionManager = _AuctionManager()
+        self._auction_announcement_store: _AuctionAnnouncementStore = (
+            self.manager._AuctionAnnouncementStore()
+        )
+        self._joined_auctions: dict[str, Auction] = {}
 
     def start(self) -> None:
         """Starts the bidder background tasks."""
@@ -78,14 +92,128 @@ class Bidder:
 
             match answer["action"]:
                 case inter.BIDDER_ACTION_LIST_AUCTIONS:
-                    pass
+                    self._list_auctions()
                 case inter.BIDDER_ACTION_JOIN_AUCTION:
-                    pass
+                    self._join_auction()
                 case inter.BIDDER_ACTION_LEAVE_AUCTION:
-                    pass
+                    self._leave_auction()
                 case inter.BIDDER_ACTION_BID:
-                    pass
+                    self._bid()
                 case inter.BIDDER_ACTION_GO_BACK:
                     break
                 case _:
-                    pass
+                    self.logger.error(f"Invalid action {answer['action']}")
+
+    def _list_auctions(self) -> None:
+        """Lists the auctions available to join."""
+        print("Auctions available to join:")
+        for auction_id, auction in self._auction_announcement_store.items():
+            print(f"* {auction_id}: {auction}")
+
+    def _join_auction(self) -> None:
+        """Joins an auction"""
+        auction_id = self._choose_auction(list(self._auction_announcement_store.keys()))
+        if auction_id in self._joined_auctions:
+            print("You have already joined this auction")
+            return
+
+        # TODO: Implement joining of auction (server needed) -> create auction listener and start it
+
+    def _leave_auction(self) -> None:
+        """Leaves an auction"""
+        auction_id = self._choose_auction(list(self._joined_auctions.keys()))
+        # TODO: Implement leaving of auction (server needed) -> call stop() on auction listener
+
+    def _bid(self) -> None:
+        """Bids in an auction"""
+        auction_id = self._choose_auction(list(self._joined_auctions.keys()))
+        # TODO: Implement bidding in auction (server needed) -> call bid() on auction listener
+
+    def _choose_auction(self, auction_ids: list[int]) -> int:
+        """Chooses an auction.
+
+        Prompts the user to choose an auction and returns the auction id.
+
+        Args:
+            auction_ids (list[int]): The auction ids of the auctions to choose from.
+
+        Returns:
+            int: The auction id of the auction.
+        """
+        return int(
+            inquirer.prompt(
+                [
+                    inquirer.List(
+                        "auction_id",
+                        message=inter.BIDDER_CHOOSE_AUCTION_QUESTION,
+                        choices=list(map(str, auction_ids)),
+                    )
+                ]
+            )["auction_id"]
+        )
+
+
+class _AuctionManager(BaseManager):
+    pass
+
+
+class _AuctionAnnouncementStore:
+    """The auction announcement store class stores auction announcements.
+
+    This is used by the bidder to keep track of auctions.
+    """
+
+    def __init__(self) -> None:
+        self._auctions: dict[int, AuctionAnnouncement] = {}
+
+    def add(self, auction: AuctionAnnouncement) -> None:
+        """Adds an auction announcement to the store.
+
+        Args:
+            auction (AuctionAnnouncement): The auction announcement to add.
+        """
+        if self.exists(auction._id):
+            raise ValueError(f"Auction with id {auction._id} already exists")
+        self._auctions[auction._id] = auction
+
+    def get(self, auction_id: int) -> AuctionAnnouncement:
+        """Returns an auction announcement from the store.
+
+        Args:
+            auction_id (int): The auction id of the auction announcement to get.
+
+        Returns:
+            AuctionAnnouncement: The auction announcement.
+        """
+        if not self.exists(auction_id):
+            raise ValueError(f"Auction with id {auction_id} does not exist")
+        return self._auctions[auction_id]
+
+    def remove(self, auction_id: int) -> None:
+        """Removes an auction announcement from the store.
+
+        Args:
+            auction_id (int): The auction id of the auction announcement to remove.
+        """
+        if not self.exists(auction_id):
+            raise ValueError(f"Auction with id {auction_id} does not exist")
+        del self._auctions[auction_id]
+
+    def items(self) -> list[tuple[int, AuctionAnnouncement]]:
+        """Returns the items of the store.
+
+        Returns:
+            list[tuple[int, AuctionAnnouncement]]: The items of the store.
+        """
+        return self._auctions.items()
+
+    def exists(self, auction_id: int) -> bool:
+        """Returns whether an auction announcement exists in the store.
+
+        Args:
+            auction_id (int): The auction id of the auction announcement to check.
+
+        Returns:
+            bool: Whether the auction announcement exists in the store.
+        """
+        return auction_id in self._auctions

@@ -89,4 +89,4 @@ class Client:
                 case "Stop":
                     break
                 case _:
-                    raise ValueError("Invalid action")
+                    self.logger.error(f"Invalid action {answer['action']}")

@@ -7,7 +7,16 @@ class Auction:
     This includes the item, starting price, time, bid history and winner.
     """
 
-    def __init__(self, item: str, price: float, time: int) -> None:
+    def __init__(self, item: str, price: float, time: int, _id: int = 0) -> None:
+        """Initializes the auction class.
+
+        Args:
+            item (str): The item of the auction.
+            price (float): The starting price of the auction.
+            time (int): The time of the auction.
+            _id (int, optional): The id of the auction. Defaults to 0.
+        """
+        self._id: int = _id
         self._item: str = item
         self._price: float = price
         self._time: int = time
