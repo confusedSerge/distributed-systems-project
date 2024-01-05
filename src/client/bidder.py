@@ -43,14 +43,14 @@ class Bidder:
         self.logger: logging.Logger = create_logger(self.name.lower())
         self.config: dict = config
 
-        self.background: multiprocessing.Process = None
-
         # Shared memory
         _AuctionManager.register("_AuctionAnnouncementStore", _AuctionAnnouncementStore)
         _AuctionManager.register("Auction", Auction)
 
         self.manager: _AuctionManager = _AuctionManager()
+
         self._auction_announcement_store: _AuctionAnnouncementStore = None
+        self._auction_announcement_process: multiprocessing.Process = None
 
         self._joined_auctions: dict[str, Auction] = {}
         self._auction_listeners: dict[str, multiprocessing.Process] = {}
@@ -59,23 +59,30 @@ class Bidder:
         """Starts the bidder background tasks."""
         self.logger.info(f"{self.name} is starting background tasks")
 
-        self.background = multiprocessing.Process(target=self._background)
-
         self.manager.start()
+
+        # Start auction announcement listener
         self._auction_announcement_store = self.manager._AuctionAnnouncementStore()
+        self._auction_announcement_process = _AuctionAnnouncementListener(
+            self._auction_announcement_store
+        )
+        self._auction_announcement_process.start()
 
         self.logger.info(f"{self.name} started background tasks")
-
-    def _background(self) -> None:
-        """Runs the bidder background tasks."""
-        pass
 
     def stop(self) -> None:
         """Stops the bidder background tasks."""
         self.logger.info(f"{self.name} is stopping background tasks")
 
-        if self.background is not None and self.background.is_alive():
-            self.background.terminate()
+        if (
+            self._auction_announcement_process
+            and self._auction_announcement_process.is_alive()
+        ):
+            self._auction_announcement_process.terminate()
+
+        for auction_listener in self._auction_listeners.values():
+            if auction_listener.is_alive():
+                auction_listener.terminate()
 
         self.logger.info(f"{self.name} stopped background tasks")
 
@@ -358,3 +365,33 @@ class _AuctionAnnouncementStore:
             bool: Whether the auction announcement exists in the store.
         """
         return auction_id in self._auctions
+
+
+class _AuctionAnnouncementListener(multiprocessing.Process):
+    """The auction announcement listener class listens for auction announcements.
+
+    This is a background process to find currently running auctions and add new announcements to the store.
+
+    Args:
+        multiprocessing (_type_): _description_
+    """
+
+    def __init__(self, store: _AuctionAnnouncementStore) -> None:
+        super().__init__()
+        self.store = store
+
+    def run(self) -> None:
+        """Runs the auction announcement listener."""
+        mc_listener = Multicast(
+            addr.MULTICAST_DISCOVERY_GROUP, addr.MULTICAST_DISCOVERY_PORT, sender=False
+        )
+        while True:
+            msg, _ = mc_listener.receive()
+            decoded_msg = msgs.decode(msg)
+            if decoded_msg["tag"] != msgs.tag.AUCTION_ANNOUNCEMENT_TAG:
+                continue
+            decoded_msg = msgs.AuctionAnnouncement.decode(msg)
+            try:
+                self.store.add(decoded_msg)
+            except ValueError:
+                pass
