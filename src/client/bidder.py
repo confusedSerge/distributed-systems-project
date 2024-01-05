@@ -3,6 +3,7 @@ from multiprocessing import Manager
 from multiprocessing.managers import BaseManager
 import uuid
 
+import re
 import inquirer
 
 from model.auction import Auction
@@ -220,7 +221,35 @@ class Bidder:
     def _bid(self) -> None:
         """Bids in an auction"""
         auction_id = self._choose_auction(list(self._joined_auctions.keys()))
-        # TODO: Implement bidding in auction (server needed) -> call bid() on auction listener
+        bid_amount = self._bid_amount()
+
+        auction = self._joined_auctions[auction_id]
+        if auction.get_state() != 1:
+            self.logger.error(
+                f"Auction with id {auction_id} is not running. Cannot bid."
+            )
+            return
+        if bid_amount <= auction.get_highest_bid():
+            self.logger.error(
+                f"Bid amount {bid_amount} is not higher than highest bid {auction.get_highest_bid()}"
+            )
+            return
+
+        auction.bid(self.name, bid_amount)
+
+        mc_group, mc_port = auction.get_multicast_group_port()
+        mc_sender = Multicast(
+            mc_group,
+            mc_port,
+        )
+        mc_sender.send(
+            msgs.AuctionBid(
+                _id=str(uuid.uuid4()),
+                auction_id=auction_id,
+                bidder=self.name,
+                bid=bid_amount,
+            ).encode()
+        )
 
     def _choose_auction(self, auction_ids: list[int]) -> int:
         """Chooses an auction.
@@ -243,6 +272,25 @@ class Bidder:
                     )
                 ]
             )["auction_id"]
+        )
+
+    def _bid_amount(self) -> float:
+        """Prompts the user for a bid amount.
+
+        Returns:
+            float: The bid amount.
+        """
+        return float(
+            inquirer.prompt(
+                [
+                    inquirer.Text(
+                        "bid_amount",
+                        message=inter.BIDDER_BID_AMOUNT_QUESTION,
+                        validate=lambda _, x: re.match(r"^\d+(\.\d{1,2})?$", x)
+                        is not None,
+                    )
+                ]
+            )["bid_amount"]
         )
 
 
