@@ -12,7 +12,7 @@ class Auction:
         item: str,
         price: float,
         time: int,
-        _id: int = 0,
+        _id: str,
         multicast_group: str = "",
         multicast_port: int = 0,
     ) -> None:
@@ -22,16 +22,16 @@ class Auction:
             item (str): The item of the auction.
             price (float): The starting price of the auction.
             time (int): The time of the auction.
-            _id (int, optional): The id of the auction. Defaults to 0.
+            _id (str): The id of the auction.
         """
-        self._id: int = _id
+        self._id: str = _id
         self._item: str = item
         self._price: float = price
         self._time: int = time
 
         # Multicast group and port are initially empty
-        self._multicast_group: str = ""
-        self._multicast_port: int = 0
+        self._multicast_group: str = multicast_group
+        self._multicast_port: int = multicast_port
 
         # Auction state is initially not started
         self._auction_state: tuple[int, str] = auction_constant.AUCTION_NOT_STARTED
@@ -89,11 +89,11 @@ class Auction:
         """
         self._winner = winner
 
-    def get_id(self) -> int:
+    def get_id(self) -> str:
         """Returns the id of the auction.
 
         Returns:
-            int: The id of the auction.
+            str: The id of the auction.
         """
         return self._id
 
@@ -105,5 +105,26 @@ class Auction:
         """
         return (self._multicast_group, self._multicast_port)
 
+    def next_state(self) -> None:
+        """Sets the next state of the auction."""
+        match self._auction_state:
+            case auction_constant.AUCTION_NOT_STARTED:
+                self._auction_state = auction_constant.AUCTION_RUNNING
+            case auction_constant.AUCTION_RUNNING:
+                self._auction_state = auction_constant.AUCTION_ENDED
+            case auction_constant.AUCTION_ENDED:
+                self._auction_state = auction_constant.AUCTION_NOT_STARTED
+
+    def get_state(self) -> tuple[int, str]:
+        """Returns the state of the auction.
+
+        Returns:
+            tuple[int, str]: The state of the auction.
+        """
+        return self._auction_state
+
     def __str__(self) -> str:
-        return f"Auction for {self._item} with starting price {self._price} and time {self._time} currently in state {self._auction_state[1]}"
+        return f"Auction {self._id} with ({self._item}, {self._price}, {self._time}) currently in state {self._auction_state[1]}"
+
+    def __repr__(self) -> str:
+        return str(self)

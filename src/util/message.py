@@ -1,7 +1,7 @@
 from typing import Self
 
 from dataclasses import dataclass, field
-from marshmallow import Schema, fields, EXCLUDE
+from marshmallow import Schema, fields, validate, EXCLUDE
 import marshmallow_dataclass
 
 from json import dumps, loads
@@ -12,8 +12,8 @@ import constant.message
 class MessageSchema(Schema):
     """MessageSchema class for marshmallow serialization."""
 
+    _id = fields.String(required=True)
     tag = fields.String(required=True)
-    _id = fields.Integer(required=True)
 
     class Meta:
         unknown = EXCLUDE
@@ -35,11 +35,11 @@ def decode(message: bytes) -> dict:
 class FindReplicaRequest:
     """FindReplicaRequest class for sending and receiving find new replica requests."""
 
+    _id: str = field()
     tag: str = field(default=constant.message.FIND_REPLICA_REQUEST_TAG)
-    _id: int = field(default=0)
 
     auction_multicast_group: str = field(default="")
-    auction_multicast_port: int = field(default=0)
+    auction_multicast_port: str = field(default=0)
 
     def __str__(self) -> str:
         """Return the string representation of the find new replica request."""
@@ -83,8 +83,8 @@ FIND_REPLICA_REQUEST_SCHEMA = marshmallow_dataclass.class_schema(FindReplicaRequ
 class FindReplicaResponse:
     """FindReplicaResponse class for sending and receiving find new replica responses."""
 
+    _id: str = field()
     tag: str = field(default=constant.message.FIND_REPLICA_RESPONSE_TAG)
-    _id: int = field(default=0)
 
     def __str__(self) -> str:
         """Return the string representation of the find new replica response."""
@@ -126,8 +126,8 @@ FIND_REPLICA_RESPONSE_SCHEMA = marshmallow_dataclass.class_schema(FindReplicaRes
 class FindReplicaAcknowledge:
     """FindReplicaAcknowledge class for sending and receiving find new replica acknowledgements."""
 
+    _id: str = field()
     tag: str = field(default=constant.message.FIND_REPLICA_ACK_TAG)
-    _id: int = field(default=0)
 
     def __str__(self) -> str:
         """Return the string representation of the find new replica acknowledgement."""
@@ -171,8 +171,8 @@ FIND_REPLICA_ACKNOWLEDGE_SCHEMA = marshmallow_dataclass.class_schema(
 class AuctionReplicaPeers:
     """AuctionReplicaPeers class containing the peers of replicas for an auction."""
 
+    _id: str = field()
     tag: str = field(default=constant.message.AUCTION_REPLICA_PEERS_TAG)
-    _id: int = field(default=0)
 
     peers: list[tuple[str, int]] = field(default_factory=list)
 
@@ -220,8 +220,9 @@ class AuctionAnnouncement:
     This includes the item, price, time and multicast group of the auction.
     """
 
+    _id: str = field()
     tag: str = field(default=constant.message.AUCTION_ANNOUNCEMENT_TAG)
-    _id: int = field(default=0)
+
     item: str = field(default="")
     price: float = field(default=0.0)
     time: int = field(default=0)
@@ -268,3 +269,52 @@ class AuctionAnnouncement:
 
 
 AUCTION_ANNOUNCEMENT_SCHEMA = marshmallow_dataclass.class_schema(AuctionAnnouncement)
+
+
+@dataclass
+class AuctionBid:
+    """AuctionBid class for sending and receiving auction bids."""
+
+    _id: str = field()
+    tag: str = field(default=constant.message.AUCTION_BID_TAG)
+
+    auction_id: str = field(default="", metadata={"validate": validate.Length(min=1)})
+    bidder: str = field(default="")
+    bid: float = field(default=0.0)
+
+    def __str__(self) -> str:
+        """Return the string representation of the auction bid."""
+        return f"AuctionBid(tag={self.tag}, id={self._id}, bidder={self.bidder}, bid={self.bid})"
+
+    def __repr__(self) -> str:
+        """Return the string representation of the auction bid."""
+        return self.__str__()
+
+    def __eq__(self, o: object) -> bool:
+        """Return whether the auction bid is equal to another auction bid."""
+        if not isinstance(o, AuctionBid):
+            return False
+        return self._id == o._id and self.tag == o.tag
+
+    def __hash__(self) -> int:
+        """Return the hash of the auction bid."""
+        return hash(
+            (
+                self.tag,
+                self._id,
+                self.bidder,
+                self.bid,
+            )
+        )
+
+    def encode(self) -> bytes:
+        """Return the encoded auction bid."""
+        return bytes(dumps(AUCTION_BID_SCHEMA().dump(self)), "utf-8")
+
+    @staticmethod
+    def decode(message: bytes) -> Self:
+        """Return the decoded auction bid."""
+        return AUCTION_BID_SCHEMA().load(loads(message))
+
+
+AUCTION_BID_SCHEMA = marshmallow_dataclass.class_schema(AuctionBid)

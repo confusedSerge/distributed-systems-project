@@ -25,3 +25,4 @@ find-replica-ack = "FIND_REPLICA_ACK"
 auction-replica-peers = "AUCTION_REPLICA_PEERS"
 
 auction-announcement = "AUCTION_ANNOUNCEMENT"
+auction-bid = "AUCTION_BID"
