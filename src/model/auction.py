@@ -65,6 +65,14 @@ class Auction:
         """
         return self._bid_history
 
+    def set_bid_history(self, bid_history: list[tuple[str, float]]) -> None:
+        """Sets the bid history.
+
+        Args:
+            bid_history (list[tuple[str, float]]): The bid history.
+        """
+        self._bid_history = bid_history
+
     def get_highest_bid(self) -> tuple[str, float]:
         """Returns the highest bid.
 
@@ -122,6 +130,14 @@ class Auction:
             tuple[int, str]: The state of the auction.
         """
         return self._auction_state
+
+    def set_state(self, state: tuple[int, str]) -> None:
+        """Sets the state of the auction.
+
+        Args:
+            state (tuple[int, str]): The state of the auction.
+        """
+        self._auction_state = state
 
     def __str__(self) -> str:
         return f"Auction {self._id} with ({self._item}, {self._price}, {self._time}) currently in state {self._auction_state[1]}"

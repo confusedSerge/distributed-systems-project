@@ -25,4 +25,6 @@ find-replica-ack = "FIND_REPLICA_ACK"
 auction-replica-peers = "AUCTION_REPLICA_PEERS"
 
 auction-announcement = "AUCTION_ANNOUNCEMENT"
+auction-information-request = "AUCTION_INFORMATION_REQUEST"
+auction-information-response = "AUCTION_INFORMATION_RESPONSE"
 auction-bid = "AUCTION_BID"

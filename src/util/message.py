@@ -272,6 +272,119 @@ AUCTION_ANNOUNCEMENT_SCHEMA = marshmallow_dataclass.class_schema(AuctionAnnounce
 
 
 @dataclass
+class AuctionInformationRequest:
+    """AuctionInformationRequest class for sending and receiving auction information requests."""
+
+    _id: str = field()
+    tag: str = field(default=constant.message.AUCTION_INFORMATION_REQUEST_TAG)
+    auction_id: str = field(default="")
+
+    def __str__(self) -> str:
+        """Return the string representation of the auction information request."""
+        return f"AuctionInformationRequest(tag={self.tag}, id={self._id})"
+
+    def __repr__(self) -> str:
+        """Return the string representation of the auction information request."""
+        return self.__str__()
+
+    def __eq__(self, o: object) -> bool:
+        """Return whether the auction information request is equal to another auction information request."""
+        if not isinstance(o, AuctionInformationRequest):
+            return False
+        return (
+            self._id == o._id and self.tag == o.tag and self.auction_id == o.auction_id
+        )
+
+    def __hash__(self) -> int:
+        """Return the hash of the auction information request."""
+        return hash(
+            (
+                self.tag,
+                self._id,
+                self.auction_id,
+            )
+        )
+
+    def encode(self) -> bytes:
+        """Return the encoded auction information request."""
+        return bytes(dumps(AUCTION_INFORMATION_REQUEST_SCHEMA().dump(self)), "utf-8")
+
+    @staticmethod
+    def decode(message: bytes) -> Self:
+        """Return the decoded auction information request."""
+        return AUCTION_INFORMATION_REQUEST_SCHEMA().load(loads(message))
+
+
+AUCTION_INFORMATION_REQUEST_SCHEMA = marshmallow_dataclass.class_schema(
+    AuctionInformationRequest
+)
+
+
+@dataclass
+class AuctionInformationResponse:
+    """AuctionInformationResponse class for sending and receiving auction information responses."""
+
+    _id: str = field()
+    tag: str = field(default=constant.message.AUCTION_INFORMATION_RESPONSE_TAG)
+    auction_id: str = field(default="")
+
+    item: str = field(default="")
+    price: float = field(default=0.0)
+    time: int = field(default=0)
+
+    multicast_group: str = field(default="")
+    multicast_port: int = field(default=0)
+
+    state: int = field(default=0)
+
+    history: list[tuple[str, float]] = field(default_factory=list)
+    winner: str = field(default="")
+
+    def __str__(self) -> str:
+        """Return the string representation of the auction information response."""
+        return f"AuctionInformationResponse(tag={self.tag}, id={self._id}, auction_id={self.auction_id}, item={self.item}, price={self.price}, time={self.time})"
+
+    def __repr__(self) -> str:
+        """Return the string representation of the auction information response."""
+        return self.__str__()
+
+    def __eq__(self, o: object) -> bool:
+        """Return whether the auction information response is equal to another auction information response."""
+        if not isinstance(o, AuctionInformationResponse):
+            return False
+        return (
+            self._id == o._id
+            and self.tag == o.tag
+            and self.auction_id == o.auction_id
+            and self.item == o.item
+            and self.price == o.price
+            and self.time == o.time
+        )
+
+    def __hash__(self) -> int:
+        """Return the hash of the auction information response."""
+        return hash(
+            (
+                self.tag,
+                self._id,
+                self.auction_id,
+                self.item,
+                self.price,
+                self.time,
+            )
+        )
+
+    def encode(self) -> bytes:
+        """Return the encoded auction information response."""
+        return bytes(dumps(AUCTION_INFORMATION_RESPONSE_SCHEMA().dump(self)), "utf-8")
+
+    @staticmethod
+    def decode(message: bytes) -> Self:
+        """Return the decoded auction information response."""
+        return AUCTION_INFORMATION_RESPONSE_SCHEMA().load(loads(message))
+
+
+@dataclass
 class AuctionBid:
     """AuctionBid class for sending and receiving auction bids."""
 

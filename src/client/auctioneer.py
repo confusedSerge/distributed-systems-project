@@ -42,8 +42,8 @@ class Auctioneer:
         self.manager_running = multiprocessing.Event()
         self.manager: _AuctionManager = _AuctionManager()
 
-        self.auctions: dict[int, Auction] = {}
-        self.sub_auctioneers: dict[int, multiprocessing.Process] = {}
+        self.auctions: dict[str, Auction] = {}
+        self.sub_auctioneers: dict[str, multiprocessing.Process] = {}
 
     def start(self) -> None:
         """Starts the auctioneer background tasks."""
@@ -107,7 +107,7 @@ class Auctioneer:
         """Lists all auctions."""
         print("Your auctions:")
         for auction in self.auctions.values():
-            print(f"\t* {auction}")
+            print(f"* {auction}")
         print()
 
     def _create_auction(self) -> None:

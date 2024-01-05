@@ -15,6 +15,7 @@ AUCTIONEER_ACTION_GO_BACK = "Go back"
 # Bidder action constants
 BIDDER_ACTION_QUESTION = "What do you want to do"
 BIDDER_ACTION_LIST_AUCTIONS = "List currently known active auctions"
+BIDDER_ACTION_LIST_AUCTION_INFO = "List information about a joined auction"
 BIDDER_ACTION_JOIN_AUCTION = "Join an auction"
 BIDDER_ACTION_LEAVE_AUCTION = "Leave an auction"
 BIDDER_ACTION_BID = "Bid on an auction"

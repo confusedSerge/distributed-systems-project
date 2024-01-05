@@ -11,4 +11,8 @@ FIND_REPLICA_ACK_TAG: str = config["message"]["find-replica-ack"]
 AUCTION_REPLICA_PEERS_TAG: str = config["message"]["auction-replica-peers"]
 
 AUCTION_ANNOUNCEMENT_TAG: str = config["message"]["auction-announcement"]
+AUCTION_INFORMATION_REQUEST_TAG: str = config["message"]["auction-information-request"]
+AUCTION_INFORMATION_RESPONSE_TAG: str = config["message"][
+    "auction-information-response"
+]
 AUCTION_BID_TAG: str = config["message"]["auction-bid"]
