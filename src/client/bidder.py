@@ -1,14 +1,15 @@
-import time
 import multiprocessing
 
 import inquirer
 
-from util.helper import create_logger
+from util.helper import create_logger, logging
 from constant import interaction as inter
 
 
-class Bidder(multiprocessing.Process):
+class Bidder:
     """The bidder class handles the bidding process of the client.
+
+    Bidder is run in the main thread (process) of the client and delegates its background tasks (listeners) to other processes, sharing the same memory.
 
     The bidder class is responsible for the following:
     - Joining as a bidder: The bidder sends a discovery message to the multicast group to find auctions and keeps listening for auction announcements (background process for listening).
@@ -20,22 +21,38 @@ class Bidder(multiprocessing.Process):
     """
 
     def __init__(self, config: dict) -> None:
-        """Initializes the bidder class."""
-        multiprocessing.Process.__init__(self)
-        self.exit = multiprocessing.Event()
+        """Initializes the bidder class
 
-        self.logger = create_logger("bidder")
-        self.config = config
+        Args:
+            config (dict): The configuration of the bidder.
+        """
+        self.name = "Bidder"
 
-    def run(self) -> None:
+        self.logger: logging.Logger = create_logger(self.name.lower())
+        self.config: dict = config
+
+        self.background: multiprocessing.Process = None
+
+    def start(self) -> None:
+        """Starts the bidder background tasks."""
+        self.logger.info(f"{self.name} is starting background tasks")
+
+        self.background = multiprocessing.Process(target=self._background)
+
+        self.logger.info(f"{self.name} started background tasks")
+
+    def _background(self) -> None:
         """Runs the bidder background tasks."""
-        self.logger.info("Bidder is starting background tasks")
+        pass
 
-        while not self.exit.is_set():
-            self.logger.info("Bidder is running background tasks")
-            time.sleep(30)
+    def stop(self) -> None:
+        """Stops the bidder background tasks."""
+        self.logger.info(f"{self.name} is stopping background tasks")
 
-        self.logger.info("Bidder is terminating background tasks")
+        if self.background is not None and self.background.is_alive():
+            self.background.terminate()
+
+        self.logger.info(f"{self.name} stopped background tasks")
 
     def interact(self) -> None:
         """Handles the interactive command line interface for the bidder.

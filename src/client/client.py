@@ -1,19 +1,18 @@
 import multiprocessing
-import time
 
 import inquirer
 
-from util.helper import create_logger
+from util.helper import create_logger, logging
 from constant import interaction as inter
 
 from .auctioneer import Auctioneer
 from .bidder import Bidder
 
 
-class Client(multiprocessing.Process):
+class Client:
     """Client class for the client side of the peer-to-peer network.
 
-    The client class runs in a separate thread (process) from the server class.
+    The client class runs in a separate thread (process) from the server class (normally the main thread).
     It handles the two cases of client actions; auctioneering and bidding implemented in their respective classes.
 
     The client actions are given through an interactive command line interface, which will cause to run the respective methods.
@@ -26,42 +25,48 @@ class Client(multiprocessing.Process):
             config (dict): The configuration of the client.
 
         """
-        multiprocessing.Process.__init__(self)
-        self.exit = multiprocessing.Event()
+        self.name: str = "Client"
 
-        self.logger = create_logger("client")
-        self.config = config
+        self.logger: logging.Logger = create_logger(self.name.lower())
+        self.config: dict = config
 
-        self.auctioneer = Auctioneer(config=config)
-        self.bidder = Bidder(config=config)
+        self.background: multiprocessing.Process = None
+        self.auctioneer: Auctioneer = Auctioneer(config=config)
+        self.bidder: Bidder = Bidder(config=config)
 
-    def run(self) -> None:
-        """Runs the background tasks of the client."""
-        self.logger.info("Client is starting background tasks")
+    def start(self) -> None:
+        """Starts the client background tasks."""
+        self.logger.info(f"{self.name} is starting background tasks")
 
-        auctioneer_process = multiprocessing.Process(target=self.auctioneer.run)
-        auctioneer_process.start()
-        self.logger.info("Auctioneer process started")
+        self.auctioneer.start()
+        self.bidder.start()
 
-        bidder_process = multiprocessing.Process(target=self.bidder.run)
-        bidder_process.start()
-        self.logger.info("Bidder process started")
+        self.background = multiprocessing.Process(target=self._background)
 
-        while not self.exit.is_set():
-            time.sleep(10)
-            self.logger.info("Client is running background tasks")
+        self.logger.info(f"{self.name} started background tasks")
 
-        self.logger.info("Client is terminating background tasks")
-        auctioneer_process.terminate()
-        bidder_process.terminate()
+    def _background(self) -> None:
+        """Handles the client background tasks."""
+        pass
+
+    def stop(self) -> None:
+        """Stops the client background tasks."""
+        self.logger.info(f"{self.name} is stopping background tasks")
+
+        self.auctioneer.stop()
+        self.bidder.stop()
+
+        if self.background is not None and self.background.is_alive():
+            self.background.terminate()
+
+        self.logger.info(f"{self.name} stopped background tasks")
 
     def interact(self) -> None:
         """Handles the interactive command line interface for the client.
 
         This should be run in the main thread (process), handling user input.
         """
-        abort = False
-        while not abort:
+        while True:
             answer = inquirer.prompt(
                 [
                     inquirer.List(
@@ -82,11 +87,6 @@ class Client(multiprocessing.Process):
                 case "Bidder":
                     self.bidder.interact()
                 case "Stop":
-                    abort = True
+                    break
                 case _:
                     raise ValueError("Invalid action")
-
-    def stop(self) -> None:
-        """Stops the client."""
-        self.exit.set()
-        self.logger.info("Client is stopping")

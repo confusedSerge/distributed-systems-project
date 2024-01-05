@@ -30,12 +30,13 @@ class Server(multiprocessing.Process):
         """Runs the server background tasks."""
         self.logger.info("Server is starting background tasks")
         while not self.exit.is_set():
-            time.sleep(10)
             self.logger.info("Server is running background tasks")
+            time.sleep(10)
 
         self.logger.info("Server is terminating background tasks")
+        self.logger.info("Server terminated background tasks")
 
     def stop(self) -> None:
         """Stops the server."""
         self.exit.set()
-        self.logger.info("Server is stopping")
+        self.logger.info("Server received stop signal")
