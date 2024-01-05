@@ -38,13 +38,11 @@ class Bidder:
         self.background: multiprocessing.Process = None
 
         # Shared memory
-        _AuctionManager.register("AuctionAnnouncementStore", _AuctionAnnouncementStore)
+        _AuctionManager.register("_AuctionAnnouncementStore", _AuctionAnnouncementStore)
         _AuctionManager.register("Auction", Auction)
 
         self.manager: _AuctionManager = _AuctionManager()
-        self._auction_announcement_store: _AuctionAnnouncementStore = (
-            self.manager._AuctionAnnouncementStore()
-        )
+        self._auction_announcement_store: _AuctionAnnouncementStore = None
         self._joined_auctions: dict[str, Auction] = {}
 
     def start(self) -> None:
@@ -52,6 +50,9 @@ class Bidder:
         self.logger.info(f"{self.name} is starting background tasks")
 
         self.background = multiprocessing.Process(target=self._background)
+
+        self.manager.start()
+        self._auction_announcement_store = self.manager._AuctionAnnouncementStore()
 
         self.logger.info(f"{self.name} started background tasks")
 
