@@ -1,4 +1,4 @@
-from .multicast import *
+from .addresses import *
 from .message import *
 from .logger import *
 from .interaction import *

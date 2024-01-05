@@ -7,9 +7,21 @@ format = "[%(levelname)s] - %(asctime)s: %(message)s"
 
 [multicast.discovery]
 group = "224.1.1.1"
-port = "5007"
+port = 5007
 ttl = 32
+
+[multicast.auction]
+group_prefix = "224.2."
+initial_port = 5008
+
+[unicast.discovery]
+port = 5006
 
 [message]
 find-replica-request = "FIND_REPLICA_REQUEST"
+find-replica-response = "FIND_REPLICA_RESPONSE"
+find-replica-ack = "FIND_REPLICA_ACK"
+
+auction-replica-peers = "AUCTION_REPLICA_PEERS"
+
 auction-announcement = "AUCTION_ANNOUNCEMENT"

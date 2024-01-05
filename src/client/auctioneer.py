@@ -38,6 +38,7 @@ class Auctioneer:
         # Shared memory
         _AuctionManager.register("Auction", Auction)
 
+        self.manager_running = multiprocessing.Event()
         self.manager: _AuctionManager = _AuctionManager()
         self.auctions: dict[int, Auction] = {}
 
@@ -47,6 +48,7 @@ class Auctioneer:
 
         self.background = multiprocessing.Process(target=self._background)
         self.manager.start()
+        self.manager_running.set()
 
         self.logger.info(f"{self.name} started background tasks")
 
@@ -108,7 +110,12 @@ class Auctioneer:
         item, price, time = self._define_auction_item()
         _uuid = uuid.uuid4().int  # TODO: Generate unique id in a better way
 
-        self.auctions[uuid] = Auction(item, price, time, _uuid)
+        if not self.manager_running.is_set():
+            self.logger.error(
+                "Manager is not running, cannot create auction. This should not happen."
+            )
+        self.auctions[uuid] = self.manager.Auction(item, price, time, _uuid)
+
         # TODO: Start sub-auctioneer with auction
 
     def _define_auction_item(self) -> tuple[str, float, int]:

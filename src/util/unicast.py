@@ -5,7 +5,9 @@ class Unicast:
     """Unicast class for sending and receiving unicast messages."""
 
     def __init__(self, host: str, port: int, sender: bool = True):
-        """Initialize the unicast class.
+        """Initialize the unicast socket.
+
+        As we are using UDP, we can reuse the same address and port for sending and receiving messages.
 
         Args:
             host (str): The host to send and receive messages.
@@ -19,11 +21,12 @@ class Unicast:
         self.sender = sender
         self.socket = None
 
-        # Create the socket for unicast receiver
         if sender:
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         else:
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
             self.socket.bind(self.unicast_address)
 
     def send(self, message: str) -> None:

@@ -7,7 +7,15 @@ class Auction:
     This includes the item, starting price, time, bid history and winner.
     """
 
-    def __init__(self, item: str, price: float, time: int, _id: int = 0) -> None:
+    def __init__(
+        self,
+        item: str,
+        price: float,
+        time: int,
+        _id: int = 0,
+        multicast_group: str = "",
+        multicast_port: int = 0,
+    ) -> None:
         """Initializes the auction class.
 
         Args:
@@ -20,6 +28,10 @@ class Auction:
         self._item: str = item
         self._price: float = price
         self._time: int = time
+
+        # Multicast group and port are initially empty
+        self._multicast_group: str = ""
+        self._multicast_port: int = 0
 
         # Auction state is initially not started
         self._auction_state: tuple[int, str] = auction_constant.AUCTION_NOT_STARTED
@@ -68,6 +80,30 @@ class Auction:
             str: The winner of the auction.
         """
         return self._winner
+
+    def set_winner(self, winner: str) -> None:
+        """Sets the winner of the auction.
+
+        Args:
+            winner (str): The winner of the auction.
+        """
+        self._winner = winner
+
+    def get_id(self) -> int:
+        """Returns the id of the auction.
+
+        Returns:
+            int: The id of the auction.
+        """
+        return self._id
+
+    def get_multicast_group_port(self) -> tuple[str, int]:
+        """Returns the multicast group and port of the auction.
+
+        Returns:
+            str: The multicast group and port of the auction.
+        """
+        return (self._multicast_group, self._multicast_port)
 
     def __str__(self) -> str:
         return f"Auction for {self._item} with starting price {self._price} and time {self._time} currently in state {self._auction_state[1]}"
