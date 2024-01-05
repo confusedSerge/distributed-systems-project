@@ -1,0 +1,94 @@
+from util import Multicast, message
+from constant import multicast as constant_multicast
+
+class ISISProcess:
+    """ISISProcess class
+
+    This class implements the ISIS algorithm.
+
+    """
+    sender = Multicast(
+        constant_multicast.MULTICAST_DISCOVERY_GROUP,
+        constant_multicast.MULTICAST_DISCOVERY_PORT,
+        sender=True,
+        ttl=constant_multicast.MULTICAST_DISCOVERY_TTL,
+    )
+    receiver = Multicast(
+        constant_multicast.MULTICAST_DISCOVERY_GROUP,
+        constant_multicast.MULTICAST_DISCOVERY_PORT,
+        sender=False,
+        ttl=constant_multicast.MULTICAST_DISCOVERY_TTL,
+    )
+
+    def __init__(self):
+        self.sequence_id = 0
+        self.counter = 0
+        self.holdback_queue = []
+        self.suggested_sequence_list = []
+        self.sender_ip = self.sender.getIpAddress()
+        self.receiver_ip = self.receiver.getIpAddress()
+
+    def multicast_message(self, message: message.Message):
+        self.counter += 1
+        self.sender.send(message.message_content, self.counter, self.sender_ip)
+
+    def on_b_deliver_message(self):
+        """
+        b_deliver_message should be called when a message with the tuple (message, message_id, sender_ip) is received.
+
+        TODO: This function should inside an if cause which checks for incoming messages in this format. 
+        TODO: Also ip should be changed into an id by extracting the last part of the ip address. Important for sorting queue.
+        """
+        self.sequence_id += 1
+        message, address = self.receiver.receive()
+        self.sender.send(message_id=message[1], sequence_id=self.sequence_id)
+        self.holdback_queue.append({
+            'message': message[0],
+            'message_id': message[1],
+            'received_sender_IP': message[2],
+            'proposed_sequence_number': self.sequence_id,
+            'own_senderIP': self.sender_ip,
+            'status': 'undeliverable'
+        })
+
+    def on_receive(self):
+        """
+        on_receive should be called when a message with the tuple (message_id, sequence_id) is received.
+
+        TODO: This function should inside an if cause which checks for incoming messages in this format.
+        TODO: Also ip should be changed into an id by extracting the last part of the ip address. Important for sorting queue.
+        """
+        message, address = self.receiver.receive()
+        self.suggested_sequence_list.append({
+            'sequence_id': message[1],
+            'received_sender_ip': address[0]
+        })
+        
+        # TODO: Count members of multicast group and check if we have received sequence number from all processes.
+        # TODO: Then extract highest squence number with received_sender_ip from suggested_sequence_list. 
+        # TODO: Choose smallest received sender ip tuple if multipe suggest same squence id.
+
+        
+        sender_ip = self.sender_ip
+        # TODO: self.sender.send(message_id=message[1], sender_ip=sender_ip, sequence_id=highest sequence id, ip address of receiver of highest sequence id)
+        # TODO: end if
+
+    def on_b_deliver_final_message(self):
+        """
+        on_b_deliver_final_message should be called when a message with the tuple 
+        (message_id, sender_ip, (highest) sequence_id, sender_ip from (highest) sequence_id) is received.
+
+        TODO: This function should inside an if cause which checks for incoming messages in this format.
+        TODO: Also ip should be changed into an id by extracting the last part of the ip address. Important for sorting queue.
+        """
+
+        message, address = self.receiver.receive()
+        self.sequence_id = max(self.sequence_id, message[2])
+
+        # TODO: Modify message with id <mid, i> on hold-back queue.
+
+
+        
+
+    
+        
