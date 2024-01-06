@@ -1,7 +1,10 @@
 import time
 import multiprocessing
 
-from util.helper import create_logger
+from .replica import Replica
+
+from util import create_logger, Multicast, message as msgs
+from constant import addresses as addr, message as msg_tag
 
 
 class Server(multiprocessing.Process):
@@ -26,15 +29,46 @@ class Server(multiprocessing.Process):
         self.logger = create_logger("server")
         self.config = config
 
+        self.replica_pool: list[Replica] = []
+
     def run(self) -> None:
         """Runs the server background tasks."""
-        self.logger.info("Server is starting background tasks")
-        while not self.exit.is_set():
-            self.logger.info("Server is running background tasks")
-            time.sleep(10)
+        mc_discovery_listen = Multicast(
+            group=addr.MULTICAST_DISCOVERY_GROUP,
+            port=addr.MULTICAST_DISCOVERY_PORT,
+            sender=False,
+            ttl=addr.MULTICAST_DISCOVERY_TTL,
+        )
 
-        self.logger.info("Server is terminating background tasks")
-        self.logger.info("Server terminated background tasks")
+        while not self.exit.is_set():
+            try:
+                data, addr = mc_discovery_listen.receive()
+
+                if msgs.decode(data)["tag"] != msg_tag.FIND_REPLICA_REQUEST_TAG:
+                    continue
+
+                decoded_msg = msgs.FindReplicaRequest.decode(data)
+                self.logger.info(f"Received replica request from {addr[0]}:{addr[1]}")
+
+                if len(self.replica_pool) >= self.config["replica"]["pool_size"]:
+                    self.logger.info("Replica pool is full")
+                    continue
+
+                # Create replica and add to pool
+                self.logger.info("Creating replica")
+                replica = Replica(replica_request=decoded_msg)
+                replica.start()
+
+            except KeyboardInterrupt:
+                self.stop()
+            except Exception as e:
+                self.logger.error(f"Error in server: {e}")
+
+        # Release all replicas
+        for replica in self.replica_pool:
+            replica.terminate()
+
+        # Listen for replica requests
 
     def stop(self) -> None:
         """Stops the server."""

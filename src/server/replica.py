@@ -1,15 +1,37 @@
-class Replica:
+import multiprocessing
+
+from util import create_logger, Multicast, message as msgs
+
+
+class Replica(multiprocessing.Process):
     """Replica class.
 
-    Each replica is assigned to a specific auction and is responsible for keeping track of the auction.
-    One replica is the leader replica, which is responsible for handling the auction, including keeping a heartbeat of other replicas and finding new replicas.
-    The other replicas are followers, which are responsible for keeping a heartbeat of the leader replica. If the leader replica fails, a new leader replica is elected.
-    In the background, each replica updates its own state on update requests (new bids).
+    A replica is a server that is responsible for handling a single auction (in combination with other replica peers).
+
+    A replica can be described by the following state machine:
+        - Joining: The replica is joining the auction multicast group and sending a join message to the auctioneer.
+        - Ready: The replica has received its peers and state of auction.
+        - Timeout: The replica has did not receive its peers and state of auction in time.
+
+        - Leader Election -> Leader: The replica is the leader of the auction.
+        - Leader Election -> Follower: The replica is a follower of the auction.
+
+        - Leader: Handles monitoring of replica peers (heartbeats), finding replicas and "auctioning" (answering incoming requests).
+        - Follower: Answers heartbeat messages from the leader and starts a new election if the leader is not responding.
+
+        - Leader and Follower: Background listener of auction.
+
+        - Auction finished: Send winner and stop replica.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, replica_request: msgs.FindReplicaRequest) -> None:
         """Initializes the replica class."""
-        pass
+        multiprocessing.Process.__init__(self)
+        self.exit = multiprocessing.Event()
+
+        self.logger = create_logger("replica")
+
+        self.replica_request: msgs.FindReplicaRequest = replica_request
 
     def run(self) -> None:
         """Runs the replica background tasks."""
