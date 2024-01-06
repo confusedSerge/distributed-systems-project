@@ -169,7 +169,9 @@ FIND_REPLICA_ACKNOWLEDGE_SCHEMA = marshmallow_dataclass.class_schema(
 
 @dataclass
 class AuctionReplicaPeers:
-    """AuctionReplicaPeers class containing the peers of replicas for an auction."""
+    """AuctionReplicaPeers class containing the peers of replicas for an auction.
+    # TODO: Merge this into the auction information response.
+    """
 
     _id: str = field()
     tag: str = field(default=constant.message.AUCTION_REPLICA_PEERS_TAG)
