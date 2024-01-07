@@ -6,7 +6,8 @@ level = "DEBUG"
 format = "[%(levelname)s] - %(asctime)s: %(message)s"
 
 [server.replica]
-pool_size = 5
+local_pool_size = 5
+auction_pool_size = 5
 
 [communication.multicast.discovery]
 group = "224.1.1.1"

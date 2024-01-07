@@ -56,21 +56,20 @@ class AuctionManager(Process):
             request: MessageAuctionInformationRequest = (
                 MessageAuctionInformationRequest.decode(request)
             )
-            if self._auction.get_id() == request.auction_id:
+            if not request.auction_id and self._auction.get_id() == request.auction_id:
                 self.logger.info(
                     f"{self.name} received request {request} from {address} for another auction"
                 )
                 continue
 
             self.logger.info(f"{self.name} received request {request} from {address}")
-            response = MessageAuctionInformationResponse(
-                self._auction.get_id(),
-                auction_information=AuctionMessageData.from_auction(self._auction),
-            )
             Unicast.qsend(
+                MessageAuctionInformationResponse(
+                    self._auction.get_id(),
+                    auction_information=AuctionMessageData.from_auction(self._auction),
+                ),
                 address,
                 UNICAST_PORT,
-                response.encode(),
             )
 
         self.logger.info(f"{self.name} stopped managing auction")

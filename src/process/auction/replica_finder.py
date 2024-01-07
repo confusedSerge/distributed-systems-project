@@ -8,6 +8,8 @@ from communication import (
     MessageFindReplicaRequest,
     MessageFindReplicaResponse,
     MessageFindReplicaAcknowledgement,
+    AuctionMessageData,
+    MessageAuctionInformationResponse,
 )
 
 from model import Auction
@@ -16,7 +18,7 @@ from constant import (
     MULTICAST_DISCOVERY_GROUP,
     MULTICAST_DISCOVERY_PORT,
     UNICAST_PORT,
-    REPLICA_POOL_SIZE,
+    REPLICA_AUCTION_POOL_SIZE,
 )
 
 from util import create_logger
@@ -62,13 +64,16 @@ class ReplicaFinder(Process):
         emitter = Process(target=self._emit_request)
         emitter.start()
 
-        while len(self._replicas_list) < REPLICA_POOL_SIZE and not self._exit.is_set():
+        new_replicas: list[str] = []
+        while (
+            len(self._replicas_list) + len(new_replicas) < REPLICA_AUCTION_POOL_SIZE
+            and not self._exit.is_set()
+        ):
             # Receive find replica response
             response, address = uc.receive()
 
             if not MessageSchema.of(hdr.FIND_REPLICA_RESPONSE, response):
                 continue
-
             response: MessageFindReplicaResponse = MessageFindReplicaResponse.decode(
                 response
             )
@@ -79,21 +84,40 @@ class ReplicaFinder(Process):
                 continue
 
             # Send find replica acknowledgement
-            acknowledgement: MessageFindReplicaAcknowledgement = (
-                MessageFindReplicaAcknowledgement(auction_id=self._auction.get_id())
+            Unicast.qsend(
+                MessageFindReplicaAcknowledgement(
+                    auction_id=self._auction.get_id()
+                ).encode(),
+                address,
+                UNICAST_PORT,
             )
-            Unicast.qsend(address, UNICAST_PORT, acknowledgement.encode())
 
             # Add replica to list
             self._replicas_list.append(address)
+            new_replicas.append(address)
 
         if (
             not self._exit.is_set()
-            and len(self._replicas_list) >= REPLICA_POOL_SIZE
+            and len(self._replicas_list) + len(new_replicas)
+            >= REPLICA_AUCTION_POOL_SIZE
             and emitter.is_alive()
         ):
             self.logger.info(f"{self.name} found enough replicas, stopping emitter")
             emitter.terminate()
+
+        # Send Auction Information to new replicas
+        for replica in new_replicas:
+            self.logger.info(
+                f"{self.name} sending auction information to new replica {replica}"
+            )
+            Unicast.qsend(
+                MessageAuctionInformationResponse(
+                    _id=self._auction.get_id(),
+                    auction_information=AuctionMessageData.from_auction(self._auction),
+                ).encode(),
+                replica,
+                UNICAST_PORT,
+            )
 
         self.logger.info(f"{self.name} stopped finding replicas")
 

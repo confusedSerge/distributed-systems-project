@@ -52,3 +52,8 @@ class AuctionAnnouncementListener(Process):
                     f"{self.name} received new announcement {announcement} from {address}"
                 )
                 self._store.add(announcement)
+
+    def stop(self) -> None:
+        """Stops the auction listener process."""
+        self.logger.info(f"{self.name} received stop signal")
+        self._exit.set()

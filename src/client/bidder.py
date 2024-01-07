@@ -1,24 +1,34 @@
-import multiprocessing
-from multiprocessing import Manager
-from multiprocessing.managers import BaseManager
 import uuid
+from multiprocessing import Process, Event
 
-import re
 import inquirer
 
-from model.auction import Auction
-from util import (
-    AuctionAnnouncement,
-    create_logger,
-    logging,
+from model import Auction, AuctionAnnouncementStore
+from process import Manager, AuctionAnnouncementListener, AuctionBidListener
+from communication import (
     Multicast,
     Unicast,
-    message as msgs,
+    MessageSchema,
+    AuctionMessageData,
+    MessageAuctionInformationRequest,
+    MessageAuctionInformationResponse,
+    MessageAuctionBid,
 )
-from constant import communication as addr, interaction as inter
 
 
-class Bidder:
+from util import create_logger, logging
+
+from constant import (
+    interaction as inter,
+    header as hdr,
+    MULTICAST_DISCOVERY_GROUP,
+    MULTICAST_DISCOVERY_PORT,
+    MULTICAST_DISCOVERY_TTL,
+    UNICAST_PORT,
+)
+
+
+class Bidder(Process):
     """The bidder class handles the bidding process of the client.
 
     Bidder is run in the main thread (process) of the client and delegates its background tasks (listeners) to other processes, sharing the same memory.
@@ -32,38 +42,40 @@ class Bidder:
     - Leaving as a bidder: The bidder leaves the multicast group, stops listening for auction announcements and clears the list of auctions.
     """
 
-    def __init__(self, config: dict) -> None:
+    def __init__(
+        self,
+    ) -> None:
         """Initializes the bidder class
 
         Args:
             config (dict): The configuration of the bidder.
         """
-        self.name = "Bidder"
+        super().__init__()
+        self._exit = Event()
 
+        self.name = "Bidder"
         self.logger: logging.Logger = create_logger(self.name.lower())
-        self.config: dict = config
 
         # Shared memory
-        _AuctionManager.register("_AuctionAnnouncementStore", _AuctionAnnouncementStore)
-        _AuctionManager.register("Auction", Auction)
+        self.manager_running = Event()
+        self.manager: Manager = Manager()
 
-        self.manager: _AuctionManager = _AuctionManager()
-
-        self._auction_announcement_store: _AuctionAnnouncementStore = None
-        self._auction_announcement_process: multiprocessing.Process = None
+        self._auction_announcement_store: AuctionAnnouncementStore = None
+        self._auction_announcement_process: AuctionAnnouncementListener = None
 
         self._joined_auctions: dict[str, Auction] = {}
-        self._auction_listeners: dict[str, multiprocessing.Process] = {}
+        self._auction_bid_listeners: dict[str, AuctionBidListener] = {}
 
     def start(self) -> None:
         """Starts the bidder background tasks."""
         self.logger.info(f"{self.name} is starting background tasks")
 
         self.manager.start()
+        self.manager_running.set()
 
         # Start auction announcement listener
-        self._auction_announcement_store = self.manager._AuctionAnnouncementStore()
-        self._auction_announcement_process = _AuctionAnnouncementListener(
+        self._auction_announcement_store = self.manager.AuctionAnnouncementStore()
+        self._auction_announcement_process = AuctionAnnouncementListener(
             self._auction_announcement_store
         )
         self._auction_announcement_process.start()
@@ -74,15 +86,13 @@ class Bidder:
         """Stops the bidder background tasks."""
         self.logger.info(f"{self.name} is stopping background tasks")
 
-        if (
-            self._auction_announcement_process
-            and self._auction_announcement_process.is_alive()
-        ):
-            self._auction_announcement_process.terminate()
+        self._auction_announcement_process.stop()
 
-        for auction_listener in self._auction_listeners.values():
-            if auction_listener.is_alive():
-                auction_listener.terminate()
+        for auction_listener in self._auction_bid_listeners.values():
+            auction_listener.stop()
+
+        self.manager_running.clear()
+        self.manager.stop()
 
         self.logger.info(f"{self.name} stopped background tasks")
 
@@ -141,78 +151,64 @@ class Bidder:
         print(f"* Winner: {auction.get_winner() if auction.get_winner() else 'None'}")
 
     def _join_auction(self) -> None:
-        """Joins an auction
-
-        TODO: Reduce complexity
-        """
+        """Joins an auction"""
         not_joined_auctions: list[str] = [
             auction_id
             for auction_id in self._auction_announcement_store.keys()
             if auction_id not in self._joined_auctions
         ]
         auction_id = self._choose_auction(not_joined_auctions)
+        response: AuctionMessageData = self._get_auction_information(auction_id)
 
-        # Request auction information by sending information request to multicast group of auction
-        try:
-            auction_announcement: AuctionAnnouncement = (
-                self._auction_announcement_store.get(auction_id)
-            )
-        except ValueError as e:
-            self.logger.error(f"Auction announcement with id {auction_id} not found")
-            return
-
-        mc_sender = Multicast(
-            auction_announcement.get_multicast_group(),
-            auction_announcement.get_multicast_port(),
-        )
-        unicast_listener = Unicast("", addr.UNICAST_PORT, sender=False)
-
-        mc_sender.send(
-            msgs.AuctionInformationRequest(
-                _id=str(uuid.uuid4()), auction_id=auction_id
-            ).encode()
-        )
-
-        decoded_response = None
-        # wait for auction information response
-        while True:
-            response, _ = unicast_listener.receive()
-
-            decoded_response = msgs.decode(response)
-            if decoded_response["tag"] != msgs.tag.AUCTION_INFORMATION_RESPONSE_TAG:
-                continue
-
-            decoded_response = msgs.AuctionInformationResponse.decode(response)
-            if decoded_response._id != auction_id:
-                continue
-            break
-
-        if decoded_response is None:
+        if response is None:
             self.logger.error(
                 f"Could not get auction information for auction {auction_id}"
             )
             return
 
-        auction: Auction = self.manager.Auction(
-            decoded_response.item,
-            decoded_response.price,
-            decoded_response.time,
-            decoded_response.auction_id,
-            decoded_response.multicast_group,
-            decoded_response.multicast_port,
-        )
-        auction.set_state(decoded_response.auction_state)
-        auction.set_bid_history(decoded_response.bid_history)
-        auction.set_winner(decoded_response.winner)
-
-        # Join auction by joining multicast group of auction
-        auction_listener: multiprocessing.Process = multiprocessing.Process(
-            target=self._auction_listener, args=(auction,)
-        )
-        auction_listener.start()
+        auction: Auction = AuctionMessageData.to_auction(response)
+        listener: AuctionBidListener = AuctionBidListener(auction)
+        listener.start()
 
         self._joined_auctions[auction_id] = auction
-        self._auction_listeners[auction_id] = auction_listener
+        self._auction_bid_listeners[auction_id] = listener
+
+    def _get_auction_information(self, auction_id: str) -> AuctionMessageData:
+        """Gets the auction information for an auction.
+
+        Args:
+            auction_id (str): The auction id of the auction to get the information for.
+
+        Returns:
+            AuctionMessageData: The auction information or None if the auction could not be found.
+        """
+
+        # Send auction information request
+        uc = Unicast("", UNICAST_PORT, sender=False)
+        Multicast.qsend(
+            MessageAuctionInformationRequest(auction_id=auction_id).encode(),
+            MULTICAST_DISCOVERY_GROUP,
+            MULTICAST_DISCOVERY_PORT,
+            MULTICAST_DISCOVERY_TTL,
+        )
+
+        # wait for auction information response
+        # TODO: Timeout and return None
+        while True:
+            response, _ = uc.receive()
+
+            if not MessageSchema.of(hdr.AUCTION_INFORMATION_RES, response):
+                continue
+
+            response: MessageAuctionInformationResponse = (
+                MessageAuctionInformationResponse.decode(response)
+            )
+            if response._id != auction_id:
+                continue
+
+            break
+
+        return response.auction_information
 
     def _leave_auction(self) -> None:
         """Leaves an auction"""
@@ -223,7 +219,7 @@ class Bidder:
             )
             return
         self._joined_auctions.pop(auction_id)
-        self._auction_listeners.pop(auction_id).terminate()
+        self._auction_bid_listeners.pop(auction_id).stop()
 
     def _bid(self) -> None:
         """Bids in an auction"""
@@ -232,30 +228,23 @@ class Bidder:
 
         auction = self._joined_auctions[auction_id]
         if auction.get_state() != 1:
-            self.logger.error(
-                f"Auction with id {auction_id} is not running. Cannot bid."
-            )
+            print(f"Auction with id {auction_id} is not running. Cannot bid.")
             return
         if bid_amount <= auction.get_highest_bid():
-            self.logger.error(
+            print(
                 f"Bid amount {bid_amount} is not higher than highest bid {auction.get_highest_bid()}"
             )
             return
 
         auction.bid(self.name, bid_amount)
-
-        mc_group, mc_port = auction.get_multicast_group_port()
-        mc_sender = Multicast(
-            mc_group,
-            mc_port,
-        )
-        mc_sender.send(
-            msgs.AuctionBid(
-                _id=str(uuid.uuid4()),
+        Multicast.qsend(
+            MessageAuctionBid(
                 auction_id=auction_id,
-                bidder=self.name,
+                bidder_id=self.name,
                 bid=bid_amount,
-            ).encode()
+            ).encode(),
+            group=auction.get_multicast_group(),
+            port=auction.get_multicast_port(),
         )
 
     def _choose_auction(self, auction_ids: list[int]) -> int:

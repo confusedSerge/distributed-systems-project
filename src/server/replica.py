@@ -1,12 +1,30 @@
-import multiprocessing
+from time import sleep
+from multiprocessing import Process, Event
 
 from model import Auction
+from communication import (
+    Multicast,
+    Unicast,
+    MessageSchema,
+    MessageFindReplicaRequest,
+    MessageFindReplicaResponse,
+    MessageFindReplicaAcknowledgement,
+    AuctionMessageData,
+    MessageAuctionInformationResponse,
+)
 
-from util import create_logger, Multicast, Unicast, message as msgs, listen_auction
-from constant import communication as addr, message as msg_tag
+from process import AuctionBidListener
+
+from constant import (
+    header as hdr,
+    UNICAST_PORT,
+    REPLICA_LOCAL_POOL_SIZE,
+)
+
+from util import create_logger
 
 
-class Replica(multiprocessing.Process):
+class Replica(Process):
     """Replica class.
 
     A replica is a server that is responsible for handling a single auction (in combination with other replica peers).
@@ -27,44 +45,37 @@ class Replica(multiprocessing.Process):
         - Auction finished: Send winner and stop replica.
     """
 
-    def __init__(self, replica_request: msgs.FindReplicaRequest) -> None:
+    def __init__(self, request: MessageFindReplicaRequest) -> None:
         """Initializes the replica class."""
-        multiprocessing.Process.__init__(self)
-        self.exit = multiprocessing.Event()
+        super.__init__(self)
+        self.exit = Event()
 
-        self.logger = create_logger("replica")
-
-        self.replica_request: msgs.FindReplicaRequest = replica_request
-
+        self.request: MessageFindReplicaRequest = request
         self.auction: Auction = None
-
         self.peers: list[str] = []
 
-        self.leader_election = multiprocessing.Event()
-        self.leader: bool = False
-        self.leader_address: tuple[str, int] = None
-
-        self.auction_listener: multiprocessing.Process = None
+        self.name = f"Replica-{request._id}"
+        self.logger = create_logger(self.name.lower())
 
     def run(self) -> None:
         """Runs the replica background tasks."""
         self._prelude()
 
         # Start auction listener
-        self.auction_listener = multiprocessing.Process(
-            target=listen_auction, args=(self.auction,)
-        )
+        self.auction_listener = AuctionBidListener(self.auction)
         self.auction_listener.start()
 
-        # Start replica leader/follower tasks
-        # TODO: This is a temporary stub placeholder, as not yet implemented
-        # TODO: This should be a separate process defined by a class
+        # Start replica leader/follower tasks (heartbeat, election, etc.)
+        # TODO: impl leader/follower tasks
         while not self.exit.is_set():
-            self._leader_election()
-            if self.leader:
-                self._leader()
-            else:
-                self._follower()
+            sleep(10)
+
+        self.auction_listener.stop()
+
+    def stop(self) -> None:
+        """Stops the replica."""
+        self.exit.set()
+        self.logger.info("Replica received stop signal")
 
     def _prelude(self) -> None:
         """Handles the prelude of the replica.
@@ -76,43 +87,47 @@ class Replica(multiprocessing.Process):
             - On timeout, leave the auction multicast group and stop the replica.
         """
         # Join auction multicast group
-        mc_auction_listen = Multicast(
-            group=self.replica_request.auctioneer_address,
-            port=self.replica_request.auctioneer_port,
+        mc = Multicast(
+            group=self.request.multicast_address[0],
+            port=self.request.multicast_address[1],
             sender=False,
-            ttl=1,
         )
 
         # Send join message to auctioneer
-        uc_auctioneer_send = Unicast(
-            address=self.replica_request.auctioneer_address,
-            port=self.replica_request.auctioneer_port,
-        )
-        uc_auctioneer_send.send(
-            msgs.FindReplicaResponse(_id=self.replica_request._id).encode()
+        Unicast.qsend(
+            MessageFindReplicaResponse(self.request._id).encode(),
+            self.request.multicast_address[0],
+            self.request.multicast_address[1],
         )
 
-        # Wait for auctioneer to send auction information and peers
+        # Wait for auctioneer to acknowledge, or timeout
+        # TODO: Timeout
+        uc = Unicast("", port=UNICAST_PORT, sender=False)
         while not self.exit.is_set():
-            data, addr = mc_auction_listen.receive()
+            response, _ = uc.receive()
 
-            if msgs.decode(data)["tag"] != msg_tag.AUCTION_REPLICA_PEERS_TAG:
+            if not MessageSchema.of(hdr.FIND_REPLICA_ACKNOWLEDGEMENT, response):
                 continue
 
-            # TODO: Assume this also contains the auction information
-            decoded_msg: msgs.AuctionReplicaPeers = msgs.AuctionReplicaPeers.decode(
-                data
+            response: MessageFindReplicaAcknowledgement = (
+                MessageFindReplicaAcknowledgement.decode(response)
             )
-            self.logger.info(f"Received auction information from {addr[0]}:{addr[1]}")
+            if response.auction_id != self.request._id:
+                continue
 
-            # Create auction
-            self.auction = Auction(
-                item="",
-                price=0,
-                time=0,
-                _id=decoded_msg._id,
-                multicast_group=decoded_msg.multicast_group,
-                multicast_port=decoded_msg.multicast_port,
+            break
+
+        while not self.exit.is_set():
+            msg, addr = mc.receive()
+
+            if not MessageSchema.of(hdr.AUCTION_INFORMATION_RES, msg):
+                continue
+
+            # TODO: peer list!
+            msg: MessageAuctionInformationResponse = (
+                MessageAuctionInformationResponse.decode(msg)
             )
+            self.auction = AuctionMessageData.to_auction(msg.auction_information)
+            self.logger.info(f"Received auction information from {addr[0]}:{addr[1]}")
 
             break

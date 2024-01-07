@@ -1,15 +1,15 @@
-import multiprocessing
+from multiprocessing import Process, Event
 
 import inquirer
 
-from util.helper import create_logger, logging
+from util import create_logger, logging
 from constant import interaction as inter
 
 from .auctioneer import Auctioneer
 from .bidder import Bidder
 
 
-class Client:
+class Client(Process):
     """Client class for the client side of the peer-to-peer network.
 
     The client class runs in a separate thread (process) from the server class (normally the main thread).
@@ -18,48 +18,33 @@ class Client:
     The client actions are given through an interactive command line interface, which will cause to run the respective methods.
     """
 
-    def __init__(self, config: dict) -> None:
-        """Initializes the client class.
+    def __init__(self) -> None:
+        """Initializes the client class."""
+        super().__init__()
+        self._exit = Event()
 
-        Args:
-            config (dict): The configuration of the client.
-
-        """
         self.name: str = "Client"
-
         self.logger: logging.Logger = create_logger(self.name.lower())
-        self.config: dict = config
 
-        self.background: multiprocessing.Process = None
-        self.auctioneer: Auctioneer = Auctioneer(config=config)
-        self.bidder: Bidder = Bidder(config=config)
+        self._auctioneer: Auctioneer = Auctioneer()
+        self._bidder: Bidder = Bidder()
 
-    def start(self) -> None:
+    def run(self) -> None:
         """Starts the client background tasks."""
         self.logger.info(f"{self.name} is starting background tasks")
 
-        self.auctioneer.start()
-        self.bidder.start()
-
-        self.background = multiprocessing.Process(target=self._background)
+        self._auctioneer.start()
+        self._bidder.start()
 
         self.logger.info(f"{self.name} started background tasks")
 
-    def _background(self) -> None:
-        """Handles the client background tasks."""
-        pass
-
     def stop(self) -> None:
         """Stops the client background tasks."""
-        self.logger.info(f"{self.name} is stopping background tasks")
+        self.logger.info(f"{self.name} received stop signal")
+        self._exit.set()
 
-        self.auctioneer.stop()
-        self.bidder.stop()
-
-        if self.background is not None and self.background.is_alive():
-            self.background.terminate()
-
-        self.logger.info(f"{self.name} stopped background tasks")
+        self._auctioneer.stop()
+        self._bidder.stop()
 
     def interact(self) -> None:
         """Handles the interactive command line interface for the client.
