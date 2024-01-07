@@ -72,3 +72,17 @@ class Multicast:
     def close(self) -> None:
         """Close the multicast socket."""
         self.socket.close()
+
+    @staticmethod
+    def qsend(group: str, port: int, message: bytes, ttl: int = 32) -> None:
+        """Send a message to the multicast group.
+
+        Args:
+            group (str): The multicast group to send and receive messages.
+            port (int): The port to send and receive messages.
+            message (bytes): The message to send in bytes.
+            ttl (int, optional): The time to live for the multicast messages. Defaults to 32.
+        """
+        mc = Multicast(group, port, sender=True, ttl=ttl)
+        mc.send(message)
+        mc.close()

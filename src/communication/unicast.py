@@ -54,3 +54,14 @@ class Unicast:
     def close(self) -> None:
         """Close the unicast socket."""
         self.socket.close()
+
+    @staticmethod
+    def qsend(host: str, port: int, message: str) -> None:
+        """Send a message to the unicast host.
+
+        Args:
+            message (str): The message to send.
+        """
+        uc = Unicast(host, port, sender=True)
+        uc.send(message)
+        uc.close()
