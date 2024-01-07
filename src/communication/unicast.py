@@ -60,6 +60,8 @@ class Unicast:
         """Send a message to the unicast host.
 
         Args:
+            host (str): The host to send the message to.
+            port (int): The port to send the message to.
             message (str): The message to send.
         """
         uc = Unicast(host, port, sender=True)

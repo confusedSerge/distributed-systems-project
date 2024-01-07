@@ -78,8 +78,24 @@ class Auction:
         """
         return self._multicast_address
 
+    def get_multicast_group(self) -> str:
+        """Returns the multicast group of the auction.
+
+        Returns:
+            str: The multicast group of the auction.
+        """
+        return self._multicast_address[0]
+
+    def get_multicast_port(self) -> int:
+        """Returns the multicast port of the auction.
+
+        Returns:
+            int: The multicast port of the auction.
+        """
+        return self._multicast_address[1]
+
     # TODO: Restructure following methods
-    def bid(self, bidder: str, bid: float) -> None:
+    def add_bid(self, bidder: str, bid: float) -> None:
         """Adds a bid to the bid history.
 
         Args:

@@ -26,6 +26,7 @@ find-replica-res = "FIND_REPLICA_RESPONSE"
 find-replica-ack = "FIND_REPLICA_ACK"
 
 [communication.header.auction]
+auction-announcement = "AUCTION_ANNOUNCEMENT"
 auction-information-req = "AUCTION_INFORMATION_REQUEST"
 auction-information-res = "AUCTION_INFORMATION_RESPONSE"
 auction-bid = "AUCTION_BID"

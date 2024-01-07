@@ -19,14 +19,10 @@ class MessageAuctionInformationRequest:
         metadata={"validate": validate.OneOf([com.HEADER_AUCTION_INFORMATION_REQ])},
     )
 
-    # A list of auction ids. If the list is empty, then the auction information
-    # request is for all auctions.
-    auction_id: list[str] = field(
-        metadata={
-            "validate": validate.Validator(
-                lambda x: isinstance(x, list) and all(isinstance(i, str) for i in x)
-            )
-        }
+    # corresponding auction information. If empty str, return all auctions.
+    auction_id: str = field(
+        default="",
+        metadata={"validate": validate.Validator(lambda x: isinstance(x, str))},
     )
 
     def __str__(self) -> str:

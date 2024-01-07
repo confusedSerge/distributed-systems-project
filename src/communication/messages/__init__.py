@@ -8,6 +8,7 @@ from .replica import (
 )
 
 from .auction import (
+    MessageAuctionAnnouncement,
     MessageAuctionInformationRequest,
     MessageAuctionInformationResponse,
     MessageAuctionWinner,
