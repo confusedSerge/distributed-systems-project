@@ -1,4 +1,4 @@
-from constant import state as auction_constant
+from constant import auction as state
 
 
 class Auction:
@@ -32,7 +32,7 @@ class Auction:
         self._multicast_address = multicast_address
 
         # Auction state is initially not started
-        self._auction_state: tuple[int, str] = auction_constant.AUCTION_NOT_STARTED
+        self._auction_state: tuple[int, str] = state.AUCTION_NOT_STARTED
 
         # Bid history is a list of tuples (bidder, bid)
         self._bid_history: list[tuple[str, float]] = []
@@ -131,12 +131,12 @@ class Auction:
     def next_state(self) -> None:
         """Sets the next state of the auction."""
         match self._auction_state:
-            case auction_constant.AUCTION_NOT_STARTED:
-                self._auction_state = auction_constant.AUCTION_RUNNING
-            case auction_constant.AUCTION_RUNNING:
-                self._auction_state = auction_constant.AUCTION_ENDED
-            case auction_constant.AUCTION_ENDED:
-                self._auction_state = auction_constant.AUCTION_NOT_STARTED
+            case state.AUCTION_NOT_STARTED:
+                self._auction_state = state.AUCTION_RUNNING
+            case state.AUCTION_RUNNING:
+                self._auction_state = state.AUCTION_ENDED
+            case state.AUCTION_ENDED:
+                self._auction_state = state.AUCTION_NOT_STARTED
 
     def get_state(self) -> tuple[int, str]:
         """Returns the state of the auction.

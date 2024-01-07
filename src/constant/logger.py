@@ -1,17 +1,16 @@
-import tomllib
 import logging
 
 from util.helper import load_config
 
-config = load_config()
+config = load_config()["logger"]
 
 # Logger
-LOGGING_PATH: str = config["logger"]["path"]
-LOGGING_FORMAT: str = config["logger"]["format"]
+LOGGING_PATH: str = config["path"]
+LOGGING_FORMAT: str = config["format"]
 
 # Calculate the logging level from the string
 LOGGING_LEVEL: int = logging.INFO
-match config["logger"]["level"]:
+match config["level"]:
     case "DEBUG":
         LOGGING_LEVEL = logging.DEBUG
     case "INFO":

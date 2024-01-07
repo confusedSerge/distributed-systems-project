@@ -1,7 +1,8 @@
 """This module contains functions for certain processes, which are common to both the client and the server."""
 
+from constant.state import auction as auc_state
 from model import Auction
-from constant import communication as addr, message as msgs_tag, state as auc_state
+from constant import communication as addr, message as msgs_tag
 
 from .message import FindReplicaRequest, FindReplicaResponse, AuctionBid, decode
 from .multicast import Multicast
