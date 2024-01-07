@@ -15,7 +15,7 @@ from util import (
     Unicast,
     message as msgs,
 )
-from constant import interaction as inter, addresses as addr
+from constant import communication as addr, interaction as inter
 
 
 class Bidder:

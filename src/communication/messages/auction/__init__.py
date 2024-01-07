@@ -1,0 +1,7 @@
+from .auction_dataclass import AuctionData as AuctionMessageData
+
+from .auction_information_req import MessageAuctionInformationRequest
+from .auction_information_res import MessageAuctionInformationResponse
+
+from .auction_winner import MessageAuctionWinner
+from .auction_bid import MessageAuctionBid

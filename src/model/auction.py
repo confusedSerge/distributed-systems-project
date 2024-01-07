@@ -1,4 +1,4 @@
-from constant import auction as auction_constant
+from constant import state as auction_constant
 
 
 class Auction:
@@ -9,12 +9,11 @@ class Auction:
 
     def __init__(
         self,
+        _id: str,
         item: str,
         price: float,
         time: int,
-        _id: str,
-        multicast_group: str = "",
-        multicast_port: int = 0,
+        multicast_address: tuple[str, int],
     ) -> None:
         """Initializes the auction class.
 
@@ -30,8 +29,7 @@ class Auction:
         self._time: int = time
 
         # Multicast group and port are initially empty
-        self._multicast_group: str = multicast_group
-        self._multicast_port: int = multicast_port
+        self._multicast_address = multicast_address
 
         # Auction state is initially not started
         self._auction_state: tuple[int, str] = auction_constant.AUCTION_NOT_STARTED
@@ -39,6 +37,14 @@ class Auction:
         # Bid history is a list of tuples (bidder, bid)
         self._bid_history: list[tuple[str, float]] = []
         self._winner: str = ""
+
+    def get_id(self) -> str:
+        """Returns the id of the auction.
+
+        Returns:
+            str: The id of the auction.
+        """
+        return self._id
 
     def get_item(self) -> tuple[str, float, int]:
         """Returns the item, price and time of the auction.
@@ -48,6 +54,31 @@ class Auction:
         """
         return self._item, self._price, self._time
 
+    def get_price(self) -> float:
+        """Returns the starting price of the auction.
+
+        Returns:
+            float: The price of the auction.
+        """
+        return self._price
+
+    def get_time(self) -> int:
+        """Returns the time of the auction.
+
+        Returns:
+            int: The time of the auction.
+        """
+        return self._time
+
+    def get_multicast_address(self) -> tuple[str, int]:
+        """Returns the multicast group and port of the auction.
+
+        Returns:
+            str: The multicast group and port of the auction.
+        """
+        return self._multicast_address
+
+    # TODO: Restructure following methods
     def bid(self, bidder: str, bid: float) -> None:
         """Adds a bid to the bid history.
 
@@ -96,22 +127,6 @@ class Auction:
             winner (str): The winner of the auction.
         """
         self._winner = winner
-
-    def get_id(self) -> str:
-        """Returns the id of the auction.
-
-        Returns:
-            str: The id of the auction.
-        """
-        return self._id
-
-    def get_multicast_group_port(self) -> tuple[str, int]:
-        """Returns the multicast group and port of the auction.
-
-        Returns:
-            str: The multicast group and port of the auction.
-        """
-        return (self._multicast_group, self._multicast_port)
 
     def next_state(self) -> None:
         """Sets the next state of the auction."""

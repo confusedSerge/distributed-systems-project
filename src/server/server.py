@@ -4,7 +4,7 @@ import multiprocessing
 from .replica import Replica
 
 from util import create_logger, Multicast, message as msgs
-from constant import addresses as addr, message as msg_tag
+from constant import communication as addr, message as msg_tag
 
 
 class Server(multiprocessing.Process):

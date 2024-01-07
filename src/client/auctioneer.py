@@ -9,7 +9,7 @@ from model import Auction
 
 from util.helper import create_logger, logging
 from util import Multicast, Unicast, find_replicas, listen_auction, message as msgs
-from constant import interaction as inter, addresses as addr, auction as auction_state
+from constant import communication as addr, interaction as inter, state as auction_state
 
 
 class Auctioneer:

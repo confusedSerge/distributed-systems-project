@@ -3,7 +3,7 @@ import multiprocessing
 from model import Auction
 
 from util import create_logger, Multicast, Unicast, message as msgs, listen_auction
-from constant import addresses as addr, message as msg_tag
+from constant import communication as addr, message as msg_tag
 
 
 class Replica(multiprocessing.Process):
