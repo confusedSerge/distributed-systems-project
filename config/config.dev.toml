@@ -9,6 +9,9 @@ format = "[%(levelname)s] - %(asctime)s: %(message)s"
 local_pool_size = 5
 auction_pool_size = 5
 
+[communication]
+timeout = 60
+
 [communication.multicast.discovery]
 group = "224.1.1.1"
 port = 5007

@@ -10,18 +10,24 @@ class Timeout:
             # do stuff
 
     If the code inside the context manager takes longer than 5 seconds to
-    execute, a TimeoutError will be raised.
+    execute, a TimeoutError will be raised, if throw_exception is set.
     """
 
     def __init__(self, seconds: int, throw_exception: bool = False):
+        """Initializes the timeout class.
+
+        Args:
+            seconds (int): The number of seconds to wait before raising a TimeoutError.
+            throw_exception (bool, optional): Whether to throw a TimeoutError or not. Defaults to False.
+        """
         self.seconds = seconds
         self.throw_exception = throw_exception
 
-    def handle_timeout(self, signum, frame):
+    def _handle_timeout(self, signum, frame):
         raise TimeoutError("Timed out after {} seconds".format(self.seconds))
 
     def __enter__(self):
-        signal.signal(signal.SIGALRM, self.handle_timeout)
+        signal.signal(signal.SIGALRM, self._handle_timeout)
         signal.alarm(self.seconds)
 
     def __exit__(self, type, value, traceback):

@@ -17,11 +17,12 @@ from process import AuctionBidListener
 
 from constant import (
     header as hdr,
+    TIMEOUT,
     UNICAST_PORT,
     REPLICA_LOCAL_POOL_SIZE,
 )
 
-from util import create_logger
+from util import create_logger, Timeout, TimeoutError
 
 
 class Replica(Process):
@@ -101,33 +102,48 @@ class Replica(Process):
         )
 
         # Wait for auctioneer to acknowledge, or timeout
-        # TODO: Timeout
         uc = Unicast("", port=UNICAST_PORT, sender=False)
-        while not self.exit.is_set():
-            response, _ = uc.receive()
+        try:
+            with Timeout(TIMEOUT, throw_exception=True):
+                while not self.exit.is_set():
+                    response, _ = uc.receive()
 
-            if not MessageSchema.of(hdr.FIND_REPLICA_ACKNOWLEDGEMENT, response):
-                continue
+                    if not MessageSchema.of(hdr.FIND_REPLICA_ACKNOWLEDGEMENT, response):
+                        continue
 
-            response: MessageFindReplicaAcknowledgement = (
-                MessageFindReplicaAcknowledgement.decode(response)
-            )
-            if response.auction_id != self.request._id:
-                continue
+                    response: MessageFindReplicaAcknowledgement = (
+                        MessageFindReplicaAcknowledgement.decode(response)
+                    )
+                    if response.auction_id != self.request._id:
+                        continue
 
-            break
+                    break
+        except TimeoutError:
+            self.logger.info("Did not receive acknowledgement from auctioneer")
+            self.stop()
+            return
 
-        while not self.exit.is_set():
-            msg, addr = mc.receive()
+        try:
+            with Timeout(TIMEOUT, throw_exception=True):
+                while not self.exit.is_set():
+                    msg, addr = mc.receive()
 
-            if not MessageSchema.of(hdr.AUCTION_INFORMATION_RES, msg):
-                continue
+                    if not MessageSchema.of(hdr.AUCTION_INFORMATION_RES, msg):
+                        continue
 
-            # TODO: peer list!
-            msg: MessageAuctionInformationResponse = (
-                MessageAuctionInformationResponse.decode(msg)
-            )
-            self.auction = AuctionMessageData.to_auction(msg.auction_information)
-            self.logger.info(f"Received auction information from {addr[0]}:{addr[1]}")
+                    # TODO: peer list!
+                    msg: MessageAuctionInformationResponse = (
+                        MessageAuctionInformationResponse.decode(msg)
+                    )
+                    self.auction = AuctionMessageData.to_auction(
+                        msg.auction_information
+                    )
+                    self.logger.info(
+                        f"Received auction information from {addr[0]}:{addr[1]}"
+                    )
 
-            break
+                    break
+        except TimeoutError:
+            self.logger.info("Did not receive auction information from auctioneer")
+            self.stop()
+            return

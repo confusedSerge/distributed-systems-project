@@ -15,13 +15,14 @@ from communication import (
 from model import Auction
 from constant import (
     header as hdr,
+    TIMEOUT,
     MULTICAST_DISCOVERY_GROUP,
     MULTICAST_DISCOVERY_PORT,
     UNICAST_PORT,
     REPLICA_AUCTION_POOL_SIZE,
 )
 
-from util import create_logger
+from util import create_logger, Timeout, TimeoutError
 
 
 class ReplicaFinder(Process):
@@ -65,36 +66,44 @@ class ReplicaFinder(Process):
         emitter.start()
 
         new_replicas: list[str] = []
-        while (
-            len(self._replicas_list) + len(new_replicas) < REPLICA_AUCTION_POOL_SIZE
-            and not self._exit.is_set()
-        ):
-            # Receive find replica response
-            response, address = uc.receive()
+        try:
+            with Timeout(TIMEOUT, throw_exception=True):
+                while (
+                    len(self._replicas_list) + len(new_replicas)
+                    < REPLICA_AUCTION_POOL_SIZE
+                    and not self._exit.is_set()
+                ):
+                    # Receive find replica response
+                    response, address = uc.receive()
 
-            if not MessageSchema.of(hdr.FIND_REPLICA_RESPONSE, response):
-                continue
-            response: MessageFindReplicaResponse = MessageFindReplicaResponse.decode(
-                response
-            )
+                    if not MessageSchema.of(hdr.FIND_REPLICA_RESPONSE, response):
+                        continue
+                    response: MessageFindReplicaResponse = (
+                        MessageFindReplicaResponse.decode(response)
+                    )
 
-            # TODO: Check if auction is still running
-            # TODO: Keep track of response already received and added before
-            if response.auction_id != self._auction.get_id():
-                continue
+                    # TODO: Check if auction is still running
+                    # TODO: Keep track of response already received and added before
+                    if response.auction_id != self._auction.get_id():
+                        continue
 
-            # Send find replica acknowledgement
-            Unicast.qsend(
-                MessageFindReplicaAcknowledgement(
-                    auction_id=self._auction.get_id()
-                ).encode(),
-                address,
-                UNICAST_PORT,
-            )
+                    # Send find replica acknowledgement
+                    Unicast.qsend(
+                        MessageFindReplicaAcknowledgement(
+                            auction_id=self._auction.get_id()
+                        ).encode(),
+                        address,
+                        UNICAST_PORT,
+                    )
 
-            # Add replica to list
-            self._replicas_list.append(address)
-            new_replicas.append(address)
+                    # Add replica to list
+                    self._replicas_list.append(address)
+                    new_replicas.append(address)
+        except TimeoutError:
+            self.logger.info(f"{self.name} could not find enough replicas in time")
+            uc.close()
+            emitter.terminate() if emitter.is_alive() else None
+            return
 
         if (
             not self._exit.is_set()

@@ -1,3 +1,5 @@
+from .general import TIMEOUT
+
 from .header import (
     FIND_REPLICA_ACK as HEADER_FIND_REPLICA_ACK,
     FIND_REPLICA_REQ as HEADER_FIND_REPLICA_REQ,
@@ -14,4 +16,5 @@ from .multicast import (
     DISCOVERY_PORT as MULTICAST_DISCOVERY_PORT,
     DISCOVERY_TTL as MULTICAST_DISCOVERY_TTL,
 )
+
 from .unicast import PORT as UNICAST_PORT

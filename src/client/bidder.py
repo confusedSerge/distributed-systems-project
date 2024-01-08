@@ -16,11 +16,12 @@ from communication import (
 )
 
 
-from util import create_logger, logging
+from util import create_logger, logging, Timeout, TimeoutError
 
 from constant import (
     interaction as inter,
     header as hdr,
+    TIMEOUT,
     MULTICAST_DISCOVERY_GROUP,
     MULTICAST_DISCOVERY_PORT,
     MULTICAST_DISCOVERY_TTL,
@@ -193,20 +194,23 @@ class Bidder(Process):
         )
 
         # wait for auction information response
-        # TODO: Timeout and return None
-        while True:
-            response, _ = uc.receive()
+        try:
+            with Timeout(TIMEOUT, throw_exception=True):
+                while True:
+                    response, _ = uc.receive()
 
-            if not MessageSchema.of(hdr.AUCTION_INFORMATION_RES, response):
-                continue
+                    if not MessageSchema.of(hdr.AUCTION_INFORMATION_RES, response):
+                        continue
 
-            response: MessageAuctionInformationResponse = (
-                MessageAuctionInformationResponse.decode(response)
-            )
-            if response._id != auction_id:
-                continue
+                    response: MessageAuctionInformationResponse = (
+                        MessageAuctionInformationResponse.decode(response)
+                    )
+                    if response._id != auction_id:
+                        continue
 
-            break
+                    break
+        except TimeoutError:
+            return None
 
         return response.auction_information
 

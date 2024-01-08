@@ -3,14 +3,29 @@ from multiprocessing import Process
 from client import Client
 from server import Server
 
-from util import Timeout, TimeoutError
 import time
+from util import Timeout, TimeoutError
+
+
+def test():
+    try:
+        with Timeout(5, throw_exception=True):
+            while True:
+                print("Background process going strong")
+                time.sleep(7)
+    except TimeoutError:
+        print("Background process timed out")
+
 
 if __name__ == "__main__":
     start = time.time()
     # Timeout test
-    with Timeout(2) as t:
-        time.sleep(3)
+    proc = Process(target=test)
+    proc.start()
+    while proc.is_alive():
+        print("Main process going strong")
+        time.sleep(10)
+    proc.join()
 
     end = time.time()
     print("Time elapsed:", end - start)
