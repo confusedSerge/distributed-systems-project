@@ -13,25 +13,26 @@ from constant import communication as com
 class MessageFindReplicaRequest:
     """Request message for finding replicas."""
 
-    _id: str = field(metadata={"validate": validate.Validator(lambda x: not str(x))})
+    _id: str = field(metadata={"validate": lambda x: not str(x)})
     header: str = field(
-        default=com.HEADER_FIND_REPLICA_REQUEST,
-        metadata={"validate": validate.OneOf([com.HEADER_FIND_REPLICA_REQUEST])},
+        default=com.HEADER_FIND_REPLICA_REQ,
+        metadata={"validate": validate.OneOf([com.HEADER_FIND_REPLICA_REQ])},
     )
 
     multicast_address: tuple[str, int] = field(
+        default_factory=lambda: ("", 0),
         metadata={
-            "validate": validate.Validator(
+            "validate": (
                 lambda x: len(x) == 2
                 and isinstance(x[0], str)
                 and isinstance(x[1], int)
             )
-        }
+        },
     )
 
     def __str__(self) -> str:
         """Returns the string representation of the message."""
-        return f"{com.HEADER_FIND_REPLICA_REQUEST}(id={self._id}, multicast_address={self.multicast_address})"
+        return f"{com.HEADER_FIND_REPLICA_REQ}(id={self._id}, multicast_address={self.multicast_address})"
 
     def __repr__(self) -> str:
         """Returns the string representation of the message."""

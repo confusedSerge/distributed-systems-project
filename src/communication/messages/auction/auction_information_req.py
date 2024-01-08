@@ -13,7 +13,7 @@ from constant import communication as com
 class MessageAuctionInformationRequest:
     """Request message for auction information."""
 
-    _id: str = field(metadata={"validate": validate.Validator(lambda x: not str(x))})
+    _id: str = field(metadata={"validate": lambda x: not str(x)})
     header: str = field(
         default=com.HEADER_AUCTION_INFORMATION_REQ,
         metadata={"validate": validate.OneOf([com.HEADER_AUCTION_INFORMATION_REQ])},
@@ -22,7 +22,7 @@ class MessageAuctionInformationRequest:
     # corresponding auction information. If empty str, return all auctions.
     auction_id: str = field(
         default="",
-        metadata={"validate": validate.Validator(lambda x: isinstance(x, str))},
+        metadata={"validate": lambda x: isinstance(x, str)},
     )
 
     def __str__(self) -> str:

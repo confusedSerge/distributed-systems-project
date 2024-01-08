@@ -1,24 +1,29 @@
 from multiprocessing import Process
 
-from util.helper import load_config
-
 from client import Client
 from server import Server
 
+from util import Timeout, TimeoutError
+import time
 
 if __name__ == "__main__":
-    # Load configuration
-    config = load_config()
+    start = time.time()
+    # Timeout test
+    with Timeout(2) as t:
+        time.sleep(3)
 
-    client = Client(config=config)
-    server = Server(config=config)
+    end = time.time()
+    print("Time elapsed:", end - start)
 
-    # Start background processes
-    client.start()
-    server.start()
+    # client = Client()
+    # server = Server()
 
-    # Interact with client
-    client.interact()
+    # # Start background processes
+    # client.start()
+    # server.start()
 
-    # Terminate client and server processes when client interaction is done
-    client.stop()
+    # # Interact with client
+    # client.interact()
+
+    # # Terminate client and server processes when client interaction is done
+    # client.stop()

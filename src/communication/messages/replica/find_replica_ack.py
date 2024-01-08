@@ -13,7 +13,7 @@ from constant import communication as com
 class MessageFindReplicaAcknowledgement:
     """Acknowledgement message for finding replicas."""
 
-    _id: str = field(metadata={"validate": validate.Validator(lambda x: not str(x))})
+    _id: str = field(metadata={"validate": lambda x: not str(x)})
     header: str = field(
         default=com.HEADER_FIND_REPLICA_ACK,
         metadata={"validate": validate.OneOf([com.HEADER_FIND_REPLICA_ACK])},

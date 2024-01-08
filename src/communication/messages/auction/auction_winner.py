@@ -13,25 +13,21 @@ from constant import communication as com
 class MessageAuctionWinner:
     """Message for auction winner notification."""
 
-    _id: str = field(metadata={"validate": validate.Validator(lambda x: not str(x))})
+    _id: str = field(metadata={"validate": lambda x: not str(x)})
     header: str = field(
-        default=com.HEADER_AUCTION_WINNER,
-        metadata={"validate": validate.OneOf([com.HEADER_AUCTION_WINNER])},
+        default=com.HEADER_AUCTION_WIN,
+        metadata={"validate": validate.OneOf([com.HEADER_AUCTION_WIN])},
     )
 
-    auction_id: str = field(
-        metadata={"validate": validate.Validator(lambda x: isinstance(x, str))}
-    )
-    winner_id: str = field(
-        metadata={"validate": validate.Validator(lambda x: isinstance(x, str))}
-    )
+    auction_id: str = field(default="", metadata={"validate": lambda x: not str(x)})
+    winner_id: str = field(default="", metadata={"validate": lambda x: not str(x)})
     winner_bid: float = field(
-        metadata={"validate": validate.Validator(lambda x: isinstance(x, float))}
+        default=0.0, metadata={"validate": lambda x: isinstance(x, float)}
     )
 
     def __str__(self) -> str:
         """Returns the string representation of the message."""
-        return f"{com.HEADER_AUCTION_WINNER}(id={self._id}, auction_id={self.auction_id}, winner_id={self.winner_id}, winner_bid={self.winner_bid})"
+        return f"{com.HEADER_AUCTION_WIN}(id={self._id}, auction_id={self.auction_id}, winner_id={self.winner_id}, winner_bid={self.winner_bid})"
 
     def __repr__(self) -> str:
         """Returns the string representation of the message."""

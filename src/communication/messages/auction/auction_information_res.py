@@ -14,7 +14,7 @@ from constant import communication as com
 class MessageAuctionInformationResponse:
     """Response message for auction information."""
 
-    _id: str = field(metadata={"validate": validate.Validator(lambda x: not str(x))})
+    _id: str = field(metadata={"validate": lambda x: not str(x)})
     header: str = field(
         default=com.HEADER_AUCTION_INFORMATION_RES,
         metadata={"validate": validate.OneOf([com.HEADER_AUCTION_INFORMATION_RES])},
@@ -22,7 +22,8 @@ class MessageAuctionInformationResponse:
 
     # corresponding auction information.
     auction_information: AuctionData = field(
-        metadata={"validate": validate.Validator(lambda x: isinstance(x, AuctionData))}
+        default_factory=AuctionData,
+        metadata={"validate": lambda x: isinstance(x, AuctionData)},
     )
 
     def __str__(self) -> str:

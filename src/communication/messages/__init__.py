@@ -1,4 +1,4 @@
-from message_schema import MessageSchema
+from .message_schema import MessageSchema
 
 
 from .replica import (

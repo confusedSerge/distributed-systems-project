@@ -13,21 +13,21 @@ from constant import communication as com
 class MessageAuctionBid:
     """Message for auction bid."""
 
-    _id: str = field(metadata={"validate": validate.Validator(lambda x: not str(x))})
+    _id: str = field(metadata={"validate": lambda x: not str(x)})
     header: str = field(
         default=com.HEADER_AUCTION_BID,
         metadata={"validate": validate.OneOf([com.HEADER_AUCTION_BID])},
     )
 
     auction_id: str = field(
-        metadata={"validate": validate.Validator(lambda x: isinstance(x, str))}
+        default="", metadata={"validate": lambda x: isinstance(x, str)}
     )
     bidder_id: str = field(
-        metadata={"validate": validate.Validator(lambda x: isinstance(x, str))}
+        default="", metadata={"validate": lambda x: isinstance(x, str)}
     )
 
     bid: float = field(
-        metadata={"validate": validate.Validator(lambda x: isinstance(x, float))}
+        default=0.0, metadata={"validate": lambda x: isinstance(x, float)}
     )
 
     def __str__(self) -> str:

@@ -14,14 +14,15 @@ from constant import communication as com
 class MessageAuctionAnnouncement:
     """Announcement message for new auction."""
 
-    _id: str = field(metadata={"validate": validate.Validator(lambda x: not str(x))})
+    _id: str = field(metadata={"validate": lambda x: not str(x)})
     header: str = field(
         default=com.HEADER_AUCTION_ANNOUNCEMENT,
         metadata={"validate": validate.OneOf([com.HEADER_AUCTION_ANNOUNCEMENT])},
     )
 
     auction: AuctionData = field(
-        metadata={"validate": validate.Validator(lambda x: isinstance(x, AuctionData))}
+        default_factory=AuctionData,
+        metadata={"validate": lambda x: isinstance(x, AuctionData)},
     )
 
     def __str__(self) -> str:

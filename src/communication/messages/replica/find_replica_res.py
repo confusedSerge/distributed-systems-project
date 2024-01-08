@@ -13,15 +13,15 @@ from constant import communication as com
 class MessageFindReplicaResponse:
     """Response message for finding replicas."""
 
-    _id: str = field(metadata={"validate": validate.Validator(lambda x: not str(x))})
+    _id: str = field(metadata={"validate": lambda x: not str(x)})
     header: str = field(
-        default=com.HEADER_FIND_REPLICA_RESPONSE,
-        metadata={"validate": validate.OneOf([com.HEADER_FIND_REPLICA_RESPONSE])},
+        default=com.HEADER_FIND_REPLICA_RES,
+        metadata={"validate": validate.OneOf([com.HEADER_FIND_REPLICA_RES])},
     )
 
     def __str__(self) -> str:
         """Returns the string representation of the message."""
-        return f"{com.HEADER_FIND_REPLICA_RESPONSE}(id={self._id})"
+        return f"{com.HEADER_FIND_REPLICA_RES}(id={self._id})"
 
     def __repr__(self) -> str:
         """Returns the string representation of the message."""

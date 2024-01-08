@@ -14,23 +14,17 @@ class AuctionData:
     """Auction data class for representing an auction and sending it over the network."""
 
     # TODO: Add all the other fields.
-    _id: str = field(metadata={"validate": validate.Validator(lambda x: not str(x))})
+    _id: str = field(metadata={"validate": lambda x: not str(x)})
 
     # Basic auction information.
-    item: str = field(
-        metadata={"validate": validate.Validator(lambda x: isinstance(x, str))}
-    )
-    price: int = field(
-        metadata={"validate": validate.Validator(lambda x: isinstance(x, int))}
-    )
-    time: int = field(
-        metadata={"validate": validate.Validator(lambda x: isinstance(x, int))}
-    )
+    item: str = field(metadata={"validate": lambda x: isinstance(x, str)})
+    price: int = field(metadata={"validate": lambda x: isinstance(x, int)})
+    time: int = field(metadata={"validate": lambda x: isinstance(x, int)})
 
     # Multicast address for the auction.
     multicast_address: tuple[str, int] = field(
         metadata={
-            "validate": validate.Validator(
+            "validate": (
                 lambda x: len(x) == 2
                 and isinstance(x[0], str)
                 and isinstance(x[1], int)
