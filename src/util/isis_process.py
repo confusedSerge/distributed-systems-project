@@ -1,5 +1,5 @@
-from util import Multicast, message
-from constant import multicast as constant_multicast
+from util import Multicast, Message
+from constant import addresses as constant_multicast
 from operator import itemgetter
 
 class ISISProcess:
@@ -29,7 +29,7 @@ class ISISProcess:
         self.sender_id = int(self.sender.getIpAddress().split(".")[3])
         self.receiver_ip = self.receiver.getIpAddress()
 
-    def on_multicast_message(self, message: message.Message):
+    def on_multicast_message(self, message: Message):
         """
         on_multicast_message should be called when a message is multicasted (in our case, when a bid is done)
         """
@@ -80,13 +80,13 @@ class ISISProcess:
                          senderid_from_sequence_id=max_sequence_number[1])
         # TODO: end if
 
-    def get_sequence_number(self, message):
+    def get_sequence_number(self, message: dict) -> dict:
         """
         get_sequence_number returns the 'proposed_sequence_number' value
         """
         return message['proposed_sequence_number']
     
-    def shift_to_head(self, queue: list, message):
+    def shift_to_head(self, queue: list, message: dict):
         """
         shift_to_head shifts an item to the head of list
         """
@@ -148,5 +148,5 @@ class ISISProcess:
 
         # TODO: While message at head of queue has status deliverable do deliver the message at the head of the queue remove this message from the queueend while
         while self.holdback_queue[0]['status'] == 'deliverable':
-            # TODO: deliver the message at the head of the queue?
+            # TODO: deliver (do action of) the message at the head of the queue
             self.holdback_queue.pop(0)
