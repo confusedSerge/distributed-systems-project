@@ -1,3 +1,4 @@
+from ipaddress import IPv4Address
 from multiprocessing import Process, Event
 
 from communication import Multicast, MessageSchema, MessageFindReplicaRequest
@@ -5,6 +6,7 @@ from communication import Multicast, MessageSchema, MessageFindReplicaRequest
 from constant import (
     header as hdr,
     TIMEOUT_RECEIVE,
+    BUFFER_SIZE,
     MULTICAST_DISCOVERY_GROUP,
     MULTICAST_DISCOVERY_PORT,
     REPLICA_LOCAL_POOL_SIZE,
@@ -39,12 +41,14 @@ class Server(Process):
         """Runs the server background tasks."""
         self._logger.info(f"{self._name} starting background tasks")
         mc = Multicast(
-            MULTICAST_DISCOVERY_GROUP, MULTICAST_DISCOVERY_PORT, timeout=TIMEOUT_RECEIVE
+            group=MULTICAST_DISCOVERY_GROUP,
+            port=MULTICAST_DISCOVERY_PORT,
+            timeout=TIMEOUT_RECEIVE,
         )
 
         while not self._exit.is_set():
             try:
-                request, addr = mc.receive()
+                request, address = mc.receive(BUFFER_SIZE)
             except TimeoutError:
                 self._logger.debug("Server timed out while waiting for replica request")
                 continue
@@ -56,12 +60,13 @@ class Server(Process):
                 continue
 
             request = MessageFindReplicaRequest.decode(request)
-            self._logger.info(f"Received replica request from {addr[0]}:{addr[1]}")
+            self._logger.info(f"Received replica request from {address}")
 
             # Create replica and add to pool
-            replica = Replica(replica_request=request)
+            replica = Replica(replica_request=request, sender=IPv4Address(address[0]))
             replica.start()
             self._replica_pool.append(replica)
+
             self._logger.info(f"Created replica {replica.get_id()}")
 
         self._logger.info("Server received stop signal; releasing resources")

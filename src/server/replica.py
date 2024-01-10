@@ -1,3 +1,5 @@
+from ipaddress import IPv4Address
+
 from time import sleep
 from multiprocessing import Process, Event
 
@@ -19,6 +21,8 @@ from constant import (
     header as hdr,
     TIMEOUT_RECEIVE,
     TIMEOUT_REPLICATION,
+    BUFFER_SIZE,
+    MULTICAST_AUCTION_PORT,
     UNICAST_PORT,
 )
 
@@ -46,7 +50,7 @@ class Replica(Process):
         - Auction finished: Send winner and stop replica.
     """
 
-    def __init__(self, request: MessageFindReplicaRequest) -> None:
+    def __init__(self, request: MessageFindReplicaRequest, sender: IPv4Address) -> None:
         """Initializes the replica class."""
         super.__init__(self)
         self._exit = Event()
@@ -55,6 +59,8 @@ class Replica(Process):
         self._logger = create_logger(self._name.lower())
 
         self._initial_find_request: MessageFindReplicaRequest = request
+        self._sender: IPv4Address = sender
+
         self.auction: Auction = None
         self._peers: list[str] = []
 
@@ -95,20 +101,21 @@ class Replica(Process):
         """
         # Join auction multicast group
         mc = Multicast(
-            group=self._initial_find_request.multicast_address[0],
-            port=self._initial_find_request.multicast_address[1],
+            group=IPv4Address(self._initial_find_request.address),
+            port=self.MULTICAST_AUCTION_PORT,
             timeout=TIMEOUT_RECEIVE,
         )
 
         # Send join message to auctioneer
+        response = MessageFindReplicaResponse(self._initial_find_request._id)
         Unicast.qsend(
-            MessageFindReplicaResponse(self._initial_find_request._id).encode(),
-            self._initial_find_request.multicast_address[0],
-            self._initial_find_request.multicast_address[1],
+            message=response.encode(),
+            host=self._sender,
+            port=UNICAST_PORT,
         )
 
         # Wait for auctioneer to acknowledge, or timeout
-        uc = Unicast("", port=UNICAST_PORT)
+        uc = Unicast(host=None, port=UNICAST_PORT)
         try:
             with Timeout(TIMEOUT_REPLICATION, throw_exception=True):
                 while not self._exit.is_set():
@@ -136,25 +143,24 @@ class Replica(Process):
             with Timeout(TIMEOUT_REPLICATION, throw_exception=True):
                 while not self._exit.is_set():
                     try:
-                        msg, addr = mc.receive()
+                        message, address = mc.receive(BUFFER_SIZE)
                     except TimeoutError:
                         continue
 
-                    # TODO: interference possible through other
-                    if not MessageSchema.of(hdr.AUCTION_INFORMATION_RES, msg):
+                    if not MessageSchema.of(hdr.AUCTION_INFORMATION_RES, message):
                         continue
 
                     # TODO: peer list!
-                    msg: MessageAuctionInformationResponse = (
-                        MessageAuctionInformationResponse.decode(msg)
+                    message: MessageAuctionInformationResponse = (
+                        MessageAuctionInformationResponse.decode(message)
                     )
 
                     # TODO: Check if auction is the same (interference possible through other auctions)
                     self.auction = AuctionMessageData.to_auction(
-                        msg.auction_information
+                        message.auction_information
                     )
                     self._logger.info(
-                        f"Received auction information from {addr[0]}:{addr[1]}"
+                        f"Received auction information from {address}: {self.auction}"
                     )
 
                     break

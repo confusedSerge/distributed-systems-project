@@ -1,3 +1,5 @@
+from ipaddress import IPv4Address
+
 from constant import auction as state
 
 
@@ -14,7 +16,7 @@ class Auction:
         item: str,
         price: float,
         time: int,
-        multicast_address: tuple[str, int],
+        multicast_address: IPv4Address,
     ) -> None:
         """Initializes the auction class.
 
@@ -25,6 +27,8 @@ class Auction:
             item (str): The item of the auction.
             price (float): The starting price of the auction.
             time (int): The time of the auction.
+
+            multicast_address (IPv4Address): The multicast address of the auction. (port are constant for all auctions)
         """
         # Identification
         self._name: str = name
@@ -37,7 +41,7 @@ class Auction:
         self._time: int = time
 
         # Multicast group and port are initially empty
-        self._multicast_address = multicast_address
+        self._multicast_address: IPv4Address = multicast_address
 
         # Auction states
         self._auction_state: tuple[int, str] = state.AUCTION_PREPARATION
@@ -105,29 +109,13 @@ class Auction:
         return self._time
 
     # Multicast methods
-    def get_multicast_address(self) -> tuple[str, int]:
+    def get_multicast_address(self) -> IPv4Address:
         """Returns the multicast group and port of the auction.
 
         Returns:
-            str: The multicast group and port of the auction.
+            IPv4Address: The multicast group and port of the auction.
         """
         return self._multicast_address
-
-    def get_multicast_group(self) -> str:
-        """Returns the multicast group of the auction.
-
-        Returns:
-            str: The multicast group of the auction.
-        """
-        return self._multicast_address[0]
-
-    def get_multicast_port(self) -> int:
-        """Returns the multicast port of the auction.
-
-        Returns:
-            int: The multicast port of the auction.
-        """
-        return self._multicast_address[1]
 
     # Auction state methods
     def get_state(self) -> tuple[int, str]:

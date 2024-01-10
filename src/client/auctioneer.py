@@ -1,6 +1,7 @@
-from time import sleep
+from ipaddress import IPv4Address
 
 from multiprocessing import Process, Event
+from time import sleep
 
 import re
 import inquirer
@@ -201,7 +202,8 @@ class _SubAuctioneer(Process):
         Args:
             auction (Auction): The auction to run.
         """
-        replica_list = []
+        # TODO: Share memory between processes
+        replica_list: list[IPv4Address] = []
 
         self._logger.info(
             f"{self._name} for auction {self._auction} is finding replicas"
@@ -234,10 +236,10 @@ class _SubAuctioneer(Process):
             auction=AuctionMessageData.from_auction(self._auction),
         )
         Multicast.qsend(
-            announcement.encode(),
-            MULTICAST_DISCOVERY_GROUP,
-            MULTICAST_DISCOVERY_PORT,
-            MULTICAST_DISCOVERY_TTL,
+            message=announcement.encode(),
+            group=MULTICAST_DISCOVERY_GROUP,
+            port=MULTICAST_DISCOVERY_PORT,
+            ttl=MULTICAST_DISCOVERY_TTL,
         )
         self._auction.next_state()
 

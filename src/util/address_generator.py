@@ -1,9 +1,6 @@
 from ipaddress import IPv4Address
 
-from constant import (
-    MULTICAST_AUCTION_GROUP_BASE,
-    MULTICAST_AUCTION_PORT,
-)
+from constant import communication as com
 
 
 def generate_unique_mc_address(

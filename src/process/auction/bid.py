@@ -4,7 +4,13 @@ from multiprocessing import Process, Event
 from communication import Multicast, MessageSchema, MessageAuctionBid
 
 from model import Auction
-from constant import auction as state, header as hdr, TIMEOUT_RECEIVE
+from constant import (
+    auction as state,
+    header as hdr,
+    TIMEOUT_RECEIVE,
+    BUFFER_SIZE,
+    MULTICAST_AUCTION_PORT,
+)
 
 from util import create_logger
 
@@ -32,7 +38,11 @@ class AuctionBidListener(Process):
     def run(self) -> None:
         """Runs the auction listener process."""
         self._logger.info(f"{self._name} is starting background tasks")
-        mc = Multicast(*self._auction.get_multicast_address(), timeout=TIMEOUT_RECEIVE)
+        mc = Multicast(
+            group=self._auction.get_multicast_address(),
+            port=MULTICAST_AUCTION_PORT,
+            timeout=TIMEOUT_RECEIVE,
+        )
 
         while (
             self._auction.get_state() == state.AUCTION_RUNNING
@@ -40,7 +50,7 @@ class AuctionBidListener(Process):
         ):
             # Receive bid
             try:
-                bid, address = mc.receive()
+                bid, address = mc.receive(BUFFER_SIZE)
             except TimeoutError:
                 continue
 

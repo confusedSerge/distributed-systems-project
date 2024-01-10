@@ -1,4 +1,5 @@
 from typing import Self
+from ipaddress import IPv4Address
 
 from dataclasses import dataclass, field
 from marshmallow import validate
@@ -19,20 +20,19 @@ class MessageFindReplicaRequest:
         metadata={"validate": validate.OneOf([com.HEADER_FIND_REPLICA_REQ])},
     )
 
-    multicast_address: tuple[str, int] = field(
-        default_factory=lambda: ("", 0),
+    address: str = field(
+        default="",
         metadata={
-            "validate": (
-                lambda x: len(x) == 2
-                and isinstance(x[0], str)
-                and isinstance(x[1], int)
+            "validate": lambda x: isinstance(x, str)
+            and validate.Regexp(
+                r"^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$", error="Invalid multicast address"
             )
         },
     )
 
     def __str__(self) -> str:
         """Returns the string representation of the message."""
-        return f"{com.HEADER_FIND_REPLICA_REQ}(id={self._id}, multicast_address={self.multicast_address})"
+        return f"{com.HEADER_FIND_REPLICA_REQ}(id={self._id}, address={self.address})"
 
     def __repr__(self) -> str:
         """Returns the string representation of the message."""

@@ -27,6 +27,7 @@ from constant import (
     MULTICAST_DISCOVERY_GROUP,
     MULTICAST_DISCOVERY_PORT,
     MULTICAST_DISCOVERY_TTL,
+    MULTICAST_AUCTION_PORT,
     UNICAST_PORT,
 )
 
@@ -183,12 +184,12 @@ class Bidder(Process):
         """
 
         # Send auction information request
-        uc = Unicast("", UNICAST_PORT)
+        uc = Unicast(host=None, port=UNICAST_PORT)
         Multicast.qsend(
-            MessageAuctionInformationRequest(auction_id=auction_id).encode(),
-            MULTICAST_DISCOVERY_GROUP,
-            MULTICAST_DISCOVERY_PORT,
-            MULTICAST_DISCOVERY_TTL,
+            message=MessageAuctionInformationRequest(auction_id=auction_id).encode(),
+            group=MULTICAST_DISCOVERY_GROUP,
+            port=MULTICAST_DISCOVERY_PORT,
+            ttl=MULTICAST_DISCOVERY_TTL,
         )
 
         # wait for auction information response
@@ -241,14 +242,15 @@ class Bidder(Process):
             return
 
         auction.bid(self._name, bid_amount)
+        bid: MessageAuctionBid = MessageAuctionBid(
+            auction_id=auction_id,
+            bidder_id=self._name,
+            bid=bid_amount,
+        )
         Multicast.qsend(
-            MessageAuctionBid(
-                auction_id=auction_id,
-                bidder_id=self._name,
-                bid=bid_amount,
-            ).encode(),
-            group=auction.get_multicast_group(),
-            port=auction.get_multicast_port(),
+            message=bid.encode(),
+            group=auction.get_multicast_address(),
+            port=MULTICAST_AUCTION_PORT,
         )
 
     def _choose_auction(self, auction_ids: list[int]) -> int:

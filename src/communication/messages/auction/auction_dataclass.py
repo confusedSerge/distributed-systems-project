@@ -1,4 +1,5 @@
 from typing import Self
+from ipaddress import IPv4Address
 
 from dataclasses import dataclass, field
 from marshmallow import validate
@@ -24,11 +25,12 @@ class AuctionData:
     time: int = field(metadata={"validate": lambda x: isinstance(x, int)})
 
     # Multicast address for the auction
-    multicast_address: tuple[str, int] = field(
+    multicast_address: str = field(
         metadata={
-            "validate": lambda x: len(x) == 2
-            and isinstance(x[0], str)
-            and isinstance(x[1], int)
+            "validate": lambda x: isinstance(x, str)
+            and validate.Regexp(
+                r"^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$", error="Invalid multicast address"
+            )
         }
     )
 
@@ -79,7 +81,7 @@ class AuctionData:
             item=self.item,
             price=self.price,
             time=self.time,
-            multicast_address=self.multicast_address,
+            multicast_address=IPv4Address(self.multicast_address),
         )
         auction._set_id(self._id)
         auction._set_state(self.state)
@@ -96,7 +98,7 @@ class AuctionData:
             item=auction.get_item(),
             price=auction.get_price(),
             time=auction.get_time(),
-            multicast_address=auction.get_multicast_address(),
+            multicast_address=str(auction.get_multicast_address()),
             state=auction.get_state(),
             bid_history=auction.get_bid_history(),
             winner=auction.get_winner(),

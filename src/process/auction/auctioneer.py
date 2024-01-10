@@ -1,3 +1,4 @@
+from ipaddress import IPv4Address
 from multiprocessing import Process, Event
 
 from communication import (
@@ -13,6 +14,7 @@ from model import Auction
 from constant import (
     header as hdr,
     TIMEOUT_RECEIVE,
+    BUFFER_SIZE,
     MULTICAST_DISCOVERY_GROUP,
     MULTICAST_DISCOVERY_PORT,
     UNICAST_PORT,
@@ -46,13 +48,15 @@ class AuctionManager(Process):
         """Runs the auction manager process."""
         self._logger.info(f"{self._name} is starting background tasks")
         mc = Multicast(
-            MULTICAST_DISCOVERY_GROUP, MULTICAST_DISCOVERY_PORT, timeout=TIMEOUT_RECEIVE
+            group=MULTICAST_DISCOVERY_GROUP,
+            port=MULTICAST_DISCOVERY_PORT,
+            timeout=TIMEOUT_RECEIVE,
         )
 
         while not self._exit.is_set():
             # Receive request
             try:
-                request, address = mc.receive()
+                request, address = mc.receive(BUFFER_SIZE)
             except TimeoutError:
                 continue
 
@@ -69,13 +73,14 @@ class AuctionManager(Process):
                 continue
 
             self._logger.info(f"{self._name} received request {request} from {address}")
+            response = MessageAuctionInformationResponse(
+                self._auction.get_id(),
+                auction_information=AuctionMessageData.from_auction(self._auction),
+            )
             Unicast.qsend(
-                MessageAuctionInformationResponse(
-                    self._auction.get_id(),
-                    auction_information=AuctionMessageData.from_auction(self._auction),
-                ),
-                address,
-                UNICAST_PORT,
+                message=response.encode(),
+                host=IPv4Address(address[0]),
+                port=UNICAST_PORT,
             )
 
         self._logger.info(f"{self._name} received stop signal; releasing resources")

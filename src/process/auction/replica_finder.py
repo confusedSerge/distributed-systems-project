@@ -1,5 +1,7 @@
-from time import sleep
+from ipaddress import IPv4Address
+
 from multiprocessing import Process, Event
+from time import sleep
 
 from communication import (
     Multicast,
@@ -18,6 +20,7 @@ from constant import (
     TIMEOUT_REPLICATION,
     MULTICAST_DISCOVERY_GROUP,
     MULTICAST_DISCOVERY_PORT,
+    MULTICAST_AUCTION_PORT,
     UNICAST_PORT,
     REPLICA_AUCTION_POOL_SIZE,
 )
@@ -38,7 +41,12 @@ class ReplicaFinder(Process):
     The replica request is send periodically until the replica list is full.
     """
 
-    def __init__(self, auction: Auction, replicas_list: list, emitter_period: int = 60):
+    def __init__(
+        self,
+        auction: Auction,
+        replicas_list: list[IPv4Address],
+        emitter_period: int = 60,
+    ):
         """Initializes the replica finder process.
 
         Args:
@@ -53,13 +61,13 @@ class ReplicaFinder(Process):
         self._logger = create_logger(self._name.lower())
 
         self._auction: Auction = auction
-        self._replicas_list: list = replicas_list
+        self._replicas_list: list[IPv4Address] = replicas_list
         self._emitter_period: int = emitter_period
 
     def run(self):
         """Runs the replica finder process."""
         self._logger.info(f"{self._name} is starting background tasks")
-        uc: Unicast = Unicast("", port=UNICAST_PORT)
+        uc: Unicast = Unicast(host=None, port=UNICAST_PORT)
 
         # Start replica request emitter
         emitter = Process(target=self._emit_request)
@@ -88,17 +96,19 @@ class ReplicaFinder(Process):
                         continue
 
                     # Send find replica acknowledgement
+                    acknowledgement = MessageFindReplicaAcknowledgement(
+                        auction_id=self._auction.get_id()
+                    )
                     Unicast.qsend(
-                        MessageFindReplicaAcknowledgement(
-                            auction_id=self._auction.get_id()
-                        ).encode(),
-                        address,
-                        UNICAST_PORT,
+                        message=acknowledgement.encode(),
+                        host=IPv4Address(address[0]),
+                        port=UNICAST_PORT,
                     )
 
                     # Add replica to list
-                    self._replicas_list.append(address)
-                    new_replicas.append(address)
+                    self._replicas_list.append(IPv4Address(address[0]))
+                    new_replicas.append(IPv4Address(address[0]))
+
         except TimeoutError:
             self._logger.info(f"{self._name} could not find enough replicas in time")
             return
@@ -117,13 +127,14 @@ class ReplicaFinder(Process):
             self._logger.info(
                 f"{self._name} sending auction information to new replica {replica}"
             )
+            response = MessageAuctionInformationResponse(
+                _id=self._auction.get_id(),
+                auction_information=AuctionMessageData.from_auction(self._auction),
+            )
             Unicast.qsend(
-                MessageAuctionInformationResponse(
-                    _id=self._auction.get_id(),
-                    auction_information=AuctionMessageData.from_auction(self._auction),
-                ).encode(),
-                replica,
-                UNICAST_PORT,
+                message=response.encode(),
+                host=replica,
+                port=UNICAST_PORT,
             )
 
         self._logger.info(f"{self._name} sent auction information to all new replicas")
@@ -136,12 +147,12 @@ class ReplicaFinder(Process):
     def _emit_request(self):
         """Sends a find replica request periodically."""
         mc: Multicast = Multicast(
-            MULTICAST_DISCOVERY_GROUP, MULTICAST_DISCOVERY_PORT, sender=True
+            group=MULTICAST_DISCOVERY_GROUP, port=MULTICAST_DISCOVERY_PORT, sender=True
         )
         req: MessageFindReplicaRequest = MessageFindReplicaRequest(
             auction_id=self._auction.get_id(),
-            auction_multicast_group=self._auction.get_multicast_group(),
-            auction_multicast_port=self._auction.get_multicast_port(),
+            auction_multicast_group=self._auction.get_multicast_address(),
+            auction_multicast_port=MULTICAST_AUCTION_PORT,
         )
 
         while not self._exit.is_set():

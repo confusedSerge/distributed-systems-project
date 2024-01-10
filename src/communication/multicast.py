@@ -1,3 +1,4 @@
+from ipaddress import IPv4Address
 import socket
 import struct
 
@@ -15,7 +16,7 @@ class Multicast:
 
     def __init__(
         self,
-        group: str,
+        group: IPv4Address,
         port: int,
         sender: bool = False,
         ttl: int = 32,
@@ -24,15 +25,20 @@ class Multicast:
         """Initialize the multicast class.
 
         Args:
-            group (str): The multicast group to send and receive messages.
+            group (IPv4Address): The multicast group to send and receive messages.
             port (int): The port to send and receive messages.
             sender (bool, optional): Whether the multicast object is used for sending or receiving. Defaults to False.
             ttl (int, optional): The time to live for the multicast messages. Defaults to 32.
             timeout (Optional[int], optional): The timeout for receiving messages. Defaults to None, which does not trigger a timeout.
         """
-        self._group: str = group
+        assert isinstance(group, IPv4Address), "The group must be an IPv4Address."
+        assert group.is_multicast, "The group must be a multicast address."
+
+        assert isinstance(port, int), "The port must be an integer."
+
+        self._address: IPv4Address = group
         self._port: int = port if isinstance(port, int) else int(port)
-        self._multicast_group: tuple[str, int] = (self._group, self._port)
+        self._address_port: tuple[str, int] = (str(self._address), self._port)
 
         self._sender: bool = sender
         self._socket: socket = None
@@ -54,10 +60,12 @@ class Multicast:
             self._socket.setsockopt(
                 socket.IPPROTO_IP,
                 socket.IP_ADD_MEMBERSHIP,
-                struct.pack("4sl", socket.inet_aton(self._group), socket.INADDR_ANY),
+                struct.pack(
+                    "4sl", socket.inet_aton(str(self._address)), socket.INADDR_ANY
+                ),
             )
             self._socket.settimeout(self._timeout) if self._timeout else None
-            self._socket.bind(self._multicast_group)
+            self._socket.bind(self._address_port)
 
     def send(self, message: bytes) -> None:
         """Send a message to the multicast group.
@@ -66,9 +74,9 @@ class Multicast:
             message (bytes): The message to send in bytes.
         """
         assert self._sender, "The multicast object is not a sender."
-        self._socket.sendto(message, self._multicast_group)
+        self._socket.sendto(message, self._address_port)
 
-    def receive(self, buffer_size: int = 1024) -> (bytes, str):
+    def receive(self, buffer_size: int = 1024) -> (bytes, tuple[str, int]):
         """Receive a message from the multicast group.
 
         Args:
@@ -76,7 +84,7 @@ class Multicast:
 
         Returns:
             bytes: The received message.
-            str: The address of the sender.
+            tuple[str, int]: The sender address and port.
 
         Raises:
             socket.timeout: If the timeout is set and no message was received.
@@ -89,12 +97,12 @@ class Multicast:
         self._socket.close()
 
     @staticmethod
-    def qsend(message: bytes, group: str, port: int, ttl: int = 32) -> None:
+    def qsend(message: bytes, group: IPv4Address, port: int, ttl: int = 32) -> None:
         """Send a message to the multicast group.
 
         Args:
             message (bytes): The message to send in bytes.
-            group (str): The multicast group to send and receive messages.
+            group (IPv4Address): The multicast address to send and receive messages.
             port (int): The port to send and receive messages.
             ttl (int, optional): The time to live for the multicast messages. Defaults to 32.
         """

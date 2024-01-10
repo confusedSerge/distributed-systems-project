@@ -6,6 +6,7 @@ from model.auction_announcement_store import AuctionAnnouncementStore
 from constant import (
     header as hdr,
     TIMEOUT_RECEIVE,
+    BUFFER_SIZE,
     MULTICAST_DISCOVERY_GROUP,
     MULTICAST_DISCOVERY_PORT,
 )
@@ -37,13 +38,15 @@ class AuctionAnnouncementListener(Process):
         """Runs the auction listener process."""
         self._logger.info(f"{self._name} is starting background tasks")
         mc = Multicast(
-            MULTICAST_DISCOVERY_GROUP, MULTICAST_DISCOVERY_PORT, timeout=TIMEOUT_RECEIVE
+            group=MULTICAST_DISCOVERY_GROUP,
+            port=MULTICAST_DISCOVERY_PORT,
+            timeout=TIMEOUT_RECEIVE,
         )
 
         while not self._exit.is_set():
             # Receive announcement
             try:
-                announcement, address = mc.receive()
+                announcement, address = mc.receive(BUFFER_SIZE)
             except TimeoutError:
                 continue
 
