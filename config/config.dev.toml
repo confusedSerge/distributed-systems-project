@@ -5,6 +5,9 @@ path = "log/"
 level = "DEBUG"
 format = "[%(levelname)s] - %(asctime)s: %(message)s"
 
+[general]
+sleep_time = 0.5
+
 [server.replica]
 local_pool_size = 5
 auction_pool_size = 5

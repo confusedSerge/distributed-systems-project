@@ -78,6 +78,9 @@ class AuctionManager(Process):
                 UNICAST_PORT,
             )
 
+        self.logger.info(f"{self.name} received stop signal; releasing resources")
+        mc.close()
+
         self.logger.info(f"{self.name} stopped managing auction")
 
     def stop(self) -> None:

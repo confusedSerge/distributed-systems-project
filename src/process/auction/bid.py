@@ -56,6 +56,9 @@ class AuctionBidListener(Process):
             self.logger.info(f"{self.name} received bid {bid} from {address}")
             self._auction.add_bid(bid.bidder_id, bid.bid)
 
+        self.logger.info(f"{self.name} received stop signal; releasing resources")
+        mc.close()
+
         self.logger.info(f"{self.name} stopped listening to auction")
 
     def stop(self) -> None:

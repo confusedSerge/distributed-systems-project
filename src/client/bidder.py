@@ -2,6 +2,7 @@ from time import sleep
 import uuid
 from multiprocessing import Process, Event
 
+import re
 import inquirer
 
 from model import Auction, AuctionAnnouncementStore
@@ -82,7 +83,10 @@ class Bidder(Process):
 
         # No graceful shutdown needed, terminate all listeners
         for auction_listener in self._auction_bid_listeners.values():
-            auction_listener.terminate()
+            auction_listener.stop()
+
+        for auction_listener in self._auction_bid_listeners.values():
+            auction_listener.join()
 
         self.logger.info(f"{self.name} stopped active listeners")
 
@@ -203,6 +207,8 @@ class Bidder(Process):
                     break
         except TimeoutError:
             return None
+        finally:
+            uc.close()
 
         return response.auction_information
 

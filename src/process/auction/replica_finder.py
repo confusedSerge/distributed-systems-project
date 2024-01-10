@@ -101,18 +101,16 @@ class ReplicaFinder(Process):
                     new_replicas.append(address)
         except TimeoutError:
             self.logger.info(f"{self.name} could not find enough replicas in time")
-            uc.close()
-            emitter.terminate() if emitter.is_alive() else None
             return
+        finally:
+            if emitter.is_alive():
+                emitter.terminate()
+                emitter.join()
+            uc.close()
 
-        if (
-            not self._exit.is_set()
-            and len(self._replicas_list) + len(new_replicas)
-            >= REPLICA_AUCTION_POOL_SIZE
-            and emitter.is_alive()
-        ):
-            self.logger.info(f"{self.name} found enough replicas, stopping emitter")
-            emitter.terminate()
+        if self._exit.is_set():
+            self.logger.info(f"{self.name} stopped finding replicas")
+            return
 
         # Send Auction Information to new replicas
         for replica in new_replicas:
@@ -128,12 +126,12 @@ class ReplicaFinder(Process):
                 UNICAST_PORT,
             )
 
-        self.logger.info(f"{self.name} stopped finding replicas")
+        self.logger.info(f"{self.name} sent auction information to all new replicas")
 
     def stop(self):
         """Stops the replica finder process."""
         self.logger.info(f"{self.name} received stop signal")
-        self.event.set()
+        self._exit.set()
 
     def _emit_request(self):
         """Sends a find replica request periodically."""

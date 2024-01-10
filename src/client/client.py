@@ -7,7 +7,7 @@ from model import AuctionAnnouncementStore
 from process import Manager, AuctionAnnouncementListener
 
 from util import create_logger, logging, Timeout
-from constant import interaction as inter
+from constant import interaction as inter, SLEEP_TIME
 
 from .auctioneer import Auctioneer
 from .bidder import Bidder
@@ -66,13 +66,13 @@ class Client(Process):
         self.logger.info(f"{self.name} started background tasks")
 
         while not self._exit.is_set():
-            sleep(1)
+            sleep(SLEEP_TIME)
 
         self._auctioneer.stop()
         self._bidder.stop()
 
         # No graceful shutdown needed, terminate all listeners
-        self._auction_announcement_process.terminate()
+        self._auction_announcement_process.stop()
 
         self.manager_running.clear()
         self.manager.shutdown()

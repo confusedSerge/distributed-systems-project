@@ -49,7 +49,7 @@ class Replica(Process):
     def __init__(self, request: MessageFindReplicaRequest) -> None:
         """Initializes the replica class."""
         super.__init__(self)
-        self.exit = Event()
+        self._exit = Event()
 
         self.request: MessageFindReplicaRequest = request
         self.auction: Auction = None
@@ -62,20 +62,24 @@ class Replica(Process):
         """Runs the replica background tasks."""
         self._prelude()
 
+        if self._exit.is_set():
+            self.logger.info("Replica is exiting")
+            return
+
         # Start auction listener
         self.auction_listener = AuctionBidListener(self.auction)
         self.auction_listener.start()
 
         # Start replica leader/follower tasks (heartbeat, election, etc.)
         # TODO: impl leader/follower tasks
-        while not self.exit.is_set():
+        while not self._exit.is_set():
             sleep(10)
 
         self.auction_listener.stop()
 
     def stop(self) -> None:
         """Stops the replica."""
-        self.exit.set()
+        self._exit.set()
         self.logger.info("Replica received stop signal")
 
     def _prelude(self) -> None:
@@ -105,7 +109,7 @@ class Replica(Process):
         uc = Unicast("", port=UNICAST_PORT)
         try:
             with Timeout(TIMEOUT_REPLICATION, throw_exception=True):
-                while not self.exit.is_set():
+                while not self._exit.is_set():
                     response, _ = uc.receive()
 
                     if not MessageSchema.of(hdr.FIND_REPLICA_ACKNOWLEDGEMENT, response):
@@ -120,12 +124,15 @@ class Replica(Process):
                     break
         except TimeoutError:
             self.logger.info("Did not receive acknowledgement from auctioneer")
+            mc.close()
             self.stop()
             return
+        finally:
+            uc.close()
 
         try:
             with Timeout(TIMEOUT_REPLICATION, throw_exception=True):
-                while not self.exit.is_set():
+                while not self._exit.is_set():
                     try:
                         msg, addr = mc.receive()
                     except TimeoutError:
@@ -151,3 +158,5 @@ class Replica(Process):
             self.logger.info("Did not receive auction information from auctioneer")
             self.stop()
             return
+        finally:
+            mc.close()

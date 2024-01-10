@@ -20,6 +20,7 @@ from util import create_logger, logging
 
 from constant import (
     interaction as inter,
+    SLEEP_TIME,
     MULTICAST_DISCOVERY_GROUP,
     MULTICAST_DISCOVERY_PORT,
     MULTICAST_DISCOVERY_TTL,
@@ -72,7 +73,10 @@ class Auctioneer:
 
         # No graceful shutdown needed, terminate all listeners
         for sub_auctioneer in self.sub_auctioneers.values():
-            sub_auctioneer.terminate()
+            sub_auctioneer.stop()
+
+        for sub_auctioneer in self.sub_auctioneers.values():
+            sub_auctioneer.join()
 
         self.logger.info(f"{self.name} stopped sub auctioneers")
 
@@ -173,6 +177,7 @@ class _SubAuctioneer(Process):
             auction (Auction): The auction to run. Should be a shared memory object.
         """
         super().__init__()
+        self._exit = Event()
 
         self.name = f"Sub-Auctioneer-{auction.get_id()}"
         self.logger: logging.Logger = create_logger(self.name.lower())
@@ -190,7 +195,19 @@ class _SubAuctioneer(Process):
         self.logger.info(f"{self.name} for auction {self._auction} is finding replicas")
         replica_finder = ReplicaFinder(self._auction, replica_list)
         replica_finder.start()
-        replica_finder.join()
+
+        # Wait for replica finder to finish or if stop signal is received propegate stop signal and return
+        while not self._exit.is_set() and replica_finder.is_alive():
+            sleep(SLEEP_TIME)
+
+        if self._exit.is_set():
+            replica_finder.stop()
+            self.logger.info(
+                f"{self.name} for auction {self._auction} received stop signal"
+            )
+            replica_finder.join()
+            return
+
         self.logger.info(
             f"{self.name} for auction {self._auction} found replicas, releasing replica list"
         )
@@ -217,11 +234,24 @@ class _SubAuctioneer(Process):
         )
         auction_bid_listener = AuctionBidListener(self._auction)
         auction_bid_listener.start()
-        auction_bid_listener.join()
+
+        # Wait for replica finder to finish or if stop signal is received propegate stop signal and return
+        while not self._exit.is_set() and auction_bid_listener.is_alive():
+            sleep(SLEEP_TIME)
+
+        if self._exit.is_set():
+            auction_bid_listener.stop()
+            self.logger.info(
+                f"{self.name} for auction {self._auction} received stop signal"
+            )
+            auction_bid_listener.join()
+            return
+
         self.logger.info(
-            f"{self.name} for auction {self._auction} stopped listening to bids"
+            f"{self.name} for auction {self._auction} stopped listening to bids as auction ended"
         )
 
     def stop(self) -> None:
         """Stops the sub-auctioneer."""
         self.logger.info(f"{self.name} received stop signal")
+        self._exit.set()

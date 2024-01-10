@@ -59,6 +59,9 @@ class AuctionAnnouncementListener(Process):
                 )
                 self._store.add(announcement)
 
+        self.logger.info(f"{self.name} received stop signal; releasing resources")
+        mc.close()
+
         self.logger.info(f"{self.name} stopped listening to auction announcements")
 
     def stop(self) -> None:
