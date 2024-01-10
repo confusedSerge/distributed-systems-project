@@ -51,7 +51,7 @@ class Client(Process):
             auction_announcement_store=self.auction_announcement_store,
         )
 
-        # Auctioneer and bidder
+        self._logger.info(f"{self._name} initialized")
 
     def run(self) -> None:
         """Starts the client background tasks."""

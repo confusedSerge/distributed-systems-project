@@ -33,8 +33,11 @@ class Server(Process):
 
         self._replica_pool: list[Replica] = []
 
+        self._logger.info(f"{self._name} initialized")
+
     def run(self) -> None:
         """Runs the server background tasks."""
+        self._logger.info(f"{self._name} starting background tasks")
         mc = Multicast(
             MULTICAST_DISCOVERY_GROUP, MULTICAST_DISCOVERY_PORT, timeout=TIMEOUT_RECEIVE
         )
@@ -43,6 +46,7 @@ class Server(Process):
             try:
                 request, addr = mc.receive()
             except TimeoutError:
+                self._logger.debug("Server timed out while waiting for replica request")
                 continue
 
             if (

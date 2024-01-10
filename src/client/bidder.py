@@ -77,6 +77,8 @@ class Bidder(Process):
         self._joined_auctions: dict[str, Auction] = {}
         self._auction_bid_listeners: dict[str, AuctionBidListener] = {}
 
+        self._logger.info(f"{self._name} initialized")
+
     def stop(self) -> None:
         """Stops the bidder background tasks."""
         self._logger.info(f"{self._name} received stop signal")

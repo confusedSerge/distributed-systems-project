@@ -67,6 +67,8 @@ class Auctioneer:
         self._created_auctions: dict[str, Auction] = {}
         self._sub_auctioneers: dict[str, _SubAuctioneer] = {}
 
+        self._logger.info(f"{self._name} initialized")
+
     def stop(self) -> None:
         """Stops the auctioneer background tasks."""
         self._logger.info(f"{self._name} received stop signal")
