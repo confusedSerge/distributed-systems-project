@@ -13,24 +13,40 @@ from model import Auction
 class AuctionData:
     """Auction data class for representing an auction and sending it over the network."""
 
-    # TODO: Add all the other fields.
+    # Auction ID, name and auctioneer
     _id: str = field(metadata={"validate": lambda x: not str(x)})
+    name: str = field(metadata={"validate": lambda x: isinstance(x, str)})
+    auctioneer: str = field(metadata={"validate": lambda x: isinstance(x, str)})
 
-    # Basic auction information.
+    # Auction information
     item: str = field(metadata={"validate": lambda x: isinstance(x, str)})
     price: int = field(metadata={"validate": lambda x: isinstance(x, int)})
     time: int = field(metadata={"validate": lambda x: isinstance(x, int)})
 
-    # Multicast address for the auction.
+    # Multicast address for the auction
     multicast_address: tuple[str, int] = field(
         metadata={
-            "validate": (
-                lambda x: len(x) == 2
-                and isinstance(x[0], str)
-                and isinstance(x[1], int)
+            "validate": lambda x: len(x) == 2
+            and isinstance(x[0], str)
+            and isinstance(x[1], int)
+        }
+    )
+
+    # Auction state
+    state: int = field(metadata={"validate": lambda x: isinstance(x, int)})
+    bid_history: list[tuple[str, int]] = field(
+        metadata={
+            "validate": lambda x: isinstance(x, list)
+            and all(
+                isinstance(y, tuple)
+                and len(y) == 2
+                and isinstance(y[0], str)
+                and isinstance(y[1], int)
+                for y in x
             )
         }
     )
+    winner: str = field(metadata={"validate": lambda x: isinstance(x, str)})
 
     def __str__(self) -> str:
         """Return the string representation of the auction data."""
@@ -57,23 +73,33 @@ class AuctionData:
 
     def to_auction(self) -> Auction:
         """Return the auction from the auction data."""
-        return Auction(
-            _id=self._id,
+        auction: Auction = Auction(
+            name=self.name,
+            auctioneer=self.auctioneer,
             item=self.item,
             price=self.price,
             time=self.time,
             multicast_address=self.multicast_address,
         )
+        auction._set_id(self._id)
+        auction._set_state(self.state)
+        auction._set_bid_history(self.bid_history)
+        auction._set_winner(self.winner)
 
     @staticmethod
     def from_auction(auction: Auction) -> Self:
         """Return the auction data from the auction."""
         return AuctionData(
             _id=auction.get_id(),
+            name=auction.get_name(),
+            auctioneer=auction.get_auctioneer(),
             item=auction.get_item(),
             price=auction.get_price(),
             time=auction.get_time(),
             multicast_address=auction.get_multicast_address(),
+            state=auction.get_state(),
+            bid_history=auction.get_bid_history(),
+            winner=auction.get_winner(),
         )
 
 

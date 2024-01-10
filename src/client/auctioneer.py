@@ -1,6 +1,5 @@
 from time import sleep
 
-import uuid
 from multiprocessing import Process, Event
 
 import re
@@ -16,10 +15,11 @@ from communication import (
 )
 
 
-from util import create_logger, logging
+from util import create_logger, logging, generate_unique_mc_address
 
 from constant import (
     interaction as inter,
+    USERNAME,
     SLEEP_TIME,
     MULTICAST_DISCOVERY_GROUP,
     MULTICAST_DISCOVERY_PORT,
@@ -127,30 +127,34 @@ class Auctioneer:
 
         This reads in the item, price and time from the user and instantiates a sub-auctioneer.
         """
-        item, price, time = self._define_auction_item()
-        _uuid: str = str(uuid.uuid4())  # TODO: Generate a global unique id
+        name, item, price, time = self._define_auction()
+        # TODO: give list of known used multicast addresses
+        multicast_address = generate_unique_mc_address()
 
         if not self.manager_running.is_set():
             self._logger.error(
                 "Manager is not running, cannot create auction. This should not happen."
             )
-        _auction: Auction = self.manager.Auction(item, price, time, _uuid)
-        self._created_auctions[_uuid] = _auction
+        _auction: Auction = self.manager.Auction(
+            name, USERNAME, item, price, time, multicast_address
+        )
+        self._created_auctions[_auction.get_id()] = _auction
 
-        sub_auctioneer = _SubAuctioneer(self._created_auctions[_uuid])
+        sub_auctioneer = _SubAuctioneer(self._created_auctions[_auction.get_id()])
         sub_auctioneer.start()
 
         # Store sub-auctioneer in dictionary corresponding to auction id
-        self._sub_auctioneers[_uuid] = sub_auctioneer
+        self._sub_auctioneers[_auction.get_id()] = sub_auctioneer
 
-    def _define_auction_item(self) -> tuple[str, float, int]:
+    def _define_auction(self) -> tuple[str, str, float, int]:
         """Defines the item of the auction.
 
         Returns:
-            tuple[str, float, int]: The item, price and time of the auction.
+            tuple[str, str, float, int]: The name, item, price and time of the auction.
         """
         answer: dict = inquirer.prompt(
             [
+                inquirer.Text("name", message="What's the name of the auction"),
                 inquirer.Text("item", message="What's the item"),
                 inquirer.Text(
                     "price",
@@ -166,7 +170,12 @@ class Auctioneer:
                 ),
             ]
         )
-        return answer["item"], float(answer["price"]), int(answer["time"])
+        return (
+            answer["name"],
+            answer["item"],
+            float(answer["price"]),
+            int(answer["time"]),
+        )
 
 
 class _SubAuctioneer(Process):

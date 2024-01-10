@@ -35,7 +35,8 @@ class AuctionBidListener(Process):
         mc = Multicast(*self._auction.get_multicast_address(), timeout=TIMEOUT_RECEIVE)
 
         while (
-            self._auction.get_state() != state.AUCTION_ENDED and not self._exit.is_set()
+            self._auction.get_state() == state.AUCTION_RUNNING
+            and not self._exit.is_set()
         ):
             # Receive bid
             try:

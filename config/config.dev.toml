@@ -1,4 +1,9 @@
 name = "Development Configuration"
+uuid = "development"
+
+[account]
+username = "test"
+
 
 [logger]
 path = "log/"
@@ -24,8 +29,9 @@ port = 5007
 ttl = 32
 
 [communication.multicast.auction]
-group_prefix = "224.2."
-initial_port = 5008
+group_base = "224.2.0.0/16" # this is the base prefix for the multicast group
+port = 5008
+ttl = 32
 
 [communication.unicast]
 port = 5006

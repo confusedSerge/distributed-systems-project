@@ -9,7 +9,8 @@ class Auction:
 
     def __init__(
         self,
-        _id: str,
+        name: str,
+        auctioneer: str,
         item: str,
         price: float,
         time: int,
@@ -18,12 +19,19 @@ class Auction:
         """Initializes the auction class.
 
         Args:
+            name (str): The name of the auction.
+            auctioneer (str): The auctioneer of the auction.
+
             item (str): The item of the auction.
             price (float): The starting price of the auction.
             time (int): The time of the auction.
-            _id (str): The id of the auction.
         """
-        self._id: str = _id
+        # Identification
+        self._name: str = name
+        self._auctioneer: str = auctioneer
+        self._id: str = f"{self._auctioneer}-{self._name}"
+
+        # Auction information
         self._item: str = item
         self._price: float = price
         self._time: int = time
@@ -31,12 +39,27 @@ class Auction:
         # Multicast group and port are initially empty
         self._multicast_address = multicast_address
 
-        # Auction state is initially not started
-        self._auction_state: tuple[int, str] = state.AUCTION_NOT_STARTED
-
-        # Bid history is a list of tuples (bidder, bid)
+        # Auction states
+        self._auction_state: tuple[int, str] = state.AUCTION_PREPARATION
         self._bid_history: list[tuple[str, float]] = []
         self._winner: str = ""
+
+    # Identification methods
+    def get_name(self) -> str:
+        """Returns the name of the auction.
+
+        Returns:
+            str: The name of the auction.
+        """
+        return self._name
+
+    def get_auctioneer(self) -> str:
+        """Returns the auctioneer of the auction.
+
+        Returns:
+            str: The auctioneer of the auction.
+        """
+        return self._auctioneer
 
     def get_id(self) -> str:
         """Returns the id of the auction.
@@ -46,6 +69,17 @@ class Auction:
         """
         return self._id
 
+    def _set_id(self, id: str) -> None:
+        """Sets the id of the auction.
+
+        Should only be used when deserializing an auction.
+
+        Args:
+            id (str): The id of the auction.
+        """
+        self._id = id
+
+    # Auction information methods
     def get_item(self) -> tuple[str, float, int]:
         """Returns the item, price and time of the auction.
 
@@ -70,6 +104,7 @@ class Auction:
         """
         return self._time
 
+    # Multicast methods
     def get_multicast_address(self) -> tuple[str, int]:
         """Returns the multicast group and port of the auction.
 
@@ -94,9 +129,103 @@ class Auction:
         """
         return self._multicast_address[1]
 
-    # TODO: Restructure following methods
-    def add_bid(self, bidder: str, bid: float) -> None:
-        """Adds a bid to the bid history.
+    # Auction state methods
+    def get_state(self) -> tuple[int, str]:
+        """Returns the state of the auction.
+
+        Returns:
+            tuple[int, str]: The state of the auction.
+        """
+        return self._auction_state
+
+    def get_state_id(self) -> int:
+        """Returns the state id of the auction.
+
+        Returns:
+            int: The state id of the auction.
+        """
+        return self._auction_state[0]
+
+    def get_state_description(self) -> str:
+        """Returns the state description of the auction.
+
+        Returns:
+            str: The state description of the auction.
+        """
+        return self._auction_state[1]
+
+    def next_state(self) -> None:
+        """Sets the state of the auction to the next state."""
+        match self._auction_state:
+            case state.AUCTION_PREPARATION:
+                self._auction_state = state.AUCTION_RUNNING
+            case state.AUCTION_RUNNING:
+                self._auction_state = state.AUCTION_ENDED
+            case state.AUCTION_ENDED:
+                self._auction_state = state.AUCTION_WINNER_DECLARED
+            case _:
+                self._auction_state = state.AUCTION_CANCELLED
+
+    def cancel(self) -> None:
+        """Cancels the auction."""
+        self._auction_state = state.AUCTION_CANCELLED
+
+    def is_cancelled(self) -> bool:
+        """Returns whether the auction is cancelled.
+
+        Returns:
+            bool: Whether the auction is cancelled.
+        """
+        return self._auction_state == state.AUCTION_CANCELLED
+
+    def is_preparation(self) -> bool:
+        """Returns whether the auction is in preparation.
+
+        Returns:
+            bool: Whether the auction is in preparation.
+        """
+        return self._auction_state == state.AUCTION_PREPARATION
+
+    def is_running(self) -> bool:
+        """Returns whether the auction is running.
+
+        Returns:
+            bool: Whether the auction is running.
+        """
+        return self._auction_state == state.AUCTION_RUNNING
+
+    def is_ended(self) -> bool:
+        """Returns whether the auction is ended.
+
+        Returns:
+            bool: Whether the auction is ended.
+        """
+        return self._auction_state == state.AUCTION_ENDED
+
+    def is_winner_declared(self) -> bool:
+        """Returns whether the auction winner has been declared.
+
+        Returns:
+            bool: Whether the auction winner has been declared.
+        """
+        return self._auction_state == state.AUCTION_WINNER_DECLARED
+
+    def _set_state(self, state_id: int) -> None:
+        """Sets the state of the auction.
+
+        This method should only be used when deserializing an auction.
+
+        Args:
+            state_id (int): The state id of the auction.
+        """
+        self._auction_state = (
+            state.stateid2stateobj[state_id]
+            if state_id in state.stateid2stateobj
+            else state.AUCTION_CANCELLED
+        )
+
+    def bid(self, bidder: str, bid: float) -> None:
+        """Bids on the auction.
 
         Args:
             bidder (str): The bidder.
@@ -112,8 +241,10 @@ class Auction:
         """
         return self._bid_history
 
-    def set_bid_history(self, bid_history: list[tuple[str, float]]) -> None:
+    def _set_bid_history(self, bid_history: list[tuple[str, float]]) -> None:
         """Sets the bid history.
+
+        This method should only be used when deserializing an auction.
 
         Args:
             bid_history (list[tuple[str, float]]): The bid history.
@@ -134,41 +265,19 @@ class Auction:
         Returns:
             str: The winner of the auction.
         """
-        return self._winner
+        if self._auction_state == state.AUCTION_WINNER_DECLARED:
+            return self._winner
+        return ""
 
-    def set_winner(self, winner: str) -> None:
+    def _set_winner(self, winner: str) -> None:
         """Sets the winner of the auction.
+
+        This method should only be used when deserializing an auction.
 
         Args:
             winner (str): The winner of the auction.
         """
         self._winner = winner
-
-    def next_state(self) -> None:
-        """Sets the next state of the auction."""
-        match self._auction_state:
-            case state.AUCTION_NOT_STARTED:
-                self._auction_state = state.AUCTION_RUNNING
-            case state.AUCTION_RUNNING:
-                self._auction_state = state.AUCTION_ENDED
-            case state.AUCTION_ENDED:
-                self._auction_state = state.AUCTION_NOT_STARTED
-
-    def get_state(self) -> tuple[int, str]:
-        """Returns the state of the auction.
-
-        Returns:
-            tuple[int, str]: The state of the auction.
-        """
-        return self._auction_state
-
-    def set_state(self, state: tuple[int, str]) -> None:
-        """Sets the state of the auction.
-
-        Args:
-            state (tuple[int, str]): The state of the auction.
-        """
-        self._auction_state = state
 
     def __str__(self) -> str:
         return f"Auction {self._id} with ({self._item}, {self._price}, {self._time}) currently in state {self._auction_state[1]}"
