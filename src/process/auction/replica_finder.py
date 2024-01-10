@@ -15,14 +15,14 @@ from communication import (
 from model import Auction
 from constant import (
     header as hdr,
-    TIMEOUT,
+    TIMEOUT_REPLICATION,
     MULTICAST_DISCOVERY_GROUP,
     MULTICAST_DISCOVERY_PORT,
     UNICAST_PORT,
     REPLICA_AUCTION_POOL_SIZE,
 )
 
-from util import create_logger, Timeout, TimeoutError
+from util import create_logger, Timeout
 
 
 class ReplicaFinder(Process):
@@ -59,7 +59,7 @@ class ReplicaFinder(Process):
     def run(self):
         """Runs the replica finder process."""
         self.logger.info(f"{self.name} is starting background tasks")
-        uc: Unicast = Unicast("", port=UNICAST_PORT, sender=False)
+        uc: Unicast = Unicast("", port=UNICAST_PORT)
 
         # Start replica request emitter
         emitter = Process(target=self._emit_request)
@@ -67,7 +67,7 @@ class ReplicaFinder(Process):
 
         new_replicas: list[str] = []
         try:
-            with Timeout(TIMEOUT, throw_exception=True):
+            with Timeout(TIMEOUT_REPLICATION, throw_exception=True):
                 while (
                     len(self._replicas_list) + len(new_replicas)
                     < REPLICA_AUCTION_POOL_SIZE
@@ -137,7 +137,9 @@ class ReplicaFinder(Process):
 
     def _emit_request(self):
         """Sends a find replica request periodically."""
-        mc: Multicast = Multicast(MULTICAST_DISCOVERY_GROUP, MULTICAST_DISCOVERY_PORT)
+        mc: Multicast = Multicast(
+            MULTICAST_DISCOVERY_GROUP, MULTICAST_DISCOVERY_PORT, sender=True
+        )
         req: MessageFindReplicaRequest = MessageFindReplicaRequest(
             auction_id=self._auction.get_id(),
             auction_multicast_group=self._auction.get_multicast_group(),

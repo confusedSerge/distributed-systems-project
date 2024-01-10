@@ -1,4 +1,4 @@
-from .general import TIMEOUT
+from .general import BUFFER_SIZE, TIMEOUT_RECEIVE, TIMEOUT_RESPONSE, TIMEOUT_REPLICATION
 
 from .header import (
     FIND_REPLICA_ACK as HEADER_FIND_REPLICA_ACK,

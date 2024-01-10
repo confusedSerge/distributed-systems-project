@@ -1,8 +1,12 @@
-from multiprocessing import Process, Event
+from time import sleep
+from multiprocessing import Process, Event, Value
 
 import inquirer
 
-from util import create_logger, logging
+from model import AuctionAnnouncementStore
+from process import Manager, AuctionAnnouncementListener
+
+from util import create_logger, logging, Timeout
 from constant import interaction as inter
 
 from .auctioneer import Auctioneer
@@ -20,31 +24,65 @@ class Client(Process):
 
     def __init__(self) -> None:
         """Initializes the client class."""
-        super().__init__()
+        super(Client, self).__init__()
         self._exit = Event()
 
         self.name: str = "Client"
         self.logger: logging.Logger = create_logger(self.name.lower())
 
-        self._auctioneer: Auctioneer = Auctioneer()
-        self._bidder: Bidder = Bidder()
+        # Shared memory
+        self.manager_running = Event()
+        self.manager: Manager = Manager()
+
+        self.manager.start()
+        self.manager_running.set()
+
+        self._auction_announcement_store = self.manager.AuctionAnnouncementStore()
+
+        # Auctioneer and bidder
+        self._auctioneer = Auctioneer(
+            manager=self.manager,
+            manager_running=self.manager_running,
+            auction_announcement_store=self._auction_announcement_store,
+        )
+        self._bidder = Bidder(
+            manager=self.manager,
+            manager_running=self.manager_running,
+            auction_announcement_store=self._auction_announcement_store,
+        )
+
+        # Auctioneer and bidder
 
     def run(self) -> None:
         """Starts the client background tasks."""
         self.logger.info(f"{self.name} is starting background tasks")
 
-        self._auctioneer.start()
-        self._bidder.start()
+        # Start auction announcement listener
+        self._auction_announcement_process = AuctionAnnouncementListener(
+            self._auction_announcement_store
+        )
+        self._auction_announcement_process.start()
 
         self.logger.info(f"{self.name} started background tasks")
+
+        while not self._exit.is_set():
+            sleep(1)
+
+        self._auctioneer.stop()
+        self._bidder.stop()
+
+        # No graceful shutdown needed, terminate all listeners
+        self._auction_announcement_process.terminate()
+
+        self.manager_running.clear()
+        self.manager.shutdown()
+
+        self.logger.info(f"{self.name} stopped background tasks")
 
     def stop(self) -> None:
         """Stops the client background tasks."""
         self.logger.info(f"{self.name} received stop signal")
         self._exit.set()
-
-        self._auctioneer.stop()
-        self._bidder.stop()
 
     def interact(self) -> None:
         """Handles the interactive command line interface for the client.
@@ -66,12 +104,15 @@ class Client(Process):
                 ]
             )
 
+            if answer is None:
+                break
+
             match answer["action"]:
                 case "Auctioneer":
-                    self.auctioneer.interact()
+                    self._auctioneer.interact()
                 case "Bidder":
-                    self.bidder.interact()
+                    self._bidder.interact()
                 case "Stop":
                     break
                 case _:
-                    self.logger.error(f"Invalid action {answer['action']}")
+                    self.logger.error(f"Invalid action {answer}")

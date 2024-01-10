@@ -1,9 +1,10 @@
+import os
 from multiprocessing import Process, Event
 
 from communication import Multicast, MessageSchema, MessageAuctionBid
 
 from model import Auction
-from constant import auction as state, header as hdr
+from constant import auction as state, header as hdr, TIMEOUT_RECEIVE
 
 from util import create_logger
 
@@ -25,20 +26,22 @@ class AuctionBidListener(Process):
 
         self._auction: Auction = auction
 
-        # TODO: Extend this to have multiple local auction listeners
-        self.name = f"AuctionListener-{auction.get_id()}"
+        self.name = f"AuctionListener-{auction.get_id()}-{os.getpid()}"
         self.logger = create_logger(self.name.lower())
 
     def run(self) -> None:
         """Runs the auction listener process."""
         self.logger.info(f"{self.name} is starting background tasks")
-        mc = Multicast(*self._auction.get_multicast_address())
+        mc = Multicast(*self._auction.get_multicast_address(), timeout=TIMEOUT_RECEIVE)
 
         while (
             self._auction.get_state() != state.AUCTION_ENDED and not self._exit.is_set()
         ):
             # Receive bid
-            bid, address = mc.receive()
+            try:
+                bid, address = mc.receive()
+            except TimeoutError:
+                continue
 
             if not MessageSchema.of(hdr.AUCTION_BID, bid):
                 continue
@@ -58,4 +61,4 @@ class AuctionBidListener(Process):
     def stop(self) -> None:
         """Stops the auction listener process."""
         self.logger.info(f"{self.name} received stop signal")
-        self.event.set()
+        self._exit.set()

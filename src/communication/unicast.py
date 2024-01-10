@@ -1,10 +1,17 @@
 import socket
+from typing import Optional
 
 
 class Unicast:
     """Unicast class for sending and receiving unicast messages."""
 
-    def __init__(self, host: str, port: int, sender: bool = True):
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        sender: bool = False,
+        timeout: Optional[int] = None,
+    ):
         """Initialize the unicast socket.
 
         As we are using UDP, we can reuse the same address and port for sending and receiving messages.
@@ -12,7 +19,7 @@ class Unicast:
         Args:
             host (str): The host to send and receive messages.
             port (int): The port to send and receive messages.
-            sender (bool, optional): Whether the unicast object is used for sending or receiving. Defaults to True.
+            sender (bool, optional): Whether the unicast object is used for sending or receiving. Defaults to False.
         """
         self.host = host
         self.port = port if isinstance(port, int) else int(port)
@@ -27,6 +34,7 @@ class Unicast:
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+            self.socket.settimeout(timeout) if timeout else None
             self.socket.bind(self.unicast_address)
 
     def send(self, message: str) -> None:

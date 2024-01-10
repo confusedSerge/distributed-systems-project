@@ -1,10 +1,11 @@
+from time import sleep
 import uuid
 from multiprocessing import Process, Event
 
 import inquirer
 
 from model import Auction, AuctionAnnouncementStore
-from process import Manager, AuctionAnnouncementListener, AuctionBidListener
+from process import Manager, AuctionBidListener
 from communication import (
     Multicast,
     Unicast,
@@ -16,12 +17,12 @@ from communication import (
 )
 
 
-from util import create_logger, logging, Timeout, TimeoutError
+from util import create_logger, logging, Timeout
 
 from constant import (
     interaction as inter,
     header as hdr,
-    TIMEOUT,
+    TIMEOUT_RESPONSE,
     MULTICAST_DISCOVERY_GROUP,
     MULTICAST_DISCOVERY_PORT,
     MULTICAST_DISCOVERY_TTL,
@@ -32,7 +33,7 @@ from constant import (
 class Bidder(Process):
     """The bidder class handles the bidding process of the client.
 
-    Bidder is run in the main thread (process) of the client and delegates its background tasks (listeners) to other processes, sharing the same memory.
+    Bidder is run in the client thread and delegates its background tasks (listeners) to other processes, sharing the same memory.
 
     The bidder class is responsible for the following:
     - Joining as a bidder: The bidder sends a discovery message to the multicast group to find auctions and keeps listening for auction announcements (background process for listening).
@@ -45,57 +46,45 @@ class Bidder(Process):
 
     def __init__(
         self,
+        manager: Manager,
+        manager_running: Event,
+        auction_announcement_store: AuctionAnnouncementStore,
     ) -> None:
-        """Initializes the bidder class
+        """Initializes the bidder class.
+
+        The auction announcement store is used to keep track of current auctions.
+        This allows to choose unique auction ids and multicast groups for each auction.
 
         Args:
-            config (dict): The configuration of the bidder.
+            manager (Manager): The manager to use for shared memory.
+            manager_running (Event): The event to use to check if the manager is running.
+            auction_announcement_store (AuctionAnnouncementStore): The auction announcement store to store the auction announcements in. Should be a shared memory object.
         """
         super().__init__()
-        self._exit = Event()
 
         self.name = "Bidder"
         self.logger: logging.Logger = create_logger(self.name.lower())
 
         # Shared memory
-        self.manager_running = Event()
-        self.manager: Manager = Manager()
+        self.manager_running = manager_running
+        self.manager: Manager = manager
 
-        self._auction_announcement_store: AuctionAnnouncementStore = None
-        self._auction_announcement_process: AuctionAnnouncementListener = None
+        self.auction_announcement_store: AuctionAnnouncementStore = (
+            auction_announcement_store
+        )
 
         self._joined_auctions: dict[str, Auction] = {}
         self._auction_bid_listeners: dict[str, AuctionBidListener] = {}
 
-    def start(self) -> None:
-        """Starts the bidder background tasks."""
-        self.logger.info(f"{self.name} is starting background tasks")
-
-        self.manager.start()
-        self.manager_running.set()
-
-        # Start auction announcement listener
-        self._auction_announcement_store = self.manager.AuctionAnnouncementStore()
-        self._auction_announcement_process = AuctionAnnouncementListener(
-            self._auction_announcement_store
-        )
-        self._auction_announcement_process.start()
-
-        self.logger.info(f"{self.name} started background tasks")
-
     def stop(self) -> None:
         """Stops the bidder background tasks."""
-        self.logger.info(f"{self.name} is stopping background tasks")
+        self.logger.info(f"{self.name} received stop signal")
 
-        self._auction_announcement_process.stop()
-
+        # No graceful shutdown needed, terminate all listeners
         for auction_listener in self._auction_bid_listeners.values():
-            auction_listener.stop()
+            auction_listener.terminate()
 
-        self.manager_running.clear()
-        self.manager.stop()
-
-        self.logger.info(f"{self.name} stopped background tasks")
+        self.logger.info(f"{self.name} stopped active listeners")
 
     def interact(self) -> None:
         """Handles the interactive command line interface for the bidder.
@@ -119,6 +108,9 @@ class Bidder(Process):
                     )
                 ]
             )
+
+            if answer is None:
+                break
 
             match answer["action"]:
                 case inter.BIDDER_ACTION_LIST_AUCTIONS:
@@ -185,7 +177,7 @@ class Bidder(Process):
         """
 
         # Send auction information request
-        uc = Unicast("", UNICAST_PORT, sender=False)
+        uc = Unicast("", UNICAST_PORT)
         Multicast.qsend(
             MessageAuctionInformationRequest(auction_id=auction_id).encode(),
             MULTICAST_DISCOVERY_GROUP,
@@ -195,7 +187,7 @@ class Bidder(Process):
 
         # wait for auction information response
         try:
-            with Timeout(TIMEOUT, throw_exception=True):
+            with Timeout(TIMEOUT_RESPONSE, throw_exception=True):
                 while True:
                     response, _ = uc.receive()
 

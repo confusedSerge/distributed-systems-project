@@ -4,6 +4,7 @@ from communication import Multicast, MessageSchema, MessageFindReplicaRequest
 
 from constant import (
     header as hdr,
+    TIMEOUT_RECEIVE,
     MULTICAST_DISCOVERY_GROUP,
     MULTICAST_DISCOVERY_PORT,
     REPLICA_LOCAL_POOL_SIZE,
@@ -34,10 +35,15 @@ class Server(Process):
 
     def run(self) -> None:
         """Runs the server background tasks."""
-        mc = Multicast(MULTICAST_DISCOVERY_GROUP, MULTICAST_DISCOVERY_PORT)
+        mc = Multicast(
+            MULTICAST_DISCOVERY_GROUP, MULTICAST_DISCOVERY_PORT, timeout=TIMEOUT_RECEIVE
+        )
 
-        while not self.exit.is_set():
-            request, addr = mc.receive()
+        while not self._exit.is_set():
+            try:
+                request, addr = mc.receive()
+            except TimeoutError:
+                continue
 
             if (
                 not MessageSchema.of(hdr.FIND_REPLICA_REQUEST, request)
@@ -59,5 +65,5 @@ class Server(Process):
 
     def stop(self) -> None:
         """Stops the server."""
-        self.exit.set()
+        self._exit.set()
         self.logger.info("Server received stop signal")

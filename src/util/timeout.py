@@ -23,7 +23,7 @@ class Timeout:
         self.seconds = seconds
         self.throw_exception = throw_exception
 
-    def _handle_timeout(self, signum, frame):
+    def _handle_timeout(self):
         raise TimeoutError("Timed out after {} seconds".format(self.seconds))
 
     def __enter__(self):
@@ -33,9 +33,3 @@ class Timeout:
     def __exit__(self, type, value, traceback):
         signal.alarm(0)
         return not self.throw_exception
-
-
-class TimeoutError(Exception):
-    """Timeout error class."""
-
-    pass

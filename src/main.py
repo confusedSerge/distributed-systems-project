@@ -4,32 +4,21 @@ from client import Client
 from server import Server
 
 import time
-from util import Timeout, TimeoutError
-
-
-def test():
-    try:
-        with Timeout(5, throw_exception=True):
-            while True:
-                print("Background process going strong")
-                time.sleep(7)
-    except TimeoutError:
-        print("Background process timed out")
+from util import Timeout
 
 
 if __name__ == "__main__":
-    start = time.time()
-    # Timeout test
-    proc = Process(target=test)
-    proc.start()
-    while proc.is_alive():
-        print("Main process going strong")
-        time.sleep(10)
-    proc.join()
+    import socket
 
-    end = time.time()
-    print("Time elapsed:", end - start)
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.bind(("", 7778))
+    s.settimeout(2)
 
+    try:
+        r = s.recv(1024)
+        print("Received", r)
+    except TimeoutError:
+        print("Timeout")
     # client = Client()
     # server = Server()
 
@@ -42,3 +31,4 @@ if __name__ == "__main__":
 
     # # Terminate client and server processes when client interaction is done
     # client.stop()
+    # server.terminate()

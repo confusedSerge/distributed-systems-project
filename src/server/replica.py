@@ -17,12 +17,12 @@ from process import AuctionBidListener
 
 from constant import (
     header as hdr,
-    TIMEOUT,
+    TIMEOUT_RECEIVE,
+    TIMEOUT_REPLICATION,
     UNICAST_PORT,
-    REPLICA_LOCAL_POOL_SIZE,
 )
 
-from util import create_logger, Timeout, TimeoutError
+from util import create_logger, Timeout
 
 
 class Replica(Process):
@@ -91,7 +91,7 @@ class Replica(Process):
         mc = Multicast(
             group=self.request.multicast_address[0],
             port=self.request.multicast_address[1],
-            sender=False,
+            timeout=TIMEOUT_RECEIVE,
         )
 
         # Send join message to auctioneer
@@ -102,9 +102,9 @@ class Replica(Process):
         )
 
         # Wait for auctioneer to acknowledge, or timeout
-        uc = Unicast("", port=UNICAST_PORT, sender=False)
+        uc = Unicast("", port=UNICAST_PORT)
         try:
-            with Timeout(TIMEOUT, throw_exception=True):
+            with Timeout(TIMEOUT_REPLICATION, throw_exception=True):
                 while not self.exit.is_set():
                     response, _ = uc.receive()
 
@@ -124,10 +124,14 @@ class Replica(Process):
             return
 
         try:
-            with Timeout(TIMEOUT, throw_exception=True):
+            with Timeout(TIMEOUT_REPLICATION, throw_exception=True):
                 while not self.exit.is_set():
-                    msg, addr = mc.receive()
+                    try:
+                        msg, addr = mc.receive()
+                    except TimeoutError:
+                        continue
 
+                    # TODO: interference possible through other
                     if not MessageSchema.of(hdr.AUCTION_INFORMATION_RES, msg):
                         continue
 

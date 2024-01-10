@@ -1,11 +1,14 @@
+from time import sleep
+
 import uuid
 from multiprocessing import Process, Event
 
 import re
 import inquirer
 
-from model import Auction
+from model import Auction, AuctionAnnouncementStore
 from process import Manager, ReplicaFinder, AuctionBidListener
+
 from communication import (
     Multicast,
     AuctionMessageData,
@@ -23,10 +26,10 @@ from constant import (
 )
 
 
-class Auctioneer(Process):
+class Auctioneer:
     """Auctioneer class handles the auctioning of items, keeping track of the highest bid and announcing the winner.
 
-    Auctioneer is run in main thread (process) of the client and delegates its background tasks (listeners) to other processes, sharing the same memory.
+    Auctioneer is run in client thread delegates its background tasks (listeners) to other processes, sharing the same memory.
 
     The auctioneer class is responsible for the following:
     - Creating an auction: The auctioneer creates an auction by defining the item, price and time and starting the auction (delegating to sub-auctioneer).
@@ -34,45 +37,44 @@ class Auctioneer(Process):
     - Information about an auction: The auctioneer lists information about a specific auction.
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        manager: Manager,
+        manager_running: Event,
+        auction_announcement_store: AuctionAnnouncementStore,
+    ) -> None:
         """Initializes the auctioneer class.
 
         Args:
-            config (dict): The configuration of the auctioneer.
+            manager (Manager): The manager to use for shared memory.
+            manager_running (Event): The event to use to check if the manager is running.
+            auction_announcement_store (AuctionAnnouncementStore): The auction announcement store to store the auction announcements in. Should be a shared memory object.
         """
         super().__init__()
-        self._exit = Event()
 
         self.name = "Auctioneer"
         self.logger: logging.Logger = create_logger(self.name.lower())
 
         # Shared memory
-        self.manager_running = Event()
-        self.manager: Manager = Manager()
+        self.manager_running = manager_running
+        self.manager: Manager = manager
+
+        self.auction_announcement_store: AuctionAnnouncementStore = (
+            auction_announcement_store
+        )
 
         self.auctions: dict[str, Auction] = {}
-        self.sub_auctioneers: dict[str, Process] = {}
-
-    def start(self) -> None:
-        """Starts the auctioneer background tasks."""
-        self.logger.info(f"{self.name} is starting background tasks")
-
-        self.manager.start()
-        self.manager_running.set()
-
-        self.logger.info(f"{self.name} started background tasks")
+        self.sub_auctioneers: dict[str, _SubAuctioneer] = {}
 
     def stop(self) -> None:
         """Stops the auctioneer background tasks."""
-        self.logger.info(f"{self.name} is stopping background tasks")
+        self.logger.info(f"{self.name} received stop signal")
 
+        # No graceful shutdown needed, terminate all listeners
         for sub_auctioneer in self.sub_auctioneers.values():
             sub_auctioneer.terminate()
 
-        self.manager_running.clear()
-        self.manager.stop()
-
-        self.logger.info(f"{self.name} stopped background tasks")
+        self.logger.info(f"{self.name} stopped sub auctioneers")
 
     def interact(self) -> None:
         """Handles the interactive command line interface for the auctioneer.
@@ -93,6 +95,9 @@ class Auctioneer(Process):
                     )
                 ]
             )
+
+            if answer is None:
+                break
 
             match answer["action"]:
                 case inter.AUCTIONEER_ACTION_START:
@@ -123,9 +128,10 @@ class Auctioneer(Process):
             self.logger.error(
                 "Manager is not running, cannot create auction. This should not happen."
             )
-        self.auctions[_uuid] = self.manager.Auction(item, price, time, _uuid)
+        _auction: Auction = self.manager.Auction(item, price, time, _uuid)
+        self.auctions[_uuid] = _auction
 
-        sub_auctioneer = _SubAuctioneer(self.auctions[_uuid], self.config)
+        sub_auctioneer = _SubAuctioneer(self.auctions[_uuid])
         sub_auctioneer.start()
 
         # Store sub-auctioneer in dictionary corresponding to auction id

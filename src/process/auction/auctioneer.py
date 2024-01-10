@@ -12,6 +12,7 @@ from communication import (
 from model import Auction
 from constant import (
     header as hdr,
+    TIMEOUT_RECEIVE,
     MULTICAST_DISCOVERY_GROUP,
     MULTICAST_DISCOVERY_PORT,
     UNICAST_PORT,
@@ -44,11 +45,16 @@ class AuctionManager(Process):
     def run(self) -> None:
         """Runs the auction manager process."""
         self.logger.info(f"{self.name} is starting background tasks")
-        mc = Multicast(MULTICAST_DISCOVERY_GROUP, MULTICAST_DISCOVERY_PORT)
+        mc = Multicast(
+            MULTICAST_DISCOVERY_GROUP, MULTICAST_DISCOVERY_PORT, timeout=TIMEOUT_RECEIVE
+        )
 
         while not self._exit.is_set():
             # Receive request
-            request, address = mc.receive()
+            try:
+                request, address = mc.receive()
+            except TimeoutError:
+                continue
 
             if not MessageSchema.of(hdr.AUCTION_INFORMATION_REQUEST, request):
                 continue
