@@ -1,5 +1,6 @@
-import logging
 import os
+import tomllib
+import logging
 
 from constant import logger as constant_logger
 
@@ -22,3 +23,18 @@ def create_logger(name: str) -> logging.Logger:
     logger.addHandler(handler)
 
     return logger
+
+
+def load_config(path: str = "./config/config.dev.toml") -> dict:
+    """Loads the configuration from the config file.
+
+    Args:
+        path (str, optional): The path to the config file. Defaults to "config/config.toml".
+
+    Returns:
+        dict: The configuration as a dictionary.
+    """
+    with open(path, "rb") as f:
+        config = tomllib.load(f)
+
+    return config

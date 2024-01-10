@@ -1,7 +1,8 @@
-import time
+import multiprocessing
+
 import inquirer
 
-from util.logger import create_logger
+from util.helper import create_logger, logging
 from constant import interaction as inter
 
 from .auctioneer import Auctioneer
@@ -11,33 +12,61 @@ from .bidder import Bidder
 class Client:
     """Client class for the client side of the peer-to-peer network.
 
-    The client class runs in a separate thread (process) from the server class.
+    The client class runs in a separate thread (process) from the server class (normally the main thread).
     It handles the two cases of client actions; auctioneering and bidding implemented in their respective classes.
 
     The client actions are given through an interactive command line interface, which will cause to run the respective methods.
     """
 
-    def __init__(self) -> None:
-        """Initializes the client class."""
-        self.logger = create_logger("client")
+    def __init__(self, config: dict) -> None:
+        """Initializes the client class.
 
-        self.auctioneer = Auctioneer()
-        self.bidder = Bidder()
+        Args:
+            config (dict): The configuration of the client.
 
-    def run(self) -> None:
-        """Runs the background tasks of the client."""
-        self.logger.info("Client is starting background tasks")
-        while True:
-            time.sleep(10)
-            self.logger.info("Client is running background tasks")
+        """
+        self.name: str = "Client"
+
+        self.logger: logging.Logger = create_logger(self.name.lower())
+        self.config: dict = config
+
+        self.background: multiprocessing.Process = None
+        self.auctioneer: Auctioneer = Auctioneer(config=config)
+        self.bidder: Bidder = Bidder(config=config)
+
+    def start(self) -> None:
+        """Starts the client background tasks."""
+        self.logger.info(f"{self.name} is starting background tasks")
+
+        self.auctioneer.start()
+        self.bidder.start()
+
+        self.background = multiprocessing.Process(target=self._background)
+
+        self.logger.info(f"{self.name} started background tasks")
+
+    def _background(self) -> None:
+        """Handles the client background tasks."""
+        pass
+
+    def stop(self) -> None:
+        """Stops the client background tasks."""
+        self.logger.info(f"{self.name} is stopping background tasks")
+
+        self.auctioneer.stop()
+        self.bidder.stop()
+
+        if self.background is not None and self.background.is_alive():
+            self.background.terminate()
+
+        self.logger.info(f"{self.name} stopped background tasks")
 
     def interact(self) -> None:
         """Handles the interactive command line interface for the client.
 
         This should be run in the main thread (process), handling user input.
         """
-        abort = False
-        while not abort:
+        while True:
             answer = inquirer.prompt(
                 [
                     inquirer.List(
@@ -58,6 +87,6 @@ class Client:
                 case "Bidder":
                     self.bidder.interact()
                 case "Stop":
-                    abort = True
+                    break
                 case _:
-                    raise ValueError("Invalid action")
+                    self.logger.error(f"Invalid action {answer['action']}")

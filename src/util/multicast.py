@@ -12,14 +12,14 @@ class Multicast:
     TODO: Implement the ISIS algorithm. Currently, this class has basic UDP Multicast functionality.
     """
 
-    def __init__(self, group: str, port: int, sender: bool = True, ttl: int = 1):
+    def __init__(self, group: str, port: int, sender: bool = True, ttl: int = 32):
         """Initialize the multicast class.
 
         Args:
             group (str): The multicast group to send and receive messages.
             port (int): The port to send and receive messages.
             sender (bool, optional): Whether the multicast object is used for sending or receiving. Defaults to True.
-            ttl (int, optional): The time to live for the multicast messages. Defaults to 1.
+            ttl (int, optional): The time to live for the multicast messages. Defaults to 32.
         """
         self.group = group
         self.port = port if isinstance(port, int) else int(port)
