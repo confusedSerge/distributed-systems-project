@@ -28,14 +28,14 @@ class AuctionAnnouncementListener(Process):
         super(AuctionAnnouncementListener, self).__init__()
         self._exit = Event()
 
-        self._store: AuctionAnnouncementStore = auction_announcement_store
+        self._name = "AuctionAnnouncementListener"
+        self._logger = create_logger(self._name.lower())
 
-        self.name = "AuctionAnnouncementListener"
-        self.logger = create_logger(self.name.lower())
+        self._store: AuctionAnnouncementStore = auction_announcement_store
 
     def run(self) -> None:
         """Runs the auction listener process."""
-        self.logger.info(f"{self.name} is starting background tasks")
+        self._logger.info(f"{self._name} is starting background tasks")
         mc = Multicast(
             MULTICAST_DISCOVERY_GROUP, MULTICAST_DISCOVERY_PORT, timeout=TIMEOUT_RECEIVE
         )
@@ -54,17 +54,17 @@ class AuctionAnnouncementListener(Process):
                 MessageAuctionAnnouncement.decode(announcement)
             )
             if not self._store.exists(announcement.auction_id):
-                self.logger.info(
-                    f"{self.name} received new announcement {announcement} from {address}"
+                self._logger.info(
+                    f"{self._name} received new announcement {announcement} from {address}"
                 )
                 self._store.add(announcement)
 
-        self.logger.info(f"{self.name} received stop signal; releasing resources")
+        self._logger.info(f"{self._name} received stop signal; releasing resources")
         mc.close()
 
-        self.logger.info(f"{self.name} stopped listening to auction announcements")
+        self._logger.info(f"{self._name} stopped listening to auction announcements")
 
     def stop(self) -> None:
         """Stops the auction listener process."""
-        self.logger.info(f"{self.name} received stop signal")
+        self._logger.info(f"{self._name} received stop signal")
         self._exit.set()

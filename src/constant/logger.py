@@ -2,15 +2,15 @@ import logging
 
 from util.config import load_config
 
-config = load_config()["logger"]
+_config = load_config()["logger"]
 
 # Logger
-LOGGING_PATH: str = config["path"]
-LOGGING_FORMAT: str = config["format"]
+LOGGING_PATH: str = _config["path"]
+LOGGING_FORMAT: str = _config["format"]
 
 # Calculate the logging level from the string
 LOGGING_LEVEL: int = logging.INFO
-match config["level"]:
+match _config["level"]:
     case "DEBUG":
         LOGGING_LEVEL = logging.DEBUG
     case "INFO":

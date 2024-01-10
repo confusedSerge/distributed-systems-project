@@ -1,5 +1,5 @@
 from util.config import load_config
 
-config = load_config()["general"]
+_config = load_config()["general"]
 
-SLEEP_TIME: int = int(config["sleep_time"])
+SLEEP_TIME: int = int(_config["sleep_time"])

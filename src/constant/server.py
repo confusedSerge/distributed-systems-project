@@ -1,6 +1,6 @@
 from util.config import load_config
 
-config = load_config()["server"]
+_config = load_config()["server"]
 
-REPLICA_AUCTION_POOL_SIZE = int(config["replica"]["auction_pool_size"])
-REPLICA_LOCAL_POOL_SIZE = int(config["replica"]["local_pool_size"])
+REPLICA_AUCTION_POOL_SIZE = int(_config["replica"]["auction_pool_size"])
+REPLICA_LOCAL_POOL_SIZE = int(_config["replica"]["local_pool_size"])

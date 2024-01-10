@@ -49,16 +49,16 @@ class ReplicaFinder(Process):
         super().__init__()
         self._exit = Event()
 
+        self._name = f"ReplicaFinder-{auction.get_id()}"
+        self._logger = create_logger(self._name.lower())
+
         self._auction: Auction = auction
         self._replicas_list: list = replicas_list
         self._emitter_period: int = emitter_period
 
-        self.name = f"ReplicaFinder-{auction.get_id()}"
-        self.logger = create_logger(self.name.lower())
-
     def run(self):
         """Runs the replica finder process."""
-        self.logger.info(f"{self.name} is starting background tasks")
+        self._logger.info(f"{self._name} is starting background tasks")
         uc: Unicast = Unicast("", port=UNICAST_PORT)
 
         # Start replica request emitter
@@ -100,7 +100,7 @@ class ReplicaFinder(Process):
                     self._replicas_list.append(address)
                     new_replicas.append(address)
         except TimeoutError:
-            self.logger.info(f"{self.name} could not find enough replicas in time")
+            self._logger.info(f"{self._name} could not find enough replicas in time")
             return
         finally:
             if emitter.is_alive():
@@ -109,13 +109,13 @@ class ReplicaFinder(Process):
             uc.close()
 
         if self._exit.is_set():
-            self.logger.info(f"{self.name} stopped finding replicas")
+            self._logger.info(f"{self._name} stopped finding replicas")
             return
 
         # Send Auction Information to new replicas
         for replica in new_replicas:
-            self.logger.info(
-                f"{self.name} sending auction information to new replica {replica}"
+            self._logger.info(
+                f"{self._name} sending auction information to new replica {replica}"
             )
             Unicast.qsend(
                 MessageAuctionInformationResponse(
@@ -126,11 +126,11 @@ class ReplicaFinder(Process):
                 UNICAST_PORT,
             )
 
-        self.logger.info(f"{self.name} sent auction information to all new replicas")
+        self._logger.info(f"{self._name} sent auction information to all new replicas")
 
     def stop(self):
         """Stops the replica finder process."""
-        self.logger.info(f"{self.name} received stop signal")
+        self._logger.info(f"{self._name} received stop signal")
         self._exit.set()
 
     def _emit_request(self):

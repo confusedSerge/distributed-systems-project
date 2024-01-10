@@ -21,21 +21,21 @@ class Unicast:
             port (int): The port to send and receive messages.
             sender (bool, optional): Whether the unicast object is used for sending or receiving. Defaults to False.
         """
-        self.host = host
-        self.port = port if isinstance(port, int) else int(port)
-        self.unicast_address = (self.host, self.port)
+        self._host = host
+        self._port = port if isinstance(port, int) else int(port)
+        self._unicast_address = (self._host, self._port)
 
-        self.sender = sender
-        self.socket = None
+        self._sender = sender
+        self._socket = None
 
         if sender:
-            self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         else:
-            self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-            self.socket.settimeout(timeout) if timeout else None
-            self.socket.bind(self.unicast_address)
+            self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+            self._socket.settimeout(timeout) if timeout else None
+            self._socket.bind(self._unicast_address)
 
     def send(self, message: str) -> None:
         """Send a message to the unicast host.
@@ -43,8 +43,8 @@ class Unicast:
         Args:
             message (str): The message to send.
         """
-        assert self.sender, "The unicast object is not a sender."
-        self.socket.sendto(message.encode(), self.unicast_address)
+        assert self._sender, "The unicast object is not a sender."
+        self._socket.sendto(message.encode(), self._unicast_address)
 
     def receive(self, buffer_size: int = 1024) -> (bytes, str):
         """Receive a message from the unicast host.
@@ -56,12 +56,12 @@ class Unicast:
             bytes: The received message.
             str: The address of the sender.
         """
-        assert not self.sender, "The unicast object is not a receiver."
-        return self.socket.recvfrom(buffer_size)
+        assert not self._sender, "The unicast object is not a receiver."
+        return self._socket.recvfrom(buffer_size)
 
     def close(self) -> None:
         """Close the unicast socket."""
-        self.socket.close()
+        self._socket.close()
 
     @staticmethod
     def qsend(message: str, host: str, port: int) -> None:

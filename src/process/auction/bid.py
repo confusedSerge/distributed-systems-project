@@ -24,14 +24,14 @@ class AuctionBidListener(Process):
         super().__init__()
         self._exit = Event()
 
-        self._auction: Auction = auction
+        self._name = f"AuctionListener-{auction.get_id()}-{os.getpid()}"
+        self._logger = create_logger(self._name.lower())
 
-        self.name = f"AuctionListener-{auction.get_id()}-{os.getpid()}"
-        self.logger = create_logger(self.name.lower())
+        self._auction: Auction = auction
 
     def run(self) -> None:
         """Runs the auction listener process."""
-        self.logger.info(f"{self.name} is starting background tasks")
+        self._logger.info(f"{self._name} is starting background tasks")
         mc = Multicast(*self._auction.get_multicast_address(), timeout=TIMEOUT_RECEIVE)
 
         while (
@@ -48,20 +48,20 @@ class AuctionBidListener(Process):
 
             bid: MessageAuctionBid = MessageAuctionBid.decode(bid)
             if bid.auction_id != self._auction.get_id():
-                self.logger.info(
-                    f"{self.name} received bid {bid} from {address} for another auction"
+                self._logger.info(
+                    f"{self._name} received bid {bid} from {address} for another auction"
                 )
                 continue
 
-            self.logger.info(f"{self.name} received bid {bid} from {address}")
+            self._logger.info(f"{self._name} received bid {bid} from {address}")
             self._auction.add_bid(bid.bidder_id, bid.bid)
 
-        self.logger.info(f"{self.name} received stop signal; releasing resources")
+        self._logger.info(f"{self._name} received stop signal; releasing resources")
         mc.close()
 
-        self.logger.info(f"{self.name} stopped listening to auction")
+        self._logger.info(f"{self._name} stopped listening to auction")
 
     def stop(self) -> None:
         """Stops the auction listener process."""
-        self.logger.info(f"{self.name} received stop signal")
+        self._logger.info(f"{self._name} received stop signal")
         self._exit.set()

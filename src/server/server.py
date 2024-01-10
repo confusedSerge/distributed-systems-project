@@ -28,10 +28,10 @@ class Server(Process):
         super().__init__()
         self._exit = Event()
 
-        self.name = "Server"
-        self.logger = create_logger(self.name.lower())
+        self._name = "Server"
+        self._logger = create_logger(self._name.lower())
 
-        self.replica_pool: list[Replica] = []
+        self._replica_pool: list[Replica] = []
 
     def run(self) -> None:
         """Runs the server background tasks."""
@@ -47,33 +47,33 @@ class Server(Process):
 
             if (
                 not MessageSchema.of(hdr.FIND_REPLICA_REQUEST, request)
-                or len(self.replica_pool) >= REPLICA_LOCAL_POOL_SIZE
+                or len(self._replica_pool) >= REPLICA_LOCAL_POOL_SIZE
             ):
                 continue
 
             request = MessageFindReplicaRequest.decode(request)
-            self.logger.info(f"Received replica request from {addr[0]}:{addr[1]}")
+            self._logger.info(f"Received replica request from {addr[0]}:{addr[1]}")
 
             # Create replica and add to pool
             replica = Replica(replica_request=request)
             replica.start()
-            self.replica_pool.append(replica)
-            self.logger.info(f"Created replica {replica.get_id()}")
+            self._replica_pool.append(replica)
+            self._logger.info(f"Created replica {replica.get_id()}")
 
-        self.logger.info("Server received stop signal; releasing resources")
+        self._logger.info("Server received stop signal; releasing resources")
 
         mc.close()
 
         # Release all replicas
-        for replica in self.replica_pool:
+        for replica in self._replica_pool:
             replica.stop()
 
-        for replica in self.replica_pool:
+        for replica in self._replica_pool:
             replica.join()
 
-        self.logger.info("Server stopped")
+        self._logger.info("Server stopped")
 
     def stop(self) -> None:
         """Stops the server."""
         self._exit.set()
-        self.logger.info("Server received stop signal")
+        self._logger.info("Server received stop signal")

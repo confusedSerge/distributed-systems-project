@@ -1,9 +1,9 @@
 from util.config import load_config
 
-config = load_config()["communication"]
+_config = load_config()["communication"]
 
-BUFFER_SIZE: int = int(config["buffer_size"])
+BUFFER_SIZE: int = int(_config["buffer_size"])
 
-TIMEOUT_RECEIVE: int = int(config["timeout_receive"])
-TIMEOUT_RESPONSE: int = int(config["timeout_response"])
-TIMEOUT_REPLICATION: int = int(config["timeout_replication"])
+TIMEOUT_RECEIVE: int = int(_config["timeout_receive"])
+TIMEOUT_RESPONSE: int = int(_config["timeout_response"])
+TIMEOUT_REPLICATION: int = int(_config["timeout_replication"])

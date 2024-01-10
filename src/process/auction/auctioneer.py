@@ -37,14 +37,14 @@ class AuctionManager(Process):
         super().__init__()
         self._exit = Event()
 
-        self._auction: Auction = auction
+        self._name = f"AuctionManager-{auction.get_id()}"
+        self._logger = create_logger(self._name.lower())
 
-        self.name = f"AuctionManager-{auction.get_id()}"
-        self.logger = create_logger(self.name.lower())
+        self._auction: Auction = auction
 
     def run(self) -> None:
         """Runs the auction manager process."""
-        self.logger.info(f"{self.name} is starting background tasks")
+        self._logger.info(f"{self._name} is starting background tasks")
         mc = Multicast(
             MULTICAST_DISCOVERY_GROUP, MULTICAST_DISCOVERY_PORT, timeout=TIMEOUT_RECEIVE
         )
@@ -63,12 +63,12 @@ class AuctionManager(Process):
                 MessageAuctionInformationRequest.decode(request)
             )
             if not request.auction_id and self._auction.get_id() == request.auction_id:
-                self.logger.info(
-                    f"{self.name} received request {request} from {address} for another auction"
+                self._logger.info(
+                    f"{self._name} received request {request} from {address} for another auction"
                 )
                 continue
 
-            self.logger.info(f"{self.name} received request {request} from {address}")
+            self._logger.info(f"{self._name} received request {request} from {address}")
             Unicast.qsend(
                 MessageAuctionInformationResponse(
                     self._auction.get_id(),
@@ -78,12 +78,12 @@ class AuctionManager(Process):
                 UNICAST_PORT,
             )
 
-        self.logger.info(f"{self.name} received stop signal; releasing resources")
+        self._logger.info(f"{self._name} received stop signal; releasing resources")
         mc.close()
 
-        self.logger.info(f"{self.name} stopped managing auction")
+        self._logger.info(f"{self._name} stopped managing auction")
 
     def stop(self) -> None:
         """Stops the auction manager process."""
-        self.logger.info(f"{self.name} received stop signal")
+        self._logger.info(f"{self._name} received stop signal")
         self._exit.set()

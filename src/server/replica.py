@@ -51,36 +51,38 @@ class Replica(Process):
         super.__init__(self)
         self._exit = Event()
 
-        self.request: MessageFindReplicaRequest = request
-        self.auction: Auction = None
-        self.peers: list[str] = []
+        self._name = f"Replica-{request._id}"
+        self._logger = create_logger(self._name.lower())
 
-        self.name = f"Replica-{request._id}"
-        self.logger = create_logger(self.name.lower())
+        self._initial_find_request: MessageFindReplicaRequest = request
+        self.auction: Auction = None
+        self._peers: list[str] = []
+
+        self._auction_bid_listener: Process = None
 
     def run(self) -> None:
         """Runs the replica background tasks."""
         self._prelude()
 
         if self._exit.is_set():
-            self.logger.info("Replica is exiting")
+            self._logger.info("Replica is exiting")
             return
 
         # Start auction listener
-        self.auction_listener = AuctionBidListener(self.auction)
-        self.auction_listener.start()
+        self._auction_bid_listener = AuctionBidListener(self.auction)
+        self._auction_bid_listener.start()
 
         # Start replica leader/follower tasks (heartbeat, election, etc.)
         # TODO: impl leader/follower tasks
         while not self._exit.is_set():
             sleep(10)
 
-        self.auction_listener.stop()
+        self._auction_bid_listener.stop()
 
     def stop(self) -> None:
         """Stops the replica."""
         self._exit.set()
-        self.logger.info("Replica received stop signal")
+        self._logger.info("Replica received stop signal")
 
     def _prelude(self) -> None:
         """Handles the prelude of the replica.
@@ -93,16 +95,16 @@ class Replica(Process):
         """
         # Join auction multicast group
         mc = Multicast(
-            group=self.request.multicast_address[0],
-            port=self.request.multicast_address[1],
+            group=self._initial_find_request.multicast_address[0],
+            port=self._initial_find_request.multicast_address[1],
             timeout=TIMEOUT_RECEIVE,
         )
 
         # Send join message to auctioneer
         Unicast.qsend(
-            MessageFindReplicaResponse(self.request._id).encode(),
-            self.request.multicast_address[0],
-            self.request.multicast_address[1],
+            MessageFindReplicaResponse(self._initial_find_request._id).encode(),
+            self._initial_find_request.multicast_address[0],
+            self._initial_find_request.multicast_address[1],
         )
 
         # Wait for auctioneer to acknowledge, or timeout
@@ -118,12 +120,12 @@ class Replica(Process):
                     response: MessageFindReplicaAcknowledgement = (
                         MessageFindReplicaAcknowledgement.decode(response)
                     )
-                    if response.auction_id != self.request._id:
+                    if response.auction_id != self._initial_find_request._id:
                         continue
 
                     break
         except TimeoutError:
-            self.logger.info("Did not receive acknowledgement from auctioneer")
+            self._logger.info("Did not receive acknowledgement from auctioneer")
             mc.close()
             self.stop()
             return
@@ -146,16 +148,18 @@ class Replica(Process):
                     msg: MessageAuctionInformationResponse = (
                         MessageAuctionInformationResponse.decode(msg)
                     )
+
+                    # TODO: Check if auction is the same (interference possible through other auctions)
                     self.auction = AuctionMessageData.to_auction(
                         msg.auction_information
                     )
-                    self.logger.info(
+                    self._logger.info(
                         f"Received auction information from {addr[0]}:{addr[1]}"
                     )
 
                     break
         except TimeoutError:
-            self.logger.info("Did not receive auction information from auctioneer")
+            self._logger.info("Did not receive auction information from auctioneer")
             self.stop()
             return
         finally:

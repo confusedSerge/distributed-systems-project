@@ -63,12 +63,12 @@ class Bidder(Process):
         """
         super().__init__()
 
-        self.name = "Bidder"
-        self.logger: logging.Logger = create_logger(self.name.lower())
+        self._name = "Bidder"
+        self._logger: logging.Logger = create_logger(self._name.lower())
 
         # Shared memory
-        self.manager_running = manager_running
         self.manager: Manager = manager
+        self.manager_running = manager_running
 
         self.auction_announcement_store: AuctionAnnouncementStore = (
             auction_announcement_store
@@ -79,7 +79,7 @@ class Bidder(Process):
 
     def stop(self) -> None:
         """Stops the bidder background tasks."""
-        self.logger.info(f"{self.name} received stop signal")
+        self._logger.info(f"{self._name} received stop signal")
 
         # No graceful shutdown needed, terminate all listeners
         for auction_listener in self._auction_bid_listeners.values():
@@ -88,7 +88,7 @@ class Bidder(Process):
         for auction_listener in self._auction_bid_listeners.values():
             auction_listener.join()
 
-        self.logger.info(f"{self.name} stopped active listeners")
+        self._logger.info(f"{self._name} stopped active listeners")
 
     def interact(self) -> None:
         """Handles the interactive command line interface for the bidder.
@@ -130,7 +130,7 @@ class Bidder(Process):
                 case inter.BIDDER_ACTION_GO_BACK:
                     break
                 case _:
-                    self.logger.error(f"Invalid action {answer['action']}")
+                    self._logger.error(f"Invalid action {answer['action']}")
 
     def _list_auctions(self) -> None:
         """Lists the auctions available to join."""
@@ -158,7 +158,7 @@ class Bidder(Process):
         response: AuctionMessageData = self._get_auction_information(auction_id)
 
         if response is None:
-            self.logger.error(
+            self._logger.error(
                 f"Could not get auction information for auction {auction_id}"
             )
             return
@@ -216,7 +216,7 @@ class Bidder(Process):
         """Leaves an auction"""
         auction_id = self._choose_auction(list(self._joined_auctions.keys()))
         if auction_id not in self._joined_auctions:
-            self.logger.error(
+            self._logger.error(
                 f"Auction with id {auction_id} not joined. This should not happen."
             )
             return
@@ -238,11 +238,11 @@ class Bidder(Process):
             )
             return
 
-        auction.bid(self.name, bid_amount)
+        auction.bid(self._name, bid_amount)
         Multicast.qsend(
             MessageAuctionBid(
                 auction_id=auction_id,
-                bidder_id=self.name,
+                bidder_id=self._name,
                 bid=bid_amount,
             ).encode(),
             group=auction.get_multicast_group(),

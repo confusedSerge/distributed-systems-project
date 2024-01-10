@@ -30,34 +30,34 @@ class Multicast:
             ttl (int, optional): The time to live for the multicast messages. Defaults to 32.
             timeout (Optional[int], optional): The timeout for receiving messages. Defaults to None, which does not trigger a timeout.
         """
-        self.group: str = group
-        self.port: int = port if isinstance(port, int) else int(port)
-        self.multicast_group: tuple[str, int] = (self.group, self.port)
+        self._group: str = group
+        self._port: int = port if isinstance(port, int) else int(port)
+        self._multicast_group: tuple[str, int] = (self._group, self._port)
 
-        self.sender: bool = sender
-        self.socket: socket = None
+        self._sender: bool = sender
+        self._socket: socket = None
 
-        self.timeout: Optional[int] = timeout
+        self._timeout: Optional[int] = timeout
 
         # Create the socket for multicast sender/receiver
         if sender:
-            self.socket = socket.socket(
+            self._socket = socket.socket(
                 socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP
             )
-            self.socket.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, ttl)
+            self._socket.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, ttl)
         else:
-            self.socket = socket.socket(
+            self._socket = socket.socket(
                 socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP
             )
-            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-            self.socket.setsockopt(
+            self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+            self._socket.setsockopt(
                 socket.IPPROTO_IP,
                 socket.IP_ADD_MEMBERSHIP,
-                struct.pack("4sl", socket.inet_aton(self.group), socket.INADDR_ANY),
+                struct.pack("4sl", socket.inet_aton(self._group), socket.INADDR_ANY),
             )
-            self.socket.settimeout(self.timeout) if self.timeout else None
-            self.socket.bind(self.multicast_group)
+            self._socket.settimeout(self._timeout) if self._timeout else None
+            self._socket.bind(self._multicast_group)
 
     def send(self, message: bytes) -> None:
         """Send a message to the multicast group.
@@ -65,8 +65,8 @@ class Multicast:
         Args:
             message (bytes): The message to send in bytes.
         """
-        assert self.sender, "The multicast object is not a sender."
-        self.socket.sendto(message, self.multicast_group)
+        assert self._sender, "The multicast object is not a sender."
+        self._socket.sendto(message, self._multicast_group)
 
     def receive(self, buffer_size: int = 1024) -> (bytes, str):
         """Receive a message from the multicast group.
@@ -81,12 +81,12 @@ class Multicast:
         Raises:
             socket.timeout: If the timeout is set and no message was received.
         """
-        assert not self.sender, "The multicast object is not a receiver."
-        return self.socket.recvfrom(buffer_size)
+        assert not self._sender, "The multicast object is not a receiver."
+        return self._socket.recvfrom(buffer_size)
 
     def close(self) -> None:
         """Close the multicast socket."""
-        self.socket.close()
+        self._socket.close()
 
     @staticmethod
     def qsend(message: bytes, group: str, port: int, ttl: int = 32) -> None:
