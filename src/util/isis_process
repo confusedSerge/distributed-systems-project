@@ -50,6 +50,7 @@ class ISISProcess:
             'node_suggesting_sequence_id': self.sender_id,
             'status': 'undeliverable'
         })
+        self.organize_holdback_queue()
 
     def on_receive(self):
         """
@@ -76,6 +77,16 @@ class ISISProcess:
                          senderid_from_sequence_id=max_sequence_number[1])
         # TODO: end if
 
+    # A function that returns the 'proposed_sequence_number' value:
+    def get_sequence_number(self, e):
+        return e['proposed_sequence_number']
+    # shift an item to the head of list
+    def shift_to_head(self, queue, message):
+        if message in queue:
+            index_to_shift = queue.index(message)
+            queue.pop(index_to_shift)
+            queue.insert(0, message)
+
     def on_b_deliver_final_message(self):
         """
         on_b_deliver_final_message should be called when a message with the tuple 
@@ -96,6 +107,36 @@ class ISISProcess:
                 message_in_dict['node_suggesting_sequence_id'] = message[3]
                 message_in_dict['status'] = 'deliverable'
 
-        # TODO: Sort the holdback queue ascending like in paper
-        # TODO: If two sequence numbers are the same thenplace any undeliverable messages at the headto break further ties, place message with smallest suggesting process # at the head end if
-        # TODO: While message at head of queue has status deliverable dodeliver the message at the head of the queue remove this message from the queueend while
+        self.organize_holdback_queue()
+
+    # On addition to holdback_queue or changing of element in holdback_queue
+    def organize_holdback_queue(self):
+        # Sort the holdback queue ascending like in paper
+        self.holdback_queue.sort(key=self.get_sequence_number)
+
+        # If two sequence numbers are the same then place any undeliverable messages at the head 
+        # to break further ties place message with smallest suggesting process # at the head end if
+        has_same_tow_sequence_number = any(
+            msg1['proposed_sequence_number'] == msg2['proposed_sequence_number']
+            for i, msg1 in enumerate(self.holdback_queue)
+            for j, msg2 in enumerate(self.holdback_queue[i + 1:])
+            )   
+
+        if has_same_tow_sequence_number: 
+            undeliverable_messages = [msg for msg in self.holdback_queue if msg['status'] == 'undeliverable']
+            if undeliverable_messages:
+                self.shift_to_head(self.holdback_queue, undeliverable_messages[0])
+
+            smallest_suggesting_process = min(self.suggested_sequence_list, key=lambda x: x[1])
+            message_with_smallest_suggesting_process = next(
+                (msg for msg in self.holdback_queue if msg['node_suggesting_sequence_id'] == smallest_suggesting_process),
+                None
+            )
+
+            if message_with_smallest_suggesting_process:
+                self.shift_to_head(self.holdback_queue, message_with_smallest_suggesting_process)
+
+        # TODO: While message at head of queue has status deliverable do deliver the message at the head of the queue remove this message from the queueend while
+        while self.holdback_queue[0]['status'] == 'deliverable':
+            # deliver the message at the head of the queue?
+            self.holdback_queue.pop(0)
