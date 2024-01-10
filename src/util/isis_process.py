@@ -29,9 +29,12 @@ class ISISProcess:
         self.sender_id = int(self.sender.getIpAddress().split(".")[3])
         self.receiver_ip = self.receiver.getIpAddress()
 
-    def multicast_message(self, message: message.Message):
+    def on_multicast_message(self, message: message.Message):
+        """
+        on_multicast_message should be called when a message is multicasted (in our case, when a bid is done)
+        """
         self.counter += 1
-        self.sender.send(message.message_content, self.counter, self.sender_id)
+        self.sender.send_message_with_counter(message.message_content, self.counter, self.sender_id)
 
     def on_b_deliver_message(self):
         """
@@ -41,7 +44,7 @@ class ISISProcess:
         """
         self.sequence_id += 1
         message, address = self.receiver.receive()
-        self.sender.send(message_id=message[1], sequence_id=self.sequence_id)
+        self.sender.send_message_id_with_seq_id(message_id=message[1], sequence_id=self.sequence_id)
         self.holdback_queue.append({
             'message': message[0],
             'message_id': message[1],
@@ -60,7 +63,7 @@ class ISISProcess:
         """
         message, address = self.receiver.receive()
         # message[1] is sequence_id of sender and address[0] is sender_id
-        self.suggested_sequence_list.append((message[1], int(address[0].split('.')[3])))
+        self.suggested_sequence_list.append((message[1], int(str(address[0]).split('.')[3])))
         
         # TODO: Count members of multicast group and check if we have received sequence number from all processes.
 
@@ -73,15 +76,20 @@ class ISISProcess:
                 if sequence_tuple < max_sequence_tuple:
                     max_sequence_tuple = sequence_tuple
         # messagge[0] is the actual message id in this following line
-        self.sender.send(message_id=message[0], sender_id=self.sender_id, sequence_id=max_sequence_number[0], 
+        self.sender.send_message_id_with_s_id_and_seq_id(message_id=message[0], sender_id=self.sender_id, sequence_id=max_sequence_number[0], 
                          senderid_from_sequence_id=max_sequence_number[1])
         # TODO: end if
 
-    # A function that returns the 'proposed_sequence_number' value:
-    def get_sequence_number(self, e):
-        return e['proposed_sequence_number']
-    # shift an item to the head of list
-    def shift_to_head(self, queue, message):
+    def get_sequence_number(self, message):
+        """
+        get_sequence_number returns the 'proposed_sequence_number' value
+        """
+        return message['proposed_sequence_number']
+    
+    def shift_to_head(self, queue: list, message):
+        """
+        shift_to_head shifts an item to the head of list
+        """
         if message in queue:
             index_to_shift = queue.index(message)
             queue.pop(index_to_shift)
@@ -109,8 +117,10 @@ class ISISProcess:
 
         self.organize_holdback_queue()
 
-    # On addition to holdback_queue or changing of element in holdback_queue
     def organize_holdback_queue(self):
+        """
+        organize_holdback_queue should be called on addition to holdback_queue or changing of element in holdback_queue
+        """
         # Sort the holdback queue ascending like in paper
         self.holdback_queue.sort(key=self.get_sequence_number)
 
@@ -138,5 +148,5 @@ class ISISProcess:
 
         # TODO: While message at head of queue has status deliverable do deliver the message at the head of the queue remove this message from the queueend while
         while self.holdback_queue[0]['status'] == 'deliverable':
-            # deliver the message at the head of the queue?
+            # TODO: deliver the message at the head of the queue?
             self.holdback_queue.pop(0)

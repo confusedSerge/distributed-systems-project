@@ -43,6 +43,7 @@ class FindReplicaRequest:
         """Return the decoded find new replica request."""
         return FIND_REPLICA_REQUEST_SCHEMA().load(loads(message))
 
+
 @dataclass
 class Message:
     """Message clas to send messages"""

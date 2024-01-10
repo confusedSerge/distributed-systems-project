@@ -65,7 +65,7 @@ class Multicast:
         assert self.sender, "The multicast object is not a sender."
         self.socket.sendto(message, self.multicast_group)
 
-    def send(self, message: bytes, counter: int, sender_id: int) -> None:
+    def send_message_with_counter(self, message: bytes, counter: int, sender_id: int) -> None:
         """Send a message tuple to the multicast group.
 
         Args:
@@ -76,7 +76,7 @@ class Multicast:
         assert self.sender, "The multicast object is not a sender."
         self.socket.sendto((message, counter, sender_id), self.multicast_group)    
 
-    def send(self, message_id: int, sequence_id: int) -> None:
+    def send_message_id_with_seq_id(self, message_id: int, sequence_id: int) -> None:
         """Send a message tuple to the multicast group.
 
         Args:
@@ -86,7 +86,7 @@ class Multicast:
         assert self.sender, "The multicast object is not a sender."
         self.socket.sendto((message_id, sequence_id), self.multicast_group)  
 
-    def send(self, message_id: int, sender_id: int, sequence_id: int, senderid_from_sequence_id: int) -> None:
+    def send_message_id_with_s_id_and_seq_id(self, message_id: int, sender_id: int, sequence_id: int, senderid_from_sequence_id: int) -> None:
         """Send a message tuple to the multicast group.
 
         Args:
