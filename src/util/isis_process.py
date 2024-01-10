@@ -30,21 +30,30 @@ class ISISProcess:
         self.receiver_ip = self.receiver.getIpAddress()
 
     def on_multicast_message(self, message: Message):
-        """
-        on_multicast_message should be called when a message is multicasted (in our case, when a bid is done)
+        """on_multicast_message should be called when a message is multicasted (in our case, when a bid is done)
+
+        Args:
+            message (Message): The message to multicast.
         """
         self.counter += 1
         self.sender.send_message_with_counter(message.message_content, self.counter, self.sender_id)
 
-    def get_sequence_number(self, message: dict) -> dict:
-        """
-        get_sequence_number returns the 'proposed_sequence_number' value
+    def get_sequence_number(self, message: dict) -> int:
+        """get_sequence_number returns the 'proposed_sequence_number' value
+
+        Args:
+            message (dict): A message element from the holdback queue.
+
+        Returns:
+            int: The proposed sequence number of the message.
         """
         return message['proposed_sequence_number']
     
     def shift_to_head(self, queue: list, message: dict):
-        """
-        shift_to_head shifts an item to the head of list
+        """shift_to_head shifts an item to the head of list
+
+        Args:
+            message (dict): A message element from the holdback queue.
         """
         if message in queue:
             index_to_shift = queue.index(message)
@@ -52,9 +61,7 @@ class ISISProcess:
             queue.insert(0, message)
 
     def organize_holdback_queue(self):
-        """
-        organize_holdback_queue should be called on addition to holdback_queue or changing of element in holdback_queue
-        """
+        """organize_holdback_queue should be called on addition to holdback_queue or changing of element in holdback_queue"""
         # Sort the holdback queue ascending like in paper
         self.holdback_queue.sort(key=self.get_sequence_number)
 
@@ -86,8 +93,7 @@ class ISISProcess:
             self.holdback_queue.pop(0)
 
     def on_b_deliver_message(self):
-        """
-        b_deliver_message should be called when a message with the tuple (message, message_id, sender_id) is received.
+        """b_deliver_message should be called when a message with the tuple (message, message_id, sender_id) is received.
 
         TODO: This function should inside an if cause which checks for incoming messages in this format. 
         """
@@ -105,8 +111,7 @@ class ISISProcess:
         self.organize_holdback_queue()
 
     def on_receive(self):
-        """
-        on_receive should be called when a message with the tuple (message_id, sequence_id) is received.
+        """on_receive should be called when a message with the tuple (message_id, sequence_id) is received.
 
         TODO: This function should inside an if cause which checks for incoming messages in this format.
         """
@@ -130,8 +135,7 @@ class ISISProcess:
         # TODO: end if
 
     def on_b_deliver_final_message(self):
-        """
-        on_b_deliver_final_message should be called when a message with the tuple 
+        """on_b_deliver_final_message should be called when a message with the tuple 
         (message_id, sender_id, (highest) sequence_id, sender_id from (highest) sequence_id) is received.
 
         TODO: This function should inside an if cause which checks for incoming messages in this format.
