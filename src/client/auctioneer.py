@@ -136,14 +136,15 @@ class Auctioneer:
             return
 
         aname, item, price, time = self._define_auction()
-        # TODO: give list of known used multicast addresses
-        address: IPv4Address = generate_mc_address()
+        address: IPv4Address = generate_mc_address(
+            self.auction_announcement_store.get_addresses()
+        )
         _auction: Auction = self.manager.Auction(
             aname, USERNAME, item, price, time, address
         )
 
         self._created_auctions[_auction.get_id()] = _auction
-        sub_auctioneer = _SubAuctioneer(_auction)
+        sub_auctioneer = _SubAuctioneer(_auction, self.manager)
         sub_auctioneer.start()
         self._sub_auctioneers[_auction.get_id()] = sub_auctioneer
 

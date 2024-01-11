@@ -6,6 +6,7 @@ from .messages import (
     MessageFindReplicaRequest,
     MessageFindReplicaResponse,
     MessageFindReplicaAcknowledgement,
+    MessagePeersAnnouncement,
     AuctionMessageData,
     MessageAuctionAnnouncement,
     MessageAuctionInformationRequest,

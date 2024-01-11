@@ -19,7 +19,7 @@ class Unicast:
         As we are using UDP, we can reuse the same address and port for sending and receiving messages.
 
         Args:
-            host (IPv4Address): The host to send and receive messages.
+            host (IPv4Address): The host to send and receive messages. None will bind to all interfaces.
             port (int): The port to send and receive messages.
             sender (bool, optional): Whether the unicast object is used for sending or receiving. Defaults to False.
         """

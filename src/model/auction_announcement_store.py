@@ -1,3 +1,5 @@
+from ipaddress import IPv4Address
+
 from communication import MessageAuctionAnnouncement
 
 
@@ -8,17 +10,17 @@ class AuctionAnnouncementStore:
     """
 
     def __init__(self) -> None:
-        self._auctions: dict[str, MessageAuctionAnnouncement] = {}
+        self._announcements: dict[str, MessageAuctionAnnouncement] = {}
 
-    def add(self, auction: MessageAuctionAnnouncement) -> None:
+    def add(self, announcement: MessageAuctionAnnouncement) -> None:
         """Adds an auction announcement to the store.
 
         Args:
             auction (MessageAuctionAnnouncement): The auction announcement to add.
         """
-        if self.exists(auction._id):
-            raise ValueError(f"Auction with id {auction._id} already exists")
-        self._auctions[auction._id] = auction
+        if self.exists(announcement._id):
+            raise ValueError(f"Auction with id {announcement._id} already exists")
+        self._announcements[announcement._id] = announcement
 
     def get(self, auction: str) -> MessageAuctionAnnouncement:
         """Returns an auction announcement from the store.
@@ -31,7 +33,7 @@ class AuctionAnnouncementStore:
         """
         if not self.exists(auction):
             raise ValueError(f"Auction with id {auction} does not exist")
-        return self._auctions[auction]
+        return self._announcements[auction]
 
     def remove(self, auction: str) -> None:
         """Removes an auction announcement from the store.
@@ -41,7 +43,7 @@ class AuctionAnnouncementStore:
         """
         if not self.exists(auction):
             raise ValueError(f"Auction with id {auction} does not exist")
-        del self._auctions[auction]
+        del self._announcements[auction]
 
     def items(self) -> list[tuple[str, MessageAuctionAnnouncement]]:
         """Returns the items of the store.
@@ -49,7 +51,7 @@ class AuctionAnnouncementStore:
         Returns:
             list[tuple[str, MessageAuctionAnnouncement]]: The items of the store.
         """
-        return self._auctions.items()
+        return self._announcements.items()
 
     def exists(self, auction: str) -> bool:
         """Returns whether an auction announcement exists in the store.
@@ -60,4 +62,15 @@ class AuctionAnnouncementStore:
         Returns:
             bool: Whether the auction announcement exists in the store.
         """
-        return auction in self._auctions
+        return auction in self._announcements
+
+    def get_addresses(self) -> list[IPv4Address]:
+        """Returns the addresses of the auctions in the store.
+
+        Returns:
+            list[IPv4Address]: The addresses of the auctions in the store.
+        """
+        return [
+            announcement.auction.address
+            for announcement in self._announcements.values()
+        ]

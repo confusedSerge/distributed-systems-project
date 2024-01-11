@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from ipaddress import IPv4Address
 
 from constant import auction as state
@@ -84,13 +86,13 @@ class Auction:
         self._id = id
 
     # Auction information methods
-    def get_item(self) -> tuple[str, float, int]:
-        """Returns the item, price and time of the auction.
+    def get_item(self) -> str:
+        """Returns the item
 
         Returns:
-            tuple[str, float, int]: _description_
+            str: The item of the auction.
         """
-        return self._item, self._price, self._time
+        return self._item
 
     def get_price(self) -> float:
         """Returns the starting price of the auction.
@@ -273,6 +275,49 @@ class Auction:
     def __repr__(self) -> str:
         return str(self)
 
+    def from_other(self, other: Auction) -> None:
+        """Replace the auction with another auction.
+
+        Args:
+            other (Auction): The other auction.
+        """
+        self._name = other.get_name()
+        self._auctioneer = other.get_auctioneer()
+        self._id = other.get_id()
+
+        self._item = other.get_item()
+        self._price = other.get_price()
+        self._time = other.get_time()
+
+        self._multicast_address = other.get_multicast_address()
+
+        self._auction_state = other.get_state()
+        self._bid_history = other.get_bid_history()
+        self._winner = other.get_winner()
+
+    @staticmethod
+    def copy(other: Auction) -> Auction:
+        """Returns a copy of the auction.
+
+        Args:
+            other (Auction): The auction to copy.
+
+        Returns:
+            Auction: The copy of the auction.
+        """
+        auction: Auction = Auction(
+            name=other.get_name(),
+            auctioneer=other.get_auctioneer(),
+            item=other.get_item(),
+            price=other.get_price(),
+            time=other.get_time(),
+            address=other.get_multicast_address(),
+        )
+        auction._set_id(other.get_id())
+        auction._set_state(other.get_state_id())
+        auction._set_bid_history(other.get_bid_history())
+        auction._set_winner(other.get_winner())
+
     @staticmethod
     def id(name: str, auctioneer: str) -> str:
         """Returns the id of the auction.
@@ -285,3 +330,23 @@ class Auction:
             str: The id of the auction.
         """
         return f"{auctioneer}::{name}".lower()
+
+    @staticmethod
+    def parse_id(id: str) -> str:
+        """Parses from the input id the auction id.
+
+        The id is assumed to be in the format "uname::aname(::uuid)".
+
+        Args:
+            id (str): The id to parse.
+
+        Returns:
+            str: The auction id.
+
+        Raises:
+            ValueError: If the id is not in the correct format.
+        """
+        split: list[str] = id.split("::")
+        if len(split) == 2:
+            return Auction.id(split[0], split[1])
+        raise ValueError("Invalid id given for parsing")

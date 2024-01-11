@@ -4,7 +4,7 @@ from multiprocessing import Process, Event
 
 from communication import Multicast, MessageSchema, MessageAuctionAnnouncement
 
-from model.auction_announcement_store import AuctionAnnouncementStore
+from model import AuctionAnnouncementStore
 from constant import (
     header as hdr,
     TIMEOUT_RECEIVE,

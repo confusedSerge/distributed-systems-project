@@ -6,6 +6,7 @@ _config = load_config()["communication"]["header"]
 FIND_REPLICA_REQ: str = _config["replica"]["find-replica-req"]
 FIND_REPLICA_RES: str = _config["replica"]["find-replica-res"]
 FIND_REPLICA_ACK: str = _config["replica"]["find-replica-ack"]
+PEERS_ANNOUNCEMENT: str = _config["replica"]["replica-announcement"]
 
 # Auction Header
 AUCTION_ANNOUNCEMENT: str = _config["auction"]["auction-announcement"]

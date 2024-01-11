@@ -11,11 +11,12 @@ from communication import (
     MessageFindReplicaRequest,
     MessageFindReplicaResponse,
     MessageFindReplicaAcknowledgement,
+    MessagePeersAnnouncement,
     AuctionMessageData,
     MessageAuctionInformationResponse,
 )
 
-from process import Manager, AuctionBidListener
+from process import Manager, AuctionBidListener, AuctionPeersListener
 
 from constant import (
     header as hdr,
@@ -66,9 +67,10 @@ class Replica(Process):
         self.manager_running: Event = Event()
 
         self.auction: Auction = None
-        self._peers: AuctionPeersStore = None
+        self.peers: AuctionPeersStore = None
 
         # Sub processes
+        self._auction_peers_listener: Process = None
         self._auction_bid_listener: Process = None
 
     def run(self) -> None:
@@ -84,7 +86,10 @@ class Replica(Process):
             self._logger.info("Replica is exiting")
             return
 
-        # Start auction listener
+        # Start listeners
+        self._auction_peers_listener: AuctionPeersListener = AuctionPeersListener(
+            self.auction.get_id(), self.peers
+        )
         self._auction_bid_listener: AuctionBidListener = AuctionBidListener(
             self.auction
         )
@@ -126,59 +131,138 @@ class Replica(Process):
 
         # Wait for auctioneer to acknowledge, or timeout
         try:
-            with Timeout(TIMEOUT_REPLICATION, throw_exception=True):
-                while not self._exit.is_set():
-                    response, address = uc.receive(BUFFER_SIZE)
-
-                    if not MessageSchema.of(hdr.FIND_REPLICA_ACKNOWLEDGEMENT, response):
-                        continue
-
-                    response: MessageFindReplicaAcknowledgement = (
-                        MessageFindReplicaAcknowledgement.decode(response)
-                    )
-                    if response.auction_id != self._initial_find_request._id:
-                        continue
-
-                    self._logger.info(
-                        f"Received acknowledgement from auctioneer {address}"
-                    )
-
-                    break
+            self._wait_acknowledge(uc)
         except TimeoutError:
             self._logger.info("Did not receive acknowledgement from auctioneer")
             uc.close()
             self.stop()
             return
 
-        # TODO add peer discovery
+        # Wait for auctioneer to send auction information and peers, or timeout
         try:
-            with Timeout(TIMEOUT_REPLICATION, throw_exception=True):
-                while not self._exit.is_set():
-                    try:
-                        auction, address = uc.receive(BUFFER_SIZE)
-                    except TimeoutError:
-                        continue
-
-                    if not MessageSchema.of(hdr.AUCTION_INFORMATION_RES, auction):
-                        continue
-
-                    auction: MessageAuctionInformationResponse = (
-                        MessageAuctionInformationResponse.decode(auction)
-                    )
-                    if auction._id != self._initial_find_request._id:
-                        continue
-
-                    self.auction = AuctionMessageData.to_auction(
-                        auction.auction_information
-                    )
-                    self._logger.info(
-                        f"Received auction information from {address}: {self.auction}"
-                    )
-
-                    break
+            self._wait_information(uc)
         except TimeoutError:
             self._logger.info("Did not receive auction information from auctioneer")
             self.stop()
             return
         finally:
             uc.close()
+
+    def _wait_information(self, uc: Unicast) -> None:
+        """Waits for the auctioneer to send the state of the auction.
+
+        Args:
+            uc (Unicast): The unicast socket.
+
+        Raises:
+            TimeoutError: If the auctioneer did not send the state of the auction in time.
+        """
+        recv_information: bool = False
+        recv_peers: bool = False
+        with Timeout(TIMEOUT_REPLICATION, throw_exception=True):
+            while not self._exit.is_set():
+                try:
+                    message, address = uc.receive(BUFFER_SIZE)
+                except TimeoutError:
+                    continue
+
+                if (
+                    MessageSchema.of(hdr.AUCTION_INFORMATION_RES, message)
+                    and not recv_information
+                ):
+                    recv_information = self._handle_auction_information_message(
+                        message, IPv4Address(address[0])
+                    )
+                    continue
+
+                if MessageSchema.of(hdr.PEERS_ANNOUNCEMENT, message) and not recv_peers:
+                    recv_peers = self._handle_replica_announcement_message(
+                        message, IPv4Address(address[0])
+                    )
+                    continue
+
+                if recv_information and recv_peers:
+                    break
+
+    def _wait_acknowledge(self, uc: Unicast) -> None:
+        """Waits for the auctioneer to acknowledge the join message.
+
+        Args:
+            uc (Unicast): The unicast socket.
+
+        Raises:
+            TimeoutError: If the auctioneer did not acknowledge the join message in time.
+        """
+        with Timeout(TIMEOUT_REPLICATION, throw_exception=True):
+            while not self._exit.is_set():
+                response, address = uc.receive(BUFFER_SIZE)
+
+                if MessageSchema.of(hdr.FIND_REPLICA_ACKNOWLEDGEMENT, response):
+                    continue
+
+                response: MessageFindReplicaAcknowledgement = (
+                    MessageFindReplicaAcknowledgement.decode(response)
+                )
+                if response.auction_id != self._initial_find_request._id:
+                    continue
+
+                self._logger.info(f"Received acknowledgement from auctioneer {address}")
+
+                break
+
+    def _handle_auction_information_message(
+        self,
+        message: MessageAuctionInformationResponse,
+        address: IPv4Address,
+    ) -> bool:
+        """Handles an auction information message.
+
+        Args:
+            message (MessageAuctionInformationResponse): The auction information message.
+
+        Returns:
+            bool: Whether the message was for this replica.
+        """
+        message: MessageAuctionInformationResponse = (
+            MessageAuctionInformationResponse.decode(message)
+        )
+        if message._id != self._initial_find_request._id:
+            return False
+
+        auction = AuctionMessageData.to_auction(message.auction_information)
+        self.auction: Auction = self.manager.Auction(
+            auction.get_name(),
+            auction.get_auctioneer(),
+            auction.get_item(),
+            auction.get_price(),
+            auction.get_time(),
+            auction.get_multicast_address(),
+        )
+        self.auction.from_other(auction)
+
+        self._logger.info(
+            f"Received auction information from {address}: {self.auction}"
+        )
+        return True
+
+    def _handle_replica_announcement_message(
+        self,
+        message: MessagePeersAnnouncement,
+        address: IPv4Address,
+    ) -> bool:
+        """Handles a replica announcement message.
+
+        Args:
+            message (MessageReplicaAnnouncement): The replica announcement message.
+
+        Returns:
+            bool: Whether the message was for this replica.
+        """
+        replica: MessagePeersAnnouncement = MessagePeersAnnouncement.decode(message)
+        if replica._id != self._initial_find_request._id:
+            return False
+
+        self.peers: AuctionPeersStore = self.manager.AuctionPeersStore()
+        self.peers.replace(replica.peers)
+        self._logger.info(f"Received replica announcement from {address}: {self.peers}")
+        return True

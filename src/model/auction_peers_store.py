@@ -53,6 +53,14 @@ class AuctionPeersStore:
                 raise ValueError(f"Address {address} already exists")
             self.add(address)
 
+    def replace(self, addresses: list[IPv4Address]) -> None:
+        """Replaces the store with a new list of IPv4Addresses.
+
+        Args:
+            addresses (list[IPv4Address]): The list of IPv4Addresses to replace the store with.
+        """
+        self._peers = addresses
+
     def __iter__(self) -> Iterator[IPv4Address]:
         """Returns an iterator over the peers.
 

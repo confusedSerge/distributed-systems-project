@@ -5,6 +5,7 @@ from .replica import (
     MessageFindReplicaRequest,
     MessageFindReplicaResponse,
     MessageFindReplicaAcknowledgement,
+    MessagePeersAnnouncement,
 )
 
 from .auction import (

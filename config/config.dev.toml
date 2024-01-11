@@ -43,6 +43,7 @@ port = 5006
 find-replica-req = "FIND_REPLICA_REQUEST"
 find-replica-res = "FIND_REPLICA_RESPONSE"
 find-replica-ack = "FIND_REPLICA_ACK"
+replica-announcement = "REPLICA_ANNOUNCEMENT"
 
 [communication.header.auction]
 auction-announcement = "AUCTION_ANNOUNCEMENT"
