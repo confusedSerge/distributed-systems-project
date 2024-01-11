@@ -2,10 +2,17 @@ from marshmallow import Schema, fields, EXCLUDE
 
 
 class MessageSchema(Schema):
-    """MessageSchema class for marshmallow serialization."""
+    """MessageSchema class for marshmallow de/serialization.
+
+    Fields:
+        _id (str): The unique identifier of the message. This depends on the message type.
+            General structure is "uname::uuid", such that the message can be uniquely identified by the sender.
+            Depending on an auction, the message ID is then "uname::aname::uuid", such that the message can be uniquely identified by the corresponding auction.
+        header (str): The header of the message.
+    """
 
     _id = fields.String(required=True)
-    tag = fields.String(required=True)
+    header = fields.String(required=True)
 
     class Meta:
         unknown = EXCLUDE
@@ -21,7 +28,7 @@ class MessageSchema(Schema):
         Returns:
             bool: Whether the message is of the given header type.
         """
-        return MessageSchema.decode(message)["tag"] == header
+        return MessageSchema.decode(message)["header"] == header
 
     @staticmethod
     def decode(message: bytes) -> dict:

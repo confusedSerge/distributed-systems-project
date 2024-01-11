@@ -25,7 +25,7 @@ class Client(Process):
     def __init__(self) -> None:
         """Initializes the client class."""
         super(Client, self).__init__()
-        self._exit = Event()
+        self._exit: Event = Event()
 
         self._name: str = "Client"
         self._logger: logging.Logger = create_logger(self._name.lower())
@@ -37,15 +37,17 @@ class Client(Process):
         self.manager.start()
         self.manager_running.set()
 
-        self.auction_announcement_store = self.manager.AuctionAnnouncementStore()
+        self.auction_announcement_store: AuctionAnnouncementStore = (
+            self.manager.AuctionAnnouncementStore()
+        )
 
         # Auctioneer and bidder
-        self._auctioneer = Auctioneer(
+        self._auctioneer: Auctioneer = Auctioneer(
             manager=self.manager,
             manager_running=self.manager_running,
             auction_announcement_store=self.auction_announcement_store,
         )
-        self._bidder = Bidder(
+        self._bidder: Bidder = Bidder(
             manager=self.manager,
             manager_running=self.manager_running,
             auction_announcement_store=self.auction_announcement_store,
@@ -58,8 +60,8 @@ class Client(Process):
         self._logger.info(f"{self._name} is starting background tasks")
 
         # Start auction announcement listener
-        self._auction_announcement_process = AuctionAnnouncementListener(
-            self.auction_announcement_store
+        self._auction_announcement_process: AuctionAnnouncementStore = (
+            AuctionAnnouncementListener(self.auction_announcement_store)
         )
         self._auction_announcement_process.start()
 

@@ -16,13 +16,13 @@ class Auction:
         item: str,
         price: float,
         time: int,
-        multicast_address: IPv4Address,
+        address: IPv4Address,
     ) -> None:
         """Initializes the auction class.
 
         Args:
-            name (str): The name of the auction.
-            auctioneer (str): The auctioneer of the auction.
+            name (str): The name of the auction. Refered as uname.
+            auctioneer (str): The auctioneer of the auction. Refered as aname.
 
             item (str): The item of the auction.
             price (float): The starting price of the auction.
@@ -33,7 +33,7 @@ class Auction:
         # Identification
         self._name: str = name
         self._auctioneer: str = auctioneer
-        self._id: str = f"{self._auctioneer}-{self._name}"
+        self._id: str = Auction.id(name, auctioneer)
 
         # Auction information
         self._item: str = item
@@ -41,7 +41,7 @@ class Auction:
         self._time: int = time
 
         # Multicast group and port are initially empty
-        self._multicast_address: IPv4Address = multicast_address
+        self._multicast_address: IPv4Address = address
 
         # Auction states
         self._auction_state: tuple[int, str] = state.AUCTION_PREPARATION
@@ -69,7 +69,7 @@ class Auction:
         """Returns the id of the auction.
 
         Returns:
-            str: The id of the auction.
+            str: The id of the auction (structure is "uname::aname").
         """
         return self._id
 
@@ -272,3 +272,16 @@ class Auction:
 
     def __repr__(self) -> str:
         return str(self)
+
+    @staticmethod
+    def id(name: str, auctioneer: str) -> str:
+        """Returns the id of the auction.
+
+        Args:
+            name (str): The name of the auction.
+            auctioneer (str): The auctioneer of the auction.
+
+        Returns:
+            str: The id of the auction.
+        """
+        return f"{auctioneer}::{name}".lower()

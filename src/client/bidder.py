@@ -18,11 +18,14 @@ from communication import (
 )
 
 
-from util import create_logger, logging, Timeout
+from util import create_logger, logging, Timeout, generate_message_id
 
 from constant import (
     interaction as inter,
     header as hdr,
+    auction as aucs,
+    USERNAME,
+    BUFFER_SIZE,
     TIMEOUT_RESPONSE,
     MULTICAST_DISCOVERY_GROUP,
     MULTICAST_DISCOVERY_PORT,
@@ -64,12 +67,12 @@ class Bidder(Process):
         """
         super().__init__()
 
-        self._name = "Bidder"
+        self._name: str = "Bidder"
         self._logger: logging.Logger = create_logger(self._name.lower())
 
         # Shared memory
         self.manager: Manager = manager
-        self.manager_running = manager_running
+        self.manager_running: Event = manager_running
 
         self.auction_announcement_store: AuctionAnnouncementStore = (
             auction_announcement_store
@@ -157,12 +160,12 @@ class Bidder(Process):
             for auction_id in self._auction_announcement_store.keys()
             if auction_id not in self._joined_auctions
         ]
-        auction_id = self._choose_auction(not_joined_auctions)
-        response: AuctionMessageData = self._get_auction_information(auction_id)
+        auction: str = self._choose_auction(not_joined_auctions)
+        response: AuctionMessageData = self._get_auction_information(auction)
 
         if response is None:
             self._logger.error(
-                f"Could not get auction information for auction {auction_id}"
+                f"Could not get auction information for auction {auction}"
             )
             return
 
@@ -170,23 +173,23 @@ class Bidder(Process):
         listener: AuctionBidListener = AuctionBidListener(auction)
         listener.start()
 
-        self._joined_auctions[auction_id] = auction
-        self._auction_bid_listeners[auction_id] = listener
+        self._joined_auctions[auction] = auction
+        self._auction_bid_listeners[auction] = listener
 
-    def _get_auction_information(self, auction_id: str) -> AuctionMessageData:
+    def _get_auction_information(self, auction: str) -> AuctionMessageData:
         """Gets the auction information for an auction.
 
         Args:
-            auction_id (str): The auction id of the auction to get the information for.
+            auction (str): The auction to get the information for.
 
         Returns:
             AuctionMessageData: The auction information or None if the auction could not be found.
         """
 
         # Send auction information request
-        uc = Unicast(host=None, port=UNICAST_PORT)
+        uc: Unicast = Unicast(host=None, port=UNICAST_PORT)
         Multicast.qsend(
-            message=MessageAuctionInformationRequest(auction_id=auction_id).encode(),
+            message=MessageAuctionInformationRequest(_id=auction).encode(),
             group=MULTICAST_DISCOVERY_GROUP,
             port=MULTICAST_DISCOVERY_PORT,
             ttl=MULTICAST_DISCOVERY_TTL,
@@ -196,7 +199,7 @@ class Bidder(Process):
         try:
             with Timeout(TIMEOUT_RESPONSE, throw_exception=True):
                 while True:
-                    response, _ = uc.receive()
+                    response, _ = uc.receive(BUFFER_SIZE)
 
                     if not MessageSchema.of(hdr.AUCTION_INFORMATION_RES, response):
                         continue
@@ -204,7 +207,7 @@ class Bidder(Process):
                     response: MessageAuctionInformationResponse = (
                         MessageAuctionInformationResponse.decode(response)
                     )
-                    if response._id != auction_id:
+                    if response._id != auction:
                         continue
 
                     break
@@ -213,38 +216,33 @@ class Bidder(Process):
         finally:
             uc.close()
 
-        return response.auction_information
+        return response.auction
 
     def _leave_auction(self) -> None:
         """Leaves an auction"""
-        auction_id = self._choose_auction(list(self._joined_auctions.keys()))
-        if auction_id not in self._joined_auctions:
-            self._logger.error(
-                f"Auction with id {auction_id} not joined. This should not happen."
-            )
-            return
-        self._joined_auctions.pop(auction_id)
-        self._auction_bid_listeners.pop(auction_id).stop()
+        auction: str = self._choose_auction(list(self._joined_auctions.keys()))
+        self._joined_auctions.pop(auction)
+        self._auction_bid_listeners.pop(auction).stop()
 
     def _bid(self) -> None:
         """Bids in an auction"""
-        auction_id = self._choose_auction(list(self._joined_auctions.keys()))
-        bid_amount = self._bid_amount()
+        auction: str = self._choose_auction(list(self._joined_auctions.keys()))
+        bid_amount: float = self._bid_amount()
 
-        auction = self._joined_auctions[auction_id]
-        if auction.get_state() != 1:
-            print(f"Auction with id {auction_id} is not running. Cannot bid.")
+        auction: Auction = self._joined_auctions[auction]
+        if not auction.is_running():
+            print(f"Auction with id {auction} is not running. Cannot place bid.")
             return
         if bid_amount <= auction.get_highest_bid():
             print(
-                f"Bid amount {bid_amount} is not higher than highest bid {auction.get_highest_bid()}"
+                f"Bid amount {bid_amount} is not higher than current highest bid {auction.get_highest_bid()}"
             )
             return
 
-        auction.bid(self._name, bid_amount)
+        auction.bid(USERNAME, bid_amount)
         bid: MessageAuctionBid = MessageAuctionBid(
-            auction_id=auction_id,
-            bidder_id=self._name,
+            _id=generate_message_id(auction.get_id()),
+            bidder=USERNAME,
             bid=bid_amount,
         )
         Multicast.qsend(
@@ -253,27 +251,27 @@ class Bidder(Process):
             port=MULTICAST_AUCTION_PORT,
         )
 
-    def _choose_auction(self, auction_ids: list[int]) -> int:
+    def _choose_auction(self, auctions: list[str]) -> str:
         """Chooses an auction.
 
         Prompts the user to choose an auction and returns the auction id.
 
         Args:
-            auction_ids (list[int]): The auction ids of the auctions to choose from.
+            auction (list[str]): The auction ids of the auctions to choose from.
 
         Returns:
-            int: The auction id of the auction.
+            str: The auction id of the auction.
         """
         return int(
             inquirer.prompt(
                 [
                     inquirer.List(
-                        "auction_id",
+                        "auction",
                         message=inter.BIDDER_CHOOSE_AUCTION_QUESTION,
-                        choices=list(map(str, auction_ids)),
+                        choices=auctions,
                     )
                 ]
-            )["auction_id"]
+            )["auction"]
         )
 
     def _bid_amount(self) -> float:
@@ -286,11 +284,11 @@ class Bidder(Process):
             inquirer.prompt(
                 [
                     inquirer.Text(
-                        "bid_amount",
+                        "bid",
                         message=inter.BIDDER_BID_AMOUNT_QUESTION,
                         validate=lambda _, x: re.match(r"^\d+(\.\d{1,2})?$", x)
                         is not None,
                     )
                 ]
-            )["bid_amount"]
+            )["bid"]
         )

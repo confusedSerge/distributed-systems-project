@@ -1,5 +1,4 @@
 from typing import Self
-from ipaddress import IPv4Address
 
 from dataclasses import dataclass, field
 from marshmallow import validate
@@ -12,7 +11,15 @@ from constant import communication as com
 
 @dataclass
 class MessageFindReplicaRequest:
-    """Request message for finding replicas."""
+    """Request message for finding replicas.
+
+    This message is sent over the discovery multicast group to request for new replicas.
+
+    Fields:
+        _id: (str) Unique identifier of the message. Structure is "uname::aname::uuid".
+        header: (str) Header of the message. Should be constant HEADER_FIND_REPLICA_REQ.
+        address: (str) Address of the multicast group for the auction.
+    """
 
     _id: str = field(metadata={"validate": lambda x: not str(x)})
     header: str = field(

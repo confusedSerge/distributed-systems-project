@@ -11,7 +11,14 @@ from constant import communication as com
 
 @dataclass
 class MessageFindReplicaAcknowledgement:
-    """Acknowledgement message for finding replicas."""
+    """Acknowledgement message for finding replicas.
+
+    This message is sent over a udp unicast message to acknowledge a replica response, allowing the replica to join as such.
+
+    Fields:
+        _id: (str) Unique identifier of the message. Structure is "uname::aname::uuid". Corresponds to the request message ID.
+        header: (str) Header of the message. Should be constant HEADER_FIND_REPLICA_ACK.
+    """
 
     _id: str = field(metadata={"validate": lambda x: not str(x)})
     header: str = field(

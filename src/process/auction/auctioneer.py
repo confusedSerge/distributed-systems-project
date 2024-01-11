@@ -1,3 +1,5 @@
+import os
+
 from ipaddress import IPv4Address
 from multiprocessing import Process, Event
 
@@ -20,7 +22,7 @@ from constant import (
     UNICAST_PORT,
 )
 
-from util import create_logger
+from util import create_logger, logger
 
 
 class AuctionManager(Process):
@@ -37,17 +39,20 @@ class AuctionManager(Process):
             auction (Auction): The auction to manage. Should be a shared memory object.
         """
         super().__init__()
-        self._exit = Event()
+        self._exit: Event = Event()
 
-        self._name = f"AuctionManager-{auction.get_id()}"
-        self._logger = create_logger(self._name.lower())
+        self._name: str = f"AuctionManager-{auction.get_id()}-{os.getpid()}"
+        self._logger: logger = create_logger(self._name.lower())
 
         self._auction: Auction = auction
+        self._seen_mid: list[
+            str
+        ] = []  # List of seen message ids, to prevent duplicate responses
 
     def run(self) -> None:
         """Runs the auction manager process."""
         self._logger.info(f"{self._name} is starting background tasks")
-        mc = Multicast(
+        mc: Multicast = Multicast(
             group=MULTICAST_DISCOVERY_GROUP,
             port=MULTICAST_DISCOVERY_PORT,
             timeout=TIMEOUT_RECEIVE,
@@ -66,16 +71,26 @@ class AuctionManager(Process):
             request: MessageAuctionInformationRequest = (
                 MessageAuctionInformationRequest.decode(request)
             )
-            if not request.auction_id and self._auction.get_id() == request.auction_id:
+
+            if request._id in self._seen_mid:
                 self._logger.info(
-                    f"{self._name} received request {request} from {address} for another auction"
+                    f"{self._name} received duplicate request {request} from {address}"
                 )
                 continue
 
+            if not request.auction and self._auction.get_id() == request.auction:
+                self._logger.info(
+                    f"{self._name} received request {request} from {address} for another auction"
+                )
+                self._seen_mid.append(request._id)
+                continue
+
             self._logger.info(f"{self._name} received request {request} from {address}")
-            response = MessageAuctionInformationResponse(
-                self._auction.get_id(),
-                auction_information=AuctionMessageData.from_auction(self._auction),
+            response: MessageAuctionInformationResponse = (
+                MessageAuctionInformationResponse(
+                    _id=request._id,
+                    auction_information=AuctionMessageData.from_auction(self._auction),
+                )
             )
             Unicast.qsend(
                 message=response.encode(),

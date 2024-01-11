@@ -23,6 +23,9 @@ timeout_receive = 0.5
 timeout_response = 60
 timeout_replication = 60
 
+[communication.replica]
+emitter_period = 60
+
 [communication.multicast.discovery]
 group = "224.1.1.1"
 port = 5007

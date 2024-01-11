@@ -11,23 +11,33 @@ from constant import communication as com
 
 @dataclass
 class MessageAuctionInformationRequest:
-    """Request message for auction information."""
+    """Request message for auction information.
 
+    This message is sent over the discovery multicast group to request auction information, either for a specific auction or all auctions.
+    The auction information is sent back over a udp unicast message.
+
+    Fields:
+        _id: (str) Unique identifier of the message. Structure is "uname::uuid".
+        header: (str) Header of the message. Should be constant HEADER_AUCTION_INFORMATION_REQ.
+        auction_id: (str) Auction ID of the auction to request information for. If empty str, return all auctions.
+    """
+
+    # Message ID
     _id: str = field(metadata={"validate": lambda x: not str(x)})
     header: str = field(
         default=com.HEADER_AUCTION_INFORMATION_REQ,
         metadata={"validate": validate.OneOf([com.HEADER_AUCTION_INFORMATION_REQ])},
     )
 
-    # corresponding auction information. If empty str, return all auctions.
-    auction_id: str = field(
+    # Data
+    auction: str = field(
         default="",
         metadata={"validate": lambda x: isinstance(x, str)},
     )
 
     def __str__(self) -> str:
         """Returns the string representation of the message."""
-        return f"{com.HEADER_AUCTION_INFORMATION_REQ}(id={self._id}, auction_id={self.auction_id})"
+        return f"{com.HEADER_AUCTION_INFORMATION_REQ}(id={self._id}, auction={self.auction})"
 
     def __repr__(self) -> str:
         """Returns the string representation of the message."""

@@ -1,3 +1,5 @@
+import os
+
 from multiprocessing import Process, Event
 
 from communication import Multicast, MessageSchema, MessageAuctionAnnouncement
@@ -11,7 +13,7 @@ from constant import (
     MULTICAST_DISCOVERY_PORT,
 )
 
-from util import create_logger
+from util import create_logger, logger
 
 
 class AuctionAnnouncementListener(Process):
@@ -27,17 +29,17 @@ class AuctionAnnouncementListener(Process):
             auction_announcement_store (AuctionAnnouncementStore): The auction announcement store to listen to. Should be a shared memory object.
         """
         super(AuctionAnnouncementListener, self).__init__()
-        self._exit = Event()
+        self._exit: Event = Event()
 
-        self._name = "AuctionAnnouncementListener"
-        self._logger = create_logger(self._name.lower())
+        self._name: str = f"AuctionAnnouncementListener-{os.getpid()}"
+        self._logger: logger = create_logger(self._name.lower())
 
         self._store: AuctionAnnouncementStore = auction_announcement_store
 
     def run(self) -> None:
         """Runs the auction listener process."""
         self._logger.info(f"{self._name} is starting background tasks")
-        mc = Multicast(
+        mc: Multicast = Multicast(
             group=MULTICAST_DISCOVERY_GROUP,
             port=MULTICAST_DISCOVERY_PORT,
             timeout=TIMEOUT_RECEIVE,
@@ -56,7 +58,7 @@ class AuctionAnnouncementListener(Process):
             announcement: MessageAuctionAnnouncement = (
                 MessageAuctionAnnouncement.decode(announcement)
             )
-            if not self._store.exists(announcement.auction_id):
+            if not self._store.exists(announcement._id):
                 self._logger.info(
                     f"{self._name} received new announcement {announcement} from {address}"
                 )

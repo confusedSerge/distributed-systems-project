@@ -12,14 +12,24 @@ from constant import communication as com
 
 @dataclass
 class MessageAuctionAnnouncement:
-    """Announcement message for new auction."""
+    """Announcement message for new auction.
 
+    This message is sent by the auctioneer to the discovery multicast group to announce a new auction.
+
+    Fields:
+        _id: (str) Unique identifier of the message. Structure is "uname::aname::uuid".
+        header: (str) Header of the message. Should be constant HEADER_AUCTION_ANNOUNCEMENT.
+        auction: (AuctionData) Auction data.
+    """
+
+    # Message ID
     _id: str = field(metadata={"validate": lambda x: not str(x)})
     header: str = field(
         default=com.HEADER_AUCTION_ANNOUNCEMENT,
         metadata={"validate": validate.OneOf([com.HEADER_AUCTION_ANNOUNCEMENT])},
     )
 
+    # Data
     auction: AuctionData = field(
         default_factory=AuctionData,
         metadata={"validate": lambda x: isinstance(x, AuctionData)},

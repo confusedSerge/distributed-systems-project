@@ -11,7 +11,17 @@ from constant import communication as com
 
 @dataclass
 class MessageAuctionWinner:
-    """Message for auction winner notification."""
+    """Message for auction winner notification.
+
+    This message is sent by all replicas to the auction multicast group to notify the winner of an auction.
+
+    Fields:
+        _id: (str) Unique identifier of the message. Structure is "uname::aname::uuid".
+        header: (str) Header of the message. Should be constant HEADER_AUCTION_WIN.
+        auction: (str) Auction ID of the auction that was won. Structure is "uname::aname".
+        winner: (str) Winner of the auction. Username of the winner.
+        bid: (float) Winning bid amount.
+    """
 
     _id: str = field(metadata={"validate": lambda x: not str(x)})
     header: str = field(
@@ -19,15 +29,15 @@ class MessageAuctionWinner:
         metadata={"validate": validate.OneOf([com.HEADER_AUCTION_WIN])},
     )
 
-    auction_id: str = field(default="", metadata={"validate": lambda x: not str(x)})
-    winner_id: str = field(default="", metadata={"validate": lambda x: not str(x)})
-    winner_bid: float = field(
+    auction: str = field(default="", metadata={"validate": lambda x: not str(x)})
+    winner: str = field(default="", metadata={"validate": lambda x: not str(x)})
+    bid: float = field(
         default=0.0, metadata={"validate": lambda x: isinstance(x, float)}
     )
 
     def __str__(self) -> str:
         """Returns the string representation of the message."""
-        return f"{com.HEADER_AUCTION_WIN}(id={self._id}, auction_id={self.auction_id}, winner_id={self.winner_id}, winner_bid={self.winner_bid})"
+        return f"{com.HEADER_AUCTION_WIN}(id={self._id}, auction={self.auction}, winner={self.winner}, bid={self.bid})"
 
     def __repr__(self) -> str:
         """Returns the string representation of the message."""

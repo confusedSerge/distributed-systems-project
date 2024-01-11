@@ -3,7 +3,7 @@ from ipaddress import IPv4Address
 from time import sleep
 from multiprocessing import Process, Event
 
-from model import Auction
+from model import Auction, AuctionPeersStore
 from communication import (
     Multicast,
     Unicast,
@@ -15,7 +15,7 @@ from communication import (
     MessageAuctionInformationResponse,
 )
 
-from process import AuctionBidListener
+from process import Manager, AuctionBidListener
 
 from constant import (
     header as hdr,
@@ -26,7 +26,7 @@ from constant import (
     UNICAST_PORT,
 )
 
-from util import create_logger, Timeout
+from util import create_logger, logger, Timeout
 
 
 class Replica(Process):
@@ -53,29 +53,41 @@ class Replica(Process):
     def __init__(self, request: MessageFindReplicaRequest, sender: IPv4Address) -> None:
         """Initializes the replica class."""
         super.__init__(self)
-        self._exit = Event()
+        self._exit: Event = Event()
 
-        self._name = f"Replica-{request._id}"
-        self._logger = create_logger(self._name.lower())
+        self._name: str = f"Replica-{request._id}"
+        self._logger: logger = create_logger(self._name.lower())
 
         self._initial_find_request: MessageFindReplicaRequest = request
         self._sender: IPv4Address = sender
 
-        self.auction: Auction = None
-        self._peers: list[str] = []
+        # Shared memory
+        self.manager: Manager = Manager()
+        self.manager_running: Event = Event()
 
+        self.auction: Auction = None
+        self._peers: AuctionPeersStore = None
+
+        # Sub processes
         self._auction_bid_listener: Process = None
 
     def run(self) -> None:
         """Runs the replica background tasks."""
+        # Initialize shared memory
+        self.manager.start()
+        self.manager_running.set()
+
         self._prelude()
 
+        # Check if replica received stop signal during prelude
         if self._exit.is_set():
             self._logger.info("Replica is exiting")
             return
 
         # Start auction listener
-        self._auction_bid_listener = AuctionBidListener(self.auction)
+        self._auction_bid_listener: AuctionBidListener = AuctionBidListener(
+            self.auction
+        )
         self._auction_bid_listener.start()
 
         # Start replica leader/follower tasks (heartbeat, election, etc.)
@@ -83,6 +95,7 @@ class Replica(Process):
         while not self._exit.is_set():
             sleep(10)
 
+        # TODO: Stop all possible sub processes (replica finder, auction listener, auction manager etc.)
         self._auction_bid_listener.stop()
 
     def stop(self) -> None:
@@ -99,15 +112,12 @@ class Replica(Process):
             - Waiting for the auctioneer to send the state of the auction.
             - On timeout, leave the auction multicast group and stop the replica.
         """
-        # Join auction multicast group
-        mc = Multicast(
-            group=IPv4Address(self._initial_find_request.address),
-            port=self.MULTICAST_AUCTION_PORT,
-            timeout=TIMEOUT_RECEIVE,
-        )
+        uc: Unicast = Unicast(host=None, port=UNICAST_PORT)
 
         # Send join message to auctioneer
-        response = MessageFindReplicaResponse(self._initial_find_request._id)
+        response: MessageFindReplicaResponse = MessageFindReplicaResponse(
+            self._initial_find_request._id
+        )
         Unicast.qsend(
             message=response.encode(),
             host=self._sender,
@@ -115,11 +125,10 @@ class Replica(Process):
         )
 
         # Wait for auctioneer to acknowledge, or timeout
-        uc = Unicast(host=None, port=UNICAST_PORT)
         try:
             with Timeout(TIMEOUT_REPLICATION, throw_exception=True):
                 while not self._exit.is_set():
-                    response, _ = uc.receive()
+                    response, address = uc.receive(BUFFER_SIZE)
 
                     if not MessageSchema.of(hdr.FIND_REPLICA_ACKNOWLEDGEMENT, response):
                         continue
@@ -130,34 +139,37 @@ class Replica(Process):
                     if response.auction_id != self._initial_find_request._id:
                         continue
 
+                    self._logger.info(
+                        f"Received acknowledgement from auctioneer {address}"
+                    )
+
                     break
         except TimeoutError:
             self._logger.info("Did not receive acknowledgement from auctioneer")
-            mc.close()
+            uc.close()
             self.stop()
             return
-        finally:
-            uc.close()
 
+        # TODO add peer discovery
         try:
             with Timeout(TIMEOUT_REPLICATION, throw_exception=True):
                 while not self._exit.is_set():
                     try:
-                        message, address = mc.receive(BUFFER_SIZE)
+                        auction, address = uc.receive(BUFFER_SIZE)
                     except TimeoutError:
                         continue
 
-                    if not MessageSchema.of(hdr.AUCTION_INFORMATION_RES, message):
+                    if not MessageSchema.of(hdr.AUCTION_INFORMATION_RES, auction):
                         continue
 
-                    # TODO: peer list!
-                    message: MessageAuctionInformationResponse = (
-                        MessageAuctionInformationResponse.decode(message)
+                    auction: MessageAuctionInformationResponse = (
+                        MessageAuctionInformationResponse.decode(auction)
                     )
+                    if auction._id != self._initial_find_request._id:
+                        continue
 
-                    # TODO: Check if auction is the same (interference possible through other auctions)
                     self.auction = AuctionMessageData.to_auction(
-                        message.auction_information
+                        auction.auction_information
                     )
                     self._logger.info(
                         f"Received auction information from {address}: {self.auction}"
@@ -169,4 +181,4 @@ class Replica(Process):
             self.stop()
             return
         finally:
-            mc.close()
+            uc.close()

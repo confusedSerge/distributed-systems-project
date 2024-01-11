@@ -12,7 +12,16 @@ from constant import communication as com
 
 @dataclass
 class MessageAuctionInformationResponse:
-    """Response message for auction information."""
+    """Response message for auction information request.
+
+    This message is sent over a udp unicast message to respond to a auction information request.
+    The _id field is the same as the request message.
+
+    Fields:
+        _id: (str) Unique identifier of the message. Structure is "uname::uuid". Corresponds to the request message ID.
+        header: (str) Header of the message. Should be constant HEADER_AUCTION_INFORMATION_RES.
+        auction: (AuctionData) Auction data corresponding to the auction ID in the request.
+    """
 
     _id: str = field(metadata={"validate": lambda x: not str(x)})
     header: str = field(
@@ -21,14 +30,14 @@ class MessageAuctionInformationResponse:
     )
 
     # corresponding auction information.
-    auction_information: AuctionData = field(
+    auction: AuctionData = field(
         default_factory=AuctionData,
         metadata={"validate": lambda x: isinstance(x, AuctionData)},
     )
 
     def __str__(self) -> str:
         """Returns the string representation of the message."""
-        return f"{com.HEADER_AUCTION_INFORMATION_RES}(id={self._id}, auction_information={self.auction_information})"
+        return f"{com.HEADER_AUCTION_INFORMATION_RES}(id={self._id}, auction={self.auction})"
 
     def __repr__(self) -> str:
         """Returns the string representation of the message."""

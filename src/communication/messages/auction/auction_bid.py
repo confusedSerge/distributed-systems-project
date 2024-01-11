@@ -11,28 +11,33 @@ from constant import communication as com
 
 @dataclass
 class MessageAuctionBid:
-    """Message for auction bid."""
+    """Message for auction bid.
 
+    This message is sent by a bidder to the auction multicast group to place a bid.
+
+    Fields:
+        _id: (str) Unique identifier of the message. Structure is "uname::aname::uuid".
+        header: (str) Header of the message. Should be constant HEADER_AUCTION_BID.
+        bidder_id: (str) Bidders unique identifier (uname).
+        bid: (float) Bid amount.
+    """
+
+    # Message ID
     _id: str = field(metadata={"validate": lambda x: not str(x)})
     header: str = field(
         default=com.HEADER_AUCTION_BID,
         metadata={"validate": validate.OneOf([com.HEADER_AUCTION_BID])},
     )
 
-    auction_id: str = field(
-        default="", metadata={"validate": lambda x: isinstance(x, str)}
-    )
-    bidder_id: str = field(
-        default="", metadata={"validate": lambda x: isinstance(x, str)}
-    )
-
+    # Data
+    bidder: str = field(default="", metadata={"validate": lambda x: isinstance(x, str)})
     bid: float = field(
         default=0.0, metadata={"validate": lambda x: isinstance(x, float)}
     )
 
     def __str__(self) -> str:
         """Returns the string representation of the message."""
-        return f"{com.HEADER_AUCTION_BID}(id={self._id}, auction_id={self.auction_id}, bidder_id={self.bidder_id}, bid={self.bid})"
+        return f"{com.HEADER_AUCTION_BID}(id={self._id}, bidder_id={self.bidder}, bid={self.bid})"
 
     def __repr__(self) -> str:
         """Returns the string representation of the message."""

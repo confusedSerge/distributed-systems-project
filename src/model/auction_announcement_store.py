@@ -8,56 +8,56 @@ class AuctionAnnouncementStore:
     """
 
     def __init__(self) -> None:
-        self._auctions: dict[int, MessageAuctionAnnouncement] = {}
+        self._auctions: dict[str, MessageAuctionAnnouncement] = {}
 
     def add(self, auction: MessageAuctionAnnouncement) -> None:
         """Adds an auction announcement to the store.
 
         Args:
-            auction (AuctionAnnouncement): The auction announcement to add.
+            auction (MessageAuctionAnnouncement): The auction announcement to add.
         """
         if self.exists(auction._id):
             raise ValueError(f"Auction with id {auction._id} already exists")
         self._auctions[auction._id] = auction
 
-    def get(self, auction_id: int) -> MessageAuctionAnnouncement:
+    def get(self, auction: str) -> MessageAuctionAnnouncement:
         """Returns an auction announcement from the store.
 
         Args:
-            auction_id (int): The auction id of the auction announcement to get.
+            auction_id (str): The auction id of the auction announcement to get.
 
         Returns:
-            AuctionAnnouncement: The auction announcement.
+            MessageAuctionAnnouncement: The auction announcement.
         """
-        if not self.exists(auction_id):
-            raise ValueError(f"Auction with id {auction_id} does not exist")
-        return self._auctions[auction_id]
+        if not self.exists(auction):
+            raise ValueError(f"Auction with id {auction} does not exist")
+        return self._auctions[auction]
 
-    def remove(self, auction_id: int) -> None:
+    def remove(self, auction: str) -> None:
         """Removes an auction announcement from the store.
 
         Args:
-            auction_id (int): The auction id of the auction announcement to remove.
+            auction_id (str): The auction id of the auction announcement to remove.
         """
-        if not self.exists(auction_id):
-            raise ValueError(f"Auction with id {auction_id} does not exist")
-        del self._auctions[auction_id]
+        if not self.exists(auction):
+            raise ValueError(f"Auction with id {auction} does not exist")
+        del self._auctions[auction]
 
-    def items(self) -> list[tuple[int, MessageAuctionAnnouncement]]:
+    def items(self) -> list[tuple[str, MessageAuctionAnnouncement]]:
         """Returns the items of the store.
 
         Returns:
-            list[tuple[int, AuctionAnnouncement]]: The items of the store.
+            list[tuple[str, MessageAuctionAnnouncement]]: The items of the store.
         """
         return self._auctions.items()
 
-    def exists(self, auction_id: int) -> bool:
+    def exists(self, auction: str) -> bool:
         """Returns whether an auction announcement exists in the store.
 
         Args:
-            auction_id (int): The auction id of the auction announcement to check.
+            auction_id (str): The auction id of the auction announcement to check.
 
         Returns:
             bool: Whether the auction announcement exists in the store.
         """
-        return auction_id in self._auctions
+        return auction in self._auctions

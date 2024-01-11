@@ -12,7 +12,24 @@ from model import Auction
 
 @dataclass
 class AuctionData:
-    """Auction data class for representing an auction and sending it over the network."""
+    """Auction data class for representing an auction and sending it over the network.
+
+    Fields:
+        _id: (str) Unique identifier of the auction. Structure is "uname::aname".
+        name: (str) Name of the auction. Also referred to as aname.
+        auctioneer: (str) Auctioneer of the auction. Here uname.
+
+        item: (str) Item being auctioned.
+        price: (int) Starting price of the auction.
+        time: (int) Time for the auction.
+
+        multicast_address: (str) Multicast address for the auction.
+
+        state: (int) State of the auction.
+        bid_history: (list[tuple[str, int]]) Bid history of the auction.
+        winner: (str) Winner of the auction.
+
+    """
 
     # Auction ID, name and auctioneer
     _id: str = field(metadata={"validate": lambda x: not str(x)})
@@ -81,7 +98,7 @@ class AuctionData:
             item=self.item,
             price=self.price,
             time=self.time,
-            multicast_address=IPv4Address(self.multicast_address),
+            address=IPv4Address(self.multicast_address),
         )
         auction._set_id(self._id)
         auction._set_state(self.state)

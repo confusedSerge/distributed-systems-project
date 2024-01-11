@@ -6,7 +6,7 @@ from time import sleep
 import re
 import inquirer
 
-from model import Auction, AuctionAnnouncementStore
+from model import Auction, AuctionAnnouncementStore, AuctionPeersStore
 from process import Manager, ReplicaFinder, AuctionBidListener
 
 from communication import (
@@ -16,12 +16,13 @@ from communication import (
 )
 
 
-from util import create_logger, logging, generate_unique_mc_address
+from util import create_logger, logging, generate_mc_address, generate_message_id
 
 from constant import (
     interaction as inter,
     USERNAME,
     SLEEP_TIME,
+    EMMITER_PERIOD,
     MULTICAST_DISCOVERY_GROUP,
     MULTICAST_DISCOVERY_PORT,
     MULTICAST_DISCOVERY_TTL,
@@ -54,12 +55,12 @@ class Auctioneer:
         """
         super().__init__()
 
-        self._name = "Auctioneer"
+        self._name: str = "Auctioneer"
         self._logger: logging.Logger = create_logger(self._name.lower())
 
         # Shared memory
         self.manager: Manager = manager
-        self.manager_running = manager_running
+        self.manager_running: Event = manager_running
 
         self.auction_announcement_store: AuctionAnnouncementStore = (
             auction_announcement_store
@@ -81,7 +82,7 @@ class Auctioneer:
         for sub_auctioneer in self._sub_auctioneers.values():
             sub_auctioneer.join()
 
-        self._logger.info(f"{self._name} stopped sub auctioneers")
+        self._logger.info(f"{self._name} stopped sub-auctioneers")
 
     def interact(self) -> None:
         """Handles the interactive command line interface for the auctioneer.
@@ -128,23 +129,22 @@ class Auctioneer:
 
         This reads in the item, price and time from the user and instantiates a sub-auctioneer.
         """
-        name, item, price, time = self._define_auction()
-        # TODO: give list of known used multicast addresses
-        multicast_address = generate_unique_mc_address()
-
         if not self.manager_running.is_set():
             self._logger.error(
                 "Manager is not running, cannot create auction. This should not happen."
             )
+            return
+
+        aname, item, price, time = self._define_auction()
+        # TODO: give list of known used multicast addresses
+        address: IPv4Address = generate_mc_address()
         _auction: Auction = self.manager.Auction(
-            name, USERNAME, item, price, time, multicast_address
+            aname, USERNAME, item, price, time, address
         )
+
         self._created_auctions[_auction.get_id()] = _auction
-
-        sub_auctioneer = _SubAuctioneer(self._created_auctions[_auction.get_id()])
+        sub_auctioneer = _SubAuctioneer(_auction)
         sub_auctioneer.start()
-
-        # Store sub-auctioneer in dictionary corresponding to auction id
         self._sub_auctioneers[_auction.get_id()] = sub_auctioneer
 
     def _define_auction(self) -> tuple[str, str, float, int]:
@@ -155,7 +155,12 @@ class Auctioneer:
         """
         answer: dict = inquirer.prompt(
             [
-                inquirer.Text("name", message="What's the name of the auction"),
+                inquirer.Text(
+                    "name",
+                    message="What's the name of the auction",
+                    validate=lambda _, x: Auction.id(x, USERNAME)
+                    not in self._created_auctions.keys(),
+                ),
                 inquirer.Text("item", message="What's the item"),
                 inquirer.Text(
                     "price",
@@ -182,19 +187,23 @@ class Auctioneer:
 class _SubAuctioneer(Process):
     """Sub-Auctioneer class handles the auctioning of items, keeping track of the highest bid and announcing the winner."""
 
-    def __init__(self, auction: Auction) -> None:
+    def __init__(self, auction: Auction, manager: Manager) -> None:
         """Initializes the sub-auctioneer class.
 
         Args:
             auction (Auction): The auction to run. Should be a shared memory object.
+            manager (Manager): The manager to use for shared memory.
         """
         super().__init__()
         self._exit = Event()
 
-        self._name = f"Sub-Auctioneer-{auction.get_id()}"
+        self._name = f"SubAuctioneer-{auction.get_id()}"
         self._logger: logging.Logger = create_logger(self._name.lower())
 
         self._auction: Auction = auction
+        self._manager: Manager = manager
+
+        self._logger.info(f"{self._name} initialized")
 
     def run(self) -> None:
         """Runs the sub-auctioneer.
@@ -202,13 +211,14 @@ class _SubAuctioneer(Process):
         Args:
             auction (Auction): The auction to run.
         """
-        # TODO: Share memory between processes
-        replica_list: list[IPv4Address] = []
+        replica_list: AuctionPeersStore = self._manager.AuctionPeersStore()
 
         self._logger.info(
             f"{self._name} for auction {self._auction} is finding replicas"
         )
-        replica_finder = ReplicaFinder(self._auction, replica_list)
+        replica_finder: ReplicaFinder = ReplicaFinder(
+            self._auction, replica_list, EMMITER_PERIOD
+        )
         replica_finder.start()
 
         # Wait for replica finder to finish or if stop signal is received propegate stop signal and return
@@ -231,8 +241,8 @@ class _SubAuctioneer(Process):
         self._logger.info(
             f"{self._name} for auction {self._auction} is announcing auction"
         )
-        announcement = MessageAuctionAnnouncement(
-            _id=self._auction.get_id(),
+        announcement: MessageAuctionAnnouncement = MessageAuctionAnnouncement(
+            _id=generate_message_id(self._auction.get_id()),
             auction=AuctionMessageData.from_auction(self._auction),
         )
         Multicast.qsend(
@@ -247,7 +257,7 @@ class _SubAuctioneer(Process):
         self._logger.info(
             f"{self._name} for auction {self._auction} is listening to bids"
         )
-        auction_bid_listener = AuctionBidListener(self._auction)
+        auction_bid_listener: AuctionBidListener = AuctionBidListener(self._auction)
         auction_bid_listener.start()
 
         # Wait for replica finder to finish or if stop signal is received propegate stop signal and return
