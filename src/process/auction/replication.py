@@ -56,10 +56,10 @@ class ReplicaFinder(Process):
             auction_peers_store (list): The list to add the replicas to. Should be a shared memory object. Can be non-empty, representing already found replicas.
             emitter_period (int, optional): The period of the replica request emitter. Defaults to 60 seconds.
         """
-        super().__init__()
+        super(ReplicaFinder, self).__init__()
         self._exit: Event = Event()
 
-        self._name: str = f"ReplicaFinder-{auction.get_id()}"
+        self._name: str = f"ReplicaFinder::{auction.get_id()}"
         self._logger: logger = create_logger(self._name.lower())
 
         self._auction: Auction = auction
@@ -124,13 +124,13 @@ class ReplicaFinder(Process):
 
         with Timeout(TIMEOUT_REPLICATION, throw_exception=True):
             while (
-                len(self._peers) + len(new_replicas) < REPLICA_AUCTION_POOL_SIZE
+                self._peers.len() + len(new_replicas) < REPLICA_AUCTION_POOL_SIZE
                 and not self._exit.is_set()
             ):
                 # Receive find replica response
                 response, address = uc.receive(BUFFER_SIZE)
 
-                if not MessageSchema.of(hdr.FIND_REPLICA_RESPONSE, response):
+                if not MessageSchema.of(hdr.FIND_REPLICA_RES, response):
                     continue
                 response: MessageFindReplicaResponse = (
                     MessageFindReplicaResponse.decode(response)

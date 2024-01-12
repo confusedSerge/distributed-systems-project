@@ -27,7 +27,7 @@ class Server(Process):
 
     def __init__(self) -> None:
         """Initializes the server class."""
-        super().__init__()
+        super(Server, self).__init__()
         self._exit: Event = Event()
 
         self._name: str = "Server"
@@ -57,7 +57,7 @@ class Server(Process):
                 continue
 
             if (
-                not MessageSchema.of(hdr.FIND_REPLICA_REQUEST, request)
+                not MessageSchema.of(hdr.FIND_REPLICA_REQ, request)
                 or len(self._replica_pool) >= REPLICA_LOCAL_POOL_SIZE
             ):
                 continue
@@ -66,12 +66,14 @@ class Server(Process):
             self._logger.info(f"Received replica request from {address}")
 
             # Create replica and add to pool
-            replica = Replica(replica_request=request, sender=IPv4Address(address[0]))
+            replica = Replica(request=request, sender=IPv4Address(address[0]))
             replica.start()
             self._replica_pool.append(replica)
-            self._seen_mid.append(request.get_id())
+            self._seen_mid.append(request._id)
 
-            self._logger.info(f"Created replica {replica.get_id()}")
+            self._logger.info(
+                f"Created replica {replica.get_id()} for Replica Request {request._id}"
+            )
 
         self._logger.info("Server received stop signal; releasing resources")
 

@@ -53,8 +53,6 @@ class Auctioneer:
             manager_running (Event): The event to use to check if the manager is running.
             auction_announcement_store (AuctionAnnouncementStore): The auction announcement store to store the auction announcements in. Should be a shared memory object.
         """
-        super().__init__()
-
         self._name: str = "Auctioneer"
         self._logger: logging.Logger = create_logger(self._name.lower())
 
@@ -159,10 +157,12 @@ class Auctioneer:
                 inquirer.Text(
                     "name",
                     message="What's the name of the auction",
-                    validate=lambda _, x: Auction.id(x, USERNAME)
-                    not in self._created_auctions.keys(),
+                    validate=lambda _, x: len(x) > 0
+                    and Auction.id(x, USERNAME) not in self._created_auctions.keys(),
                 ),
-                inquirer.Text("item", message="What's the item"),
+                inquirer.Text(
+                    "item", message="What's the item", validate=lambda _, x: len(x) > 0
+                ),
                 inquirer.Text(
                     "price",
                     message="What's the starting price",
@@ -195,10 +195,10 @@ class _SubAuctioneer(Process):
             auction (Auction): The auction to run. Should be a shared memory object.
             manager (Manager): The manager to use for shared memory.
         """
-        super().__init__()
+        super(_SubAuctioneer, self).__init__()
         self._exit = Event()
 
-        self._name = f"SubAuctioneer-{auction.get_id()}"
+        self._name = f"SubAuctioneer::{auction.get_id()}"
         self._logger: logging.Logger = create_logger(self._name.lower())
 
         self._auction: Auction = auction

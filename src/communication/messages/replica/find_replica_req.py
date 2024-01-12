@@ -21,7 +21,7 @@ class MessageFindReplicaRequest:
         address: (str) Address of the multicast group for the auction.
     """
 
-    _id: str = field(metadata={"validate": lambda x: not str(x)})
+    _id: str = field(metadata={"validate": lambda x: len(x) > 0})
     header: str = field(
         default=com.HEADER_FIND_REPLICA_REQ,
         metadata={"validate": validate.OneOf([com.HEADER_FIND_REPLICA_REQ])},

@@ -22,7 +22,7 @@ class MessagePeersAnnouncement:
     """
 
     # Message ID
-    _id: str = field(metadata={"validate": lambda x: not str(x)})
+    _id: str = field(metadata={"validate": lambda x: len(x) > 0})
     header: str = field(
         default=com.HEADER_PEERS_ANNOUNCEMENT,
         metadata={"validate": validate.OneOf([com.HEADER_PEERS_ANNOUNCEMENT])},

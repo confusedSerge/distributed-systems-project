@@ -23,7 +23,7 @@ class MessageAuctionWinner:
         bid: (float) Winning bid amount.
     """
 
-    _id: str = field(metadata={"validate": lambda x: not str(x)})
+    _id: str = field(metadata={"validate": lambda x: len(x) > 0})
     header: str = field(
         default=com.HEADER_AUCTION_WIN,
         metadata={"validate": validate.OneOf([com.HEADER_AUCTION_WIN])},

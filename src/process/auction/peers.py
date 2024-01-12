@@ -5,7 +5,7 @@ from multiprocessing import Process, Event
 from communication import Unicast, MessageSchema, MessagePeersAnnouncement
 
 from model import Auction, AuctionPeersStore
-from constant import header as hdr, TIMEOUT_RECEIVE, BUFFER_SIZE, UNICAST_PORT
+from constant import header as hdr, TIMEOUT_RECEIVE, BUFFER_SIZE, UNICAST_PORT, USERNAME
 
 from util import create_logger, logger
 
@@ -26,7 +26,7 @@ class AuctionPeersListener(Process):
         super(AuctionPeersListener, self).__init__()
         self._exit: Event = Event()
 
-        self._name: str = f"AuctionPeersListener-{os.getpid()}"
+        self._name: str = f"AuctionPeersListener::{USERNAME}::{os.getpid()}"
         self._logger: logger = create_logger(self._name.lower())
 
         self._auction_id: str = auction_id

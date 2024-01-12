@@ -20,10 +20,10 @@ class Timeout:
             seconds (int): The number of seconds to wait before raising a TimeoutError.
             throw_exception (bool, optional): Whether to throw a TimeoutError or not. Defaults to False.
         """
-        self.seconds = seconds
-        self.throw_exception = throw_exception
+        self.seconds: int = seconds
+        self.throw_exception: int = throw_exception
 
-    def _handle_timeout(self):
+    def _handle_timeout(self, signum, frame):
         raise TimeoutError("Timed out after {} seconds".format(self.seconds))
 
     def __enter__(self):

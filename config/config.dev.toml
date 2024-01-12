@@ -19,7 +19,7 @@ auction_pool_size = 5
 
 [communication]
 buffer_size = 1024
-timeout_receive = 0.5
+timeout_receive = 1
 timeout_response = 60
 timeout_replication = 60
 

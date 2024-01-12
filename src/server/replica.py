@@ -20,10 +20,9 @@ from process import Manager, AuctionBidListener, AuctionPeersListener
 
 from constant import (
     header as hdr,
-    TIMEOUT_RECEIVE,
+    USERNAME,
     TIMEOUT_REPLICATION,
     BUFFER_SIZE,
-    MULTICAST_AUCTION_PORT,
     UNICAST_PORT,
 )
 
@@ -53,10 +52,10 @@ class Replica(Process):
 
     def __init__(self, request: MessageFindReplicaRequest, sender: IPv4Address) -> None:
         """Initializes the replica class."""
-        super.__init__(self)
+        super(Replica, self).__init__()
         self._exit: Event = Event()
 
-        self._name: str = f"Replica-{request._id}"
+        self._name: str = f"Replica::{request._id}"
         self._logger: logger = create_logger(self._name.lower())
 
         self._initial_find_request: MessageFindReplicaRequest = request
@@ -107,6 +106,10 @@ class Replica(Process):
         """Stops the replica."""
         self._exit.set()
         self._logger.info("Replica received stop signal")
+
+    def get_id(self) -> str:
+        """Returns the id of the replica."""
+        return self._initial_find_request._id
 
     def _prelude(self) -> None:
         """Handles the prelude of the replica.

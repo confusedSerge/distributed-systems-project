@@ -32,7 +32,7 @@ class AuctionData:
     """
 
     # Auction ID, name and auctioneer
-    _id: str = field(metadata={"validate": lambda x: not str(x)})
+    _id: str = field(metadata={"validate": lambda x: len(x) > 0})
     name: str = field(metadata={"validate": lambda x: isinstance(x, str)})
     auctioneer: str = field(metadata={"validate": lambda x: isinstance(x, str)})
 

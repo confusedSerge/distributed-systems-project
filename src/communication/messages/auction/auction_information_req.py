@@ -23,7 +23,7 @@ class MessageAuctionInformationRequest:
     """
 
     # Message ID
-    _id: str = field(metadata={"validate": lambda x: not str(x)})
+    _id: str = field(metadata={"validate": lambda x: len(x) > 0})
     header: str = field(
         default=com.HEADER_AUCTION_INFORMATION_REQ,
         metadata={"validate": validate.OneOf([com.HEADER_AUCTION_INFORMATION_REQ])},

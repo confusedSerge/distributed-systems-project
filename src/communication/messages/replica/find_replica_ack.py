@@ -20,7 +20,7 @@ class MessageFindReplicaAcknowledgement:
         header: (str) Header of the message. Should be constant HEADER_FIND_REPLICA_ACK.
     """
 
-    _id: str = field(metadata={"validate": lambda x: not str(x)})
+    _id: str = field(metadata={"validate": lambda x: len(x) > 0})
     header: str = field(
         default=com.HEADER_FIND_REPLICA_ACK,
         metadata={"validate": validate.OneOf([com.HEADER_FIND_REPLICA_ACK])},

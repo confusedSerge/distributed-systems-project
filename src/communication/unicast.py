@@ -24,7 +24,7 @@ class Unicast:
             sender (bool, optional): Whether the unicast object is used for sending or receiving. Defaults to False.
         """
         assert (
-            sender and not host or not sender and host
+            sender and bool(host) or not sender and not bool(host)
         ), "The host must be set, if and only if the unicast object is a sender."
         self._host: Optional[IPv4Address] = host
         self._port: int = port if isinstance(port, int) else int(port)
@@ -45,14 +45,14 @@ class Unicast:
             self._socket.settimeout(timeout) if timeout else None
             self._socket.bind(self._address_port)
 
-    def send(self, message: str) -> None:
+    def send(self, message: bytes) -> None:
         """Send a message to the unicast host.
 
         Args:
             message (str): The message to send.
         """
         assert self._sender, "The unicast object is not a sender."
-        self._socket.sendto(message.encode(), self._address_port)
+        self._socket.sendto(message, self._address_port)
 
     def receive(self, buffer_size: int = 1024) -> (bytes, tuple[str, int]):
         """Receive a message from the unicast host.
@@ -72,13 +72,13 @@ class Unicast:
         self._socket.close()
 
     @staticmethod
-    def qsend(message: str, host: IPv4Address, port: int) -> None:
+    def qsend(message: bytes, host: IPv4Address, port: int) -> None:
         """Send a message to the unicast host.
 
         Args:
+            message (bytes): The message to send.
             host (IPv4Address): The host to send the message to.
             port (int): The port to send the message to.
-            message (str): The message to send.
         """
         uc = Unicast(host, port, sender=True)
         uc.send(message)

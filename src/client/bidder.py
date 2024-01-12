@@ -1,6 +1,4 @@
-from time import sleep
-import uuid
-from multiprocessing import Process, Event
+from multiprocessing import Event
 
 import re
 import inquirer
@@ -35,7 +33,7 @@ from constant import (
 )
 
 
-class Bidder(Process):
+class Bidder:
     """The bidder class handles the bidding process of the client.
 
     Bidder is run in the client thread and delegates its background tasks (listeners) to other processes, sharing the same memory.
@@ -65,8 +63,6 @@ class Bidder(Process):
             manager_running (Event): The event to use to check if the manager is running.
             auction_announcement_store (AuctionAnnouncementStore): The auction announcement store to store the auction announcements in. Should be a shared memory object.
         """
-        super().__init__()
-
         self._name: str = "Bidder"
         self._logger: logging.Logger = create_logger(self._name.lower())
 

@@ -38,10 +38,10 @@ class AuctionManager(Process):
         Args:
             auction (Auction): The auction to manage. Should be a shared memory object.
         """
-        super().__init__()
+        super(AuctionManager, self).__init__()
         self._exit: Event = Event()
 
-        self._name: str = f"AuctionManager-{auction.get_id()}-{os.getpid()}"
+        self._name: str = f"AuctionManager::{auction.get_id()}::{os.getpid()}"
         self._logger: logger = create_logger(self._name.lower())
 
         self._auction: Auction = auction

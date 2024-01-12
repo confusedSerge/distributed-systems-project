@@ -7,6 +7,7 @@ from communication import Multicast, MessageSchema, MessageAuctionAnnouncement
 from model import AuctionAnnouncementStore
 from constant import (
     header as hdr,
+    USERNAME,
     TIMEOUT_RECEIVE,
     BUFFER_SIZE,
     MULTICAST_DISCOVERY_GROUP,
@@ -31,7 +32,7 @@ class AuctionAnnouncementListener(Process):
         super(AuctionAnnouncementListener, self).__init__()
         self._exit: Event = Event()
 
-        self._name: str = f"AuctionAnnouncementListener-{os.getpid()}"
+        self._name: str = f"AuctionAnnouncementListener::{USERNAME}::{os.getpid()}"
         self._logger: logger = create_logger(self._name.lower())
 
         self._store: AuctionAnnouncementStore = auction_announcement_store

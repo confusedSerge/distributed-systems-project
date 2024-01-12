@@ -61,6 +61,16 @@ class AuctionPeersStore:
         """
         self._peers = addresses
 
+    def len(self) -> int:
+        """Returns the length of the store, i.e. the number of peers.
+
+        This method needs to be used, if the store is in shared memory (i.e. the store is a proxy object)
+
+        Returns:
+            int: The length of the store.
+        """
+        return len(self._peers)
+
     def __iter__(self) -> Iterator[IPv4Address]:
         """Returns an iterator over the peers.
 
