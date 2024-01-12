@@ -39,9 +39,10 @@ class Unicast:
         if sender:
             self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         else:
+            # https://stackoverflow.com/questions/54192308/how-to-duplicate-udp-packets-to-two-or-more-sockets
             self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
             self._socket.settimeout(timeout) if timeout else None
             self._socket.bind(self._address_port)
 

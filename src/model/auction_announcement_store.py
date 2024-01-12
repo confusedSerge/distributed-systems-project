@@ -64,6 +64,22 @@ class AuctionAnnouncementStore:
         """
         return auction in self._announcements
 
+    def keys(self) -> list[str]:
+        """Returns the keys of the store.
+
+        Returns:
+            list[str]: The keys of the store.
+        """
+        return self._announcements.keys()
+
+    def values(self) -> list[MessageAuctionAnnouncement]:
+        """Returns the values of the store.
+
+        Returns:
+            list[MessageAuctionAnnouncement]: The values of the store.
+        """
+        return self._announcements.values()
+
     def get_addresses(self) -> list[IPv4Address]:
         """Returns the addresses of the auctions in the store.
 

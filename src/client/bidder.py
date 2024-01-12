@@ -20,8 +20,7 @@ from util import create_logger, logging, Timeout, generate_message_id
 
 from constant import (
     interaction as inter,
-    header as hdr,
-    auction as aucs,
+    communication as com,
     USERNAME,
     BUFFER_SIZE,
     TIMEOUT_RESPONSE,
@@ -83,7 +82,6 @@ class Bidder:
         """Stops the bidder background tasks."""
         self._logger.info(f"{self._name} received stop signal")
 
-        # No graceful shutdown needed, terminate all listeners
         for auction_listener in self._auction_bid_listeners.values():
             auction_listener.stop()
 
@@ -137,7 +135,7 @@ class Bidder:
     def _list_auctions(self) -> None:
         """Lists the auctions available to join."""
         print("Auctions available to join:")
-        for auction_id, auction in self._auction_announcement_store.items():
+        for auction_id, auction in self.auction_announcement_store.items():
             print(f"* {auction_id}: {auction}")
 
     def _list_auction_info(self) -> None:
@@ -153,7 +151,7 @@ class Bidder:
         """Joins an auction"""
         not_joined_auctions: list[str] = [
             auction_id
-            for auction_id in self._auction_announcement_store.keys()
+            for auction_id in self.auction_announcement_store.keys()
             if auction_id not in self._joined_auctions
         ]
         auction: str = self._choose_auction(not_joined_auctions)
@@ -185,7 +183,9 @@ class Bidder:
         # Send auction information request
         uc: Unicast = Unicast(host=None, port=UNICAST_PORT)
         Multicast.qsend(
-            message=MessageAuctionInformationRequest(_id=auction).encode(),
+            message=MessageAuctionInformationRequest(
+                _id=generate_message_id(), auction=auction
+            ).encode(),
             group=MULTICAST_DISCOVERY_GROUP,
             port=MULTICAST_DISCOVERY_PORT,
             ttl=MULTICAST_DISCOVERY_TTL,
@@ -197,7 +197,9 @@ class Bidder:
                 while True:
                     response, _ = uc.receive(BUFFER_SIZE)
 
-                    if not MessageSchema.of(hdr.AUCTION_INFORMATION_RES, response):
+                    if not MessageSchema.of(
+                        com.HEADER_AUCTION_INFORMATION_RES, response
+                    ):
                         continue
 
                     response: MessageAuctionInformationResponse = (

@@ -19,8 +19,7 @@ from communication import (
 from process import Manager, AuctionBidListener, AuctionPeersListener
 
 from constant import (
-    header as hdr,
-    USERNAME,
+    communication as com,
     TIMEOUT_REPLICATION,
     BUFFER_SIZE,
     UNICAST_PORT,
@@ -74,6 +73,7 @@ class Replica(Process):
 
     def run(self) -> None:
         """Runs the replica background tasks."""
+        self._logger.info(f"{self._name} is starting background tasks")
         # Initialize shared memory
         self.manager.start()
         self.manager_running.set()
@@ -97,6 +97,9 @@ class Replica(Process):
         # Start replica leader/follower tasks (heartbeat, election, etc.)
         # TODO: impl leader/follower tasks
         while not self._exit.is_set():
+            self._logger.info(
+                "Replica is running and will be at some point do something useful"
+            )
             sleep(10)
 
         # TODO: Stop all possible sub processes (replica finder, auction listener, auction manager etc.)
@@ -120,6 +123,7 @@ class Replica(Process):
             - Waiting for the auctioneer to send the state of the auction.
             - On timeout, leave the auction multicast group and stop the replica.
         """
+        self._logger.info("Replica is starting prelude")
         uc: Unicast = Unicast(host=None, port=UNICAST_PORT)
 
         # Send join message to auctioneer
@@ -133,6 +137,7 @@ class Replica(Process):
         )
 
         # Wait for auctioneer to acknowledge, or timeout
+        self._logger.info("Waiting for acknowledgement from auctioneer")
         try:
             self._wait_acknowledge(uc)
         except TimeoutError:
@@ -142,6 +147,7 @@ class Replica(Process):
             return
 
         # Wait for auctioneer to send auction information and peers, or timeout
+        self._logger.info("Waiting for auction information from auctioneer")
         try:
             self._wait_information(uc)
         except TimeoutError:
@@ -150,6 +156,34 @@ class Replica(Process):
             return
         finally:
             uc.close()
+
+        self._logger.info("Replica is ready")
+
+    def _wait_acknowledge(self, uc: Unicast) -> None:
+        """Waits for the auctioneer to acknowledge the join message.
+
+        Args:
+            uc (Unicast): The unicast socket.
+
+        Raises:
+            TimeoutError: If the auctioneer did not acknowledge the join message in time.
+        """
+        with Timeout(TIMEOUT_REPLICATION, throw_exception=True):
+            while not self._exit.is_set():
+                response, address = uc.receive(BUFFER_SIZE)
+
+                if not MessageSchema.of(com.HEADER_FIND_REPLICA_ACK, response):
+                    continue
+
+                response: MessageFindReplicaAcknowledgement = (
+                    MessageFindReplicaAcknowledgement.decode(response)
+                )
+                if response._id != self._initial_find_request._id:
+                    continue
+
+                self._logger.info(f"Received acknowledgement from auctioneer {address}")
+
+                break
 
     def _wait_information(self, uc: Unicast) -> None:
         """Waits for the auctioneer to send the state of the auction.
@@ -170,7 +204,7 @@ class Replica(Process):
                     continue
 
                 if (
-                    MessageSchema.of(hdr.AUCTION_INFORMATION_RES, message)
+                    MessageSchema.of(com.HEADER_AUCTION_INFORMATION_RES, message)
                     and not recv_information
                 ):
                     recv_information = self._handle_auction_information_message(
@@ -178,7 +212,10 @@ class Replica(Process):
                     )
                     continue
 
-                if MessageSchema.of(hdr.PEERS_ANNOUNCEMENT, message) and not recv_peers:
+                if (
+                    MessageSchema.of(com.HEADER_PEERS_ANNOUNCEMENT, message)
+                    and not recv_peers
+                ):
                     recv_peers = self._handle_replica_announcement_message(
                         message, IPv4Address(address[0])
                     )
@@ -187,31 +224,7 @@ class Replica(Process):
                 if recv_information and recv_peers:
                     break
 
-    def _wait_acknowledge(self, uc: Unicast) -> None:
-        """Waits for the auctioneer to acknowledge the join message.
-
-        Args:
-            uc (Unicast): The unicast socket.
-
-        Raises:
-            TimeoutError: If the auctioneer did not acknowledge the join message in time.
-        """
-        with Timeout(TIMEOUT_REPLICATION, throw_exception=True):
-            while not self._exit.is_set():
-                response, address = uc.receive(BUFFER_SIZE)
-
-                if MessageSchema.of(hdr.FIND_REPLICA_ACKNOWLEDGEMENT, response):
-                    continue
-
-                response: MessageFindReplicaAcknowledgement = (
-                    MessageFindReplicaAcknowledgement.decode(response)
-                )
-                if response.auction_id != self._initial_find_request._id:
-                    continue
-
-                self._logger.info(f"Received acknowledgement from auctioneer {address}")
-
-                break
+        self._logger.info(f"Received auction information and peers from auctioneer")
 
     def _handle_auction_information_message(
         self,
@@ -232,7 +245,7 @@ class Replica(Process):
         if message._id != self._initial_find_request._id:
             return False
 
-        auction = AuctionMessageData.to_auction(message.auction_information)
+        auction = AuctionMessageData.to_auction(message.auction)
         self.auction: Auction = self.manager.Auction(
             auction.get_name(),
             auction.get_auctioneer(),

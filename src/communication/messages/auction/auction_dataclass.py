@@ -1,4 +1,5 @@
-from typing import Self
+from __future__ import annotations
+
 from ipaddress import IPv4Address
 
 from dataclasses import dataclass, field
@@ -28,7 +29,6 @@ class AuctionData:
         state: (int) State of the auction.
         bid_history: (list[tuple[str, int]]) Bid history of the auction.
         winner: (str) Winner of the auction.
-
     """
 
     # Auction ID, name and auctioneer
@@ -86,7 +86,7 @@ class AuctionData:
         return bytes(dumps(AUCTION_DATA_SCHEMA().dump(self)), "utf-8")
 
     @staticmethod
-    def decode(message: bytes) -> Self:
+    def decode(message: bytes) -> AuctionData:
         """Return the decoded auction data."""
         return AUCTION_DATA_SCHEMA().load(loads(message))
 
@@ -106,7 +106,7 @@ class AuctionData:
         auction._set_winner(self.winner)
 
     @staticmethod
-    def from_auction(auction: Auction) -> Self:
+    def from_auction(auction: Auction) -> AuctionData:
         """Return the auction data from the auction."""
         return AuctionData(
             _id=auction.get_id(),
@@ -116,7 +116,7 @@ class AuctionData:
             price=auction.get_price(),
             time=auction.get_time(),
             address=str(auction.get_multicast_address()),
-            state=auction.get_state(),
+            state=auction.get_state()[0],
             bid_history=auction.get_bid_history(),
             winner=auction.get_winner(),
         )

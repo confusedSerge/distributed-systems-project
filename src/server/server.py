@@ -4,7 +4,7 @@ from multiprocessing import Process, Event
 from communication import Multicast, MessageSchema, MessageFindReplicaRequest
 
 from constant import (
-    header as hdr,
+    communication as com,
     TIMEOUT_RECEIVE,
     BUFFER_SIZE,
     MULTICAST_DISCOVERY_GROUP,
@@ -53,11 +53,10 @@ class Server(Process):
             try:
                 request, address = mc.receive(BUFFER_SIZE)
             except TimeoutError:
-                self._logger.debug("Server timed out while waiting for replica request")
                 continue
 
             if (
-                not MessageSchema.of(hdr.FIND_REPLICA_REQ, request)
+                not MessageSchema.of(com.HEADER_FIND_REPLICA_REQ, request)
                 or len(self._replica_pool) >= REPLICA_LOCAL_POOL_SIZE
             ):
                 continue

@@ -215,7 +215,7 @@ class _SubAuctioneer(Process):
         replica_list: AuctionPeersStore = self._manager.AuctionPeersStore()
 
         self._logger.info(
-            f"{self._name} for auction {self._auction} is finding replicas"
+            f"{self._name} for auction {self._auction.get_id()} is finding replicas"
         )
         replica_finder: ReplicaFinder = ReplicaFinder(
             self._auction, replica_list, EMMITER_PERIOD
@@ -229,18 +229,18 @@ class _SubAuctioneer(Process):
         if self._exit.is_set():
             replica_finder.stop()
             self._logger.info(
-                f"{self._name} for auction {self._auction} received stop signal"
+                f"{self._name} for auction {self._auction.get_id()} received stop signal"
             )
             replica_finder.join()
             return
 
         self._logger.info(
-            f"{self._name} for auction {self._auction} found replicas, releasing replica list"
+            f"{self._name} for auction {self._auction.get_id()} found replicas, releasing replica list"
         )
 
         # Announce auction
         self._logger.info(
-            f"{self._name} for auction {self._auction} is announcing auction"
+            f"{self._name} for auction {self._auction.get_id()} is announcing auction"
         )
         announcement: MessageAuctionAnnouncement = MessageAuctionAnnouncement(
             _id=generate_message_id(self._auction.get_id()),
@@ -256,7 +256,7 @@ class _SubAuctioneer(Process):
 
         # Create multicast listener to receive bids and update auction state
         self._logger.info(
-            f"{self._name} for auction {self._auction} is listening to bids"
+            f"{self._name} for auction {self._auction.get_id()} is listening to bids"
         )
         auction_bid_listener: AuctionBidListener = AuctionBidListener(self._auction)
         auction_bid_listener.start()
@@ -268,13 +268,13 @@ class _SubAuctioneer(Process):
         if self._exit.is_set():
             auction_bid_listener.stop()
             self._logger.info(
-                f"{self._name} for auction {self._auction} received stop signal"
+                f"{self._name} for auction {self._auction.get_id()} received stop signal"
             )
             auction_bid_listener.join()
             return
 
         self._logger.info(
-            f"{self._name} for auction {self._auction} stopped listening to bids as auction ended"
+            f"{self._name} for auction {self._auction.get_id()} stopped listening to bids as auction ended"
         )
 
     def stop(self) -> None:

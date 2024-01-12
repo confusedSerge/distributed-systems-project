@@ -15,7 +15,7 @@ sleep_time = 0.5
 
 [server.replica]
 local_pool_size = 5
-auction_pool_size = 5
+auction_pool_size = 1
 
 [communication]
 buffer_size = 1024

@@ -5,7 +5,7 @@ from communication import Multicast, MessageSchema, MessageAuctionBid
 
 from model import Auction
 from constant import (
-    header as hdr,
+    communication as com,
     TIMEOUT_RECEIVE,
     BUFFER_SIZE,
     MULTICAST_AUCTION_PORT,
@@ -52,7 +52,7 @@ class AuctionBidListener(Process):
             except TimeoutError:
                 continue
 
-            if not MessageSchema.of(hdr.AUCTION_BID, bid):
+            if not MessageSchema.of(com.HEADER_AUCTION_BID, bid):
                 continue
 
             bid: MessageAuctionBid = MessageAuctionBid.decode(bid)
@@ -63,7 +63,7 @@ class AuctionBidListener(Process):
                 continue
 
             self._logger.info(f"{self._name} received bid {bid} from {address}")
-            self._auction.add_bid(bid.bidder_id, bid.bid)
+            self._auction.add_bid(bid.bidder, bid.bid)
             self._seen_mid.append(bid._id)
 
         self._logger.info(f"{self._name} received stop signal; releasing resources")

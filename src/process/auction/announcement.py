@@ -6,7 +6,7 @@ from communication import Multicast, MessageSchema, MessageAuctionAnnouncement
 
 from model import AuctionAnnouncementStore
 from constant import (
-    header as hdr,
+    communication as com,
     USERNAME,
     TIMEOUT_RECEIVE,
     BUFFER_SIZE,
@@ -53,7 +53,7 @@ class AuctionAnnouncementListener(Process):
             except TimeoutError:
                 continue
 
-            if not MessageSchema.of(hdr.AUCTION_ANNOUNCEMENT, announcement):
+            if not MessageSchema.of(com.HEADER_AUCTION_ANNOUNCEMENT, announcement):
                 continue
 
             announcement: MessageAuctionAnnouncement = (

@@ -14,7 +14,7 @@ from communication import (
 
 from model import Auction
 from constant import (
-    header as hdr,
+    communication as com,
     TIMEOUT_RECEIVE,
     BUFFER_SIZE,
     MULTICAST_DISCOVERY_GROUP,
@@ -65,7 +65,7 @@ class AuctionManager(Process):
             except TimeoutError:
                 continue
 
-            if not MessageSchema.of(hdr.AUCTION_INFORMATION_REQUEST, request):
+            if not MessageSchema.of(com.HEADER_AUCTION_INFORMATION_REQ, request):
                 continue
 
             request: MessageAuctionInformationRequest = (
@@ -89,7 +89,7 @@ class AuctionManager(Process):
             response: MessageAuctionInformationResponse = (
                 MessageAuctionInformationResponse(
                     _id=request._id,
-                    auction_information=AuctionMessageData.from_auction(self._auction),
+                    auction=AuctionMessageData.from_auction(self._auction),
                 )
             )
             Unicast.qsend(

@@ -5,7 +5,13 @@ from multiprocessing import Process, Event
 from communication import Unicast, MessageSchema, MessagePeersAnnouncement
 
 from model import Auction, AuctionPeersStore
-from constant import header as hdr, TIMEOUT_RECEIVE, BUFFER_SIZE, UNICAST_PORT, USERNAME
+from constant import (
+    communication as com,
+    TIMEOUT_RECEIVE,
+    BUFFER_SIZE,
+    UNICAST_PORT,
+    USERNAME,
+)
 
 from util import create_logger, logger
 
@@ -44,7 +50,7 @@ class AuctionPeersListener(Process):
             except TimeoutError:
                 continue
 
-            if not MessageSchema.of(hdr.PEERS_ANNOUNCEMENT, peers):
+            if not MessageSchema.of(com.HEADER_PEERS_ANNOUNCEMENT, peers):
                 continue
 
             peers: MessagePeersAnnouncement = MessagePeersAnnouncement.decode(peers)
