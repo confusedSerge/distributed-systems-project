@@ -13,17 +13,28 @@ from constant import communication as com
 class MessageFindReplicaResponse:
     """Response message for finding replicas.
 
-    This message is sent over a udp unicast message to respond to a find replica request.
+    This message is sent over a udp unicast message to respond to a find replica request to the sender and its provided port.
 
     Fields:
         _id: (str) Unique identifier of the message. Structure is "uname::aname::uuid". Corresponds to the request message ID.
         header: (str) Header of the message. Should be constant HEADER_FIND_REPLICA_RES.
+        port: (int) Port to send the response to. (Host is the sender of the request)
     """
 
+    # Message ID
     _id: str = field(metadata={"validate": lambda x: len(x) > 0})
     header: str = field(
         default=com.HEADER_FIND_REPLICA_RES,
         metadata={"validate": validate.OneOf([com.HEADER_FIND_REPLICA_RES])},
+    )
+
+    # Acknowledgement UC port
+    port: int = field(
+        default=com.UNICAST_PORT,
+        metadata={
+            "validate": lambda x: isinstance(x, int)
+            and validate.Range(min=0, max=65535)
+        },
     )
 
     def __str__(self) -> str:

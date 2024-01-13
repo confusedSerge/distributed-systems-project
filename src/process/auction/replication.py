@@ -13,6 +13,7 @@ from communication import (
     MessagePeersAnnouncement,
     AuctionMessageData,
     MessageAuctionInformationResponse,
+    MessageAuctionInformationAcknowledgement,
 )
 
 from model import Auction, AuctionPeersStore
@@ -69,23 +70,33 @@ class ReplicaFinder(Process):
     def run(self):
         """Runs the replica finder process."""
         self._logger.info(f"{self._name} is starting background tasks")
-        uc: Unicast = Unicast(host=None, port=UNICAST_PORT)
+        uc: Unicast = Unicast(host=None, port=None)
 
         # Start replica request emitter
+        self._logger.info(f"{self._name} starting replica request emitter")
         message_id: str = generate_message_id(self._auction.get_id())
-        emitter: Process = Process(target=self._emit_request, args=(message_id,))
+        emitter: Process = Process(
+            target=self._emit_request,
+            args=(
+                message_id,
+                uc.get_port(),
+            ),
+        )
         emitter.start()
 
+        self._logger.info(f"{self._name} finding replicas")
         try:
-            new_replicas = self._find_replicas(uc, message_id)
+            new_replicas: list[tuple[IPv4Address, int]] = self._find_replicas(
+                uc, message_id
+            )
         except TimeoutError:
             self._logger.info(f"{self._name} could not find enough replicas in time")
+            uc.close()
             return
         finally:
             if emitter.is_alive():
                 emitter.terminate()
                 emitter.join()
-            uc.close()
 
         # Add new replica to known replicas
         try:
@@ -102,7 +113,8 @@ class ReplicaFinder(Process):
 
         self._logger.info(f"{self._name} found replicas; sending information")
 
-        self._send_information(message_id, new_replicas)
+        self._send_information(uc, message_id, new_replicas)
+        self._announce_replica(message_id)
 
         self._logger.info(f"{self._name} sent information to all replicas")
 
@@ -111,7 +123,9 @@ class ReplicaFinder(Process):
         self._logger.info(f"{self._name} received stop signal")
         self._exit.set()
 
-    def _find_replicas(self, uc: Unicast, message_id: str) -> list[IPv4Address]:
+    def _find_replicas(
+        self, uc: Unicast, message_id: str
+    ) -> list[tuple[IPv4Address, int]]:
         """Finds replicas for the auction.
 
         Args:
@@ -119,10 +133,10 @@ class ReplicaFinder(Process):
             message_id (str): The message id to use for the find replica request.
 
         Returns:
-            list[IPv4Address]: The list of found replicas.
+            list[tuple[IPv4Address, int]]: The list of new replicas.
         """
-        seen_addresses: list[IPv4Address] = []
-        new_replicas: list[IPv4Address] = []
+        seen_addresses: list[tuple[IPv4Address, int]] = []
+        new_replicas: list[tuple[IPv4Address, int]] = []
 
         acknowledgement: bytes = MessageFindReplicaAcknowledgement(
             _id=message_id
@@ -137,33 +151,48 @@ class ReplicaFinder(Process):
                 response, address = uc.receive(BUFFER_SIZE)
 
                 if not MessageSchema.of(com.HEADER_FIND_REPLICA_RES, response):
+                    self._logger.info(
+                        f"{self._name} received message with invalid header from {address}"
+                    )
                     continue
+
                 response: MessageFindReplicaResponse = (
                     MessageFindReplicaResponse.decode(response)
                 )
 
+                self._logger.info(
+                    f"{self._name} received find replica response from {address}"
+                )
+
                 if response._id != message_id or address[0] in seen_addresses:
+                    self._logger.info(
+                        f"{self._name} received find replica response from {address} with invalid id"
+                    )
                     continue
 
                 # Send find replica acknowledgement
                 Unicast.qsend(
                     message=acknowledgement,
                     host=IPv4Address(address[0]),
-                    port=UNICAST_PORT,
+                    port=response.port,
+                )
+                self._logger.info(
+                    f"{self._name} sent find replica acknowledgement to {address}"
                 )
 
                 # Add replica to list
-                new_replicas.append(IPv4Address(address[0]))
-                seen_addresses.append(IPv4Address(address[0]))
+                new_replicas.append((IPv4Address(address[0]), response.port))
+                seen_addresses.append((IPv4Address(address[0]), response.port))
 
         return new_replicas
 
     def _send_information(
-        self, message_id: str, new_replicas: list[IPv4Address]
+        self, uc: Unicast, message_id: str, new_replicas: list[IPv4Address]
     ) -> None:
         """Sends auction information to new replicas and replica announcement to all replicas.
 
         Args:
+            uc (Unicast): The unicast socket.
             message_id (str): The message id to use for the messages.
             new_replicas (list[IPv4Address]): The list of new replicas.
         """
@@ -172,30 +201,62 @@ class ReplicaFinder(Process):
         response = MessageAuctionInformationResponse(
             _id=message_id,
             auction=AuctionMessageData.from_auction(self._auction),
+            port=uc.get_port(),
         )
         for replica in new_replicas:
             self._logger.info(f"{self._name} sending auction information to {replica}")
             Unicast.qsend(
                 message=response.encode(),
-                host=replica,
-                port=UNICAST_PORT,
+                host=replica[0],
+                port=replica[1],
             )
 
-        # Send Replica Announcement to all replicas
-        self._logger.info(f"{self._name} sending replica announcement to all replicas")
-        for dst in self._peers:
-            self._logger.info(f"{self._name} sending replica announcement to {replica}")
-            response = MessagePeersAnnouncement(
-                _id=message_id,
-                peers=[str(replica) for replica in self._peers if replica != dst],
-            )
-            Unicast.qsend(
-                message=response.encode(),
-                host=dst,
-                port=UNICAST_PORT,
-            )
+        try:
+            with Timeout(TIMEOUT_REPLICATION, throw_exception=True):
+                while not self._exit.is_set():
+                    acknowledgement, _ = uc.receive(BUFFER_SIZE)
 
-    def _emit_request(self, message_id: str):
+                    if not MessageSchema.of(
+                        com.HEADER_AUCTION_INFORMATION_ACK, acknowledgement
+                    ):
+                        continue
+                    acknowledgement: MessageAuctionInformationAcknowledgement = (
+                        MessageAuctionInformationAcknowledgement.decode(acknowledgement)
+                    )
+
+                    if acknowledgement._id != message_id:
+                        continue
+
+                    self._logger.info(
+                        f"{self._name} received auction information acknowledgement from {replica}"
+                    )
+
+                    break
+        except TimeoutError:
+            self._logger.info(
+                f"{self._name} did not receive auction information acknowledgement from {replica}; assuming failure"
+            )
+            self._logger.info("This will be handled by the replicas in the auction")
+            return
+
+    def _announce_replica(self, message_id: str) -> None:
+        """Announces the replica to all other replicas.
+
+        Args:
+            message_id (str): The message id to use for the message.
+        """
+        self._logger.info(f"{self._name} announcing replica to all replicas")
+        peers: MessagePeersAnnouncement = MessagePeersAnnouncement(
+            _id=message_id,
+            peers=[(str(peer[0]), peer[1]) for peer in self._peers.iter()],
+        )
+        Multicast.qsend(
+            message=peers.encode(),
+            group=self._auction.get_address(),
+            port=MULTICAST_AUCTION_PORT,
+        )
+
+    def _emit_request(self, message_id: str, uc_port: int) -> None:
         """Sends a find replica request periodically.
 
         Args:
@@ -206,7 +267,8 @@ class ReplicaFinder(Process):
         )
         req: bytes = MessageFindReplicaRequest(
             _id=message_id,
-            address=str(self._auction.get_multicast_address()),
+            address=str(self._auction.get_address()),
+            port=uc_port,
         ).encode()
 
         while not self._exit.is_set():

@@ -12,6 +12,7 @@ from .auction import (
     MessageAuctionAnnouncement,
     MessageAuctionInformationRequest,
     MessageAuctionInformationResponse,
+    MessageAuctionInformationAcknowledgement,
     MessageAuctionWinner,
     MessageAuctionBid,
     AuctionMessageData,

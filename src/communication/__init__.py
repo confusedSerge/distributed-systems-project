@@ -11,6 +11,7 @@ from .messages import (
     MessageAuctionAnnouncement,
     MessageAuctionInformationRequest,
     MessageAuctionInformationResponse,
+    MessageAuctionInformationAcknowledgement,
     MessageAuctionWinner,
     MessageAuctionBid,
 )

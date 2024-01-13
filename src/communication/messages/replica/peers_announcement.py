@@ -13,12 +13,12 @@ from constant import communication as com
 class MessagePeersAnnouncement:
     """Announcement message for new replicas.
 
-    This message is sent by the auctioneer to all replicas to announce their respective peers in the auction.
+    This message is sent by the auctioneer over the auction multicast group to announce new replicas.
 
     Fields:
         _id: (str) Unique identifier of the message. Structure is "uname::aname::uuid".
         header: (str) Header of the message. Should be constant HEADER_REPLICA_ANNOUNCEMENT.
-        replicas: (List[str]) List of replica addresses.
+        replicas: (list[tuple[str, int]]) List of replicas in the auction.
     """
 
     # Message ID
@@ -29,7 +29,7 @@ class MessagePeersAnnouncement:
     )
 
     # Data
-    peers: List[str] = field(
+    peers: list[tuple[str, int]] = field(
         default_factory=list,
         metadata={"validate": lambda x: isinstance(x, list)},
     )

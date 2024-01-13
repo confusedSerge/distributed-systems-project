@@ -13,6 +13,7 @@ AUCTION_ANNOUNCEMENT: str = _config["auction"]["auction-announcement"]
 
 AUCTION_INFORMATION_REQ: str = _config["auction"]["auction-information-req"]
 AUCTION_INFORMATION_RES: str = _config["auction"]["auction-information-res"]
+AUCTION_INFORMATION_ACK: str = _config["auction"]["auction-information-ack"]
 
 AUCTION_BID: str = _config["auction"]["auction-bid"]
 AUCTION_WIN: str = _config["auction"]["auction-win"]

@@ -49,6 +49,7 @@ replica-announcement = "REPLICA_ANNOUNCEMENT"
 auction-announcement = "AUCTION_ANNOUNCEMENT"
 auction-information-req = "AUCTION_INFORMATION_REQUEST"
 auction-information-res = "AUCTION_INFORMATION_RESPONSE"
+auction-information-ack = "AUCTION_INFORMATION_ACK"
 auction-bid = "AUCTION_BID"
 auction-win = "AUCTION_WIN"
 

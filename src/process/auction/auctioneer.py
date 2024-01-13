@@ -95,7 +95,7 @@ class AuctionManager(Process):
             Unicast.qsend(
                 message=response.encode(),
                 host=IPv4Address(address[0]),
-                port=UNICAST_PORT,
+                port=request.port,
             )
 
         self._logger.info(f"{self._name} received stop signal; releasing resources")

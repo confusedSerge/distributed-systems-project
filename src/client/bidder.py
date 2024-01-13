@@ -28,7 +28,6 @@ from constant import (
     MULTICAST_DISCOVERY_PORT,
     MULTICAST_DISCOVERY_TTL,
     MULTICAST_AUCTION_PORT,
-    UNICAST_PORT,
 )
 
 
@@ -181,10 +180,10 @@ class Bidder:
         """
 
         # Send auction information request
-        uc: Unicast = Unicast(host=None, port=UNICAST_PORT)
+        uc: Unicast = Unicast(host=None, port=None)
         Multicast.qsend(
             message=MessageAuctionInformationRequest(
-                _id=generate_message_id(), auction=auction
+                _id=generate_message_id(), auction=auction, port=uc.get_port()
             ).encode(),
             group=MULTICAST_DISCOVERY_GROUP,
             port=MULTICAST_DISCOVERY_PORT,
@@ -245,7 +244,7 @@ class Bidder:
         )
         Multicast.qsend(
             message=bid.encode(),
-            group=auction.get_multicast_address(),
+            group=auction.get_address(),
             port=MULTICAST_AUCTION_PORT,
         )
 

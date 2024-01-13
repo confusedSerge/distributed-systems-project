@@ -10,9 +10,9 @@ class Unicast:
     def __init__(
         self,
         host: Optional[IPv4Address],
-        port: int,
-        sender: bool = False,
+        port: Optional[int],
         timeout: Optional[int] = None,
+        no_bind: Optional[bool] = False,
     ):
         """Initialize the unicast socket.
 
@@ -21,30 +21,25 @@ class Unicast:
         Args:
             host (IPv4Address): The host to send and receive messages. None will bind to all interfaces.
             port (int): The port to send and receive messages.
+            timeout (int, optional): The timeout for receiving messages. Defaults to None.
             sender (bool, optional): Whether the unicast object is used for sending or receiving. Defaults to False.
         """
-        assert (
-            sender and bool(host) or not sender and not bool(host)
-        ), "The host must be set, if and only if the unicast object is a sender."
-        self._host: Optional[IPv4Address] = host
-        self._port: int = port if isinstance(port, int) else int(port)
-        self._address_port: tuple[str, int] = (
-            "" if not host else str(host),
-            self._port,
-        )
+        self._host: str = "" if not host else str(host)
+        self._port: int = 0 if not port else port
+        self._address_port: tuple[str, int] = (self._host, self._port)
 
-        self._sender: bool = sender
         self._socket: socket = None
+        self._no_bind: bool = no_bind
 
-        if sender:
-            self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        else:
-            # https://stackoverflow.com/questions/54192308/how-to-duplicate-udp-packets-to-two-or-more-sockets
-            self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-            self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # https://stackoverflow.com/questions/54192308/how-to-duplicate-udp-packets-to-two-or-more-sockets
+        # https://stackoverflow.com/questions/21179042/linux-udp-socket-port-reuse
+        self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        if not no_bind:
             self._socket.settimeout(timeout) if timeout else None
             self._socket.bind(self._address_port)
+
+        # After binding, the port might have changed
+        self._port = self._socket.getsockname()[1]
 
     def send(self, message: bytes) -> None:
         """Send a message to the unicast host.
@@ -52,7 +47,6 @@ class Unicast:
         Args:
             message (str): The message to send.
         """
-        assert self._sender, "The unicast object is not a sender."
         self._socket.sendto(message, self._address_port)
 
     def receive(self, buffer_size: int = 1024) -> (bytes, tuple[str, int]):
@@ -65,12 +59,20 @@ class Unicast:
             bytes: The received message.
             tuple[str, int]: The address of the sender.
         """
-        assert not self._sender, "The unicast object is not a receiver."
+        assert not self._no_bind, "Cannot receive on unbound socket"
         return self._socket.recvfrom(buffer_size)
 
     def close(self) -> None:
         """Close the unicast socket."""
         self._socket.close()
+
+    def get_port(self) -> int:
+        """Returns the port of the unicast socket.
+
+        Returns:
+            int: The port of the unicast socket.
+        """
+        return self._port
 
     @staticmethod
     def qsend(message: bytes, host: IPv4Address, port: int) -> None:
@@ -81,6 +83,6 @@ class Unicast:
             host (IPv4Address): The host to send the message to.
             port (int): The port to send the message to.
         """
-        uc = Unicast(host, port, sender=True)
+        uc = Unicast(host, port, no_bind=True)
         uc.send(message)
         uc.close()

@@ -19,6 +19,7 @@ class MessageAuctionInformationRequest:
     Fields:
         _id: (str) Unique identifier of the message. Structure is "uname::uuid".
         header: (str) Header of the message. Should be constant HEADER_AUCTION_INFORMATION_REQ.
+        port: (int) Port to send the response to. (Host is the sender of the request)
         auction_id: (str) Auction ID of the auction to request information for. If empty str, return all auctions.
     """
 
@@ -27,6 +28,15 @@ class MessageAuctionInformationRequest:
     header: str = field(
         default=com.HEADER_AUCTION_INFORMATION_REQ,
         metadata={"validate": validate.OneOf([com.HEADER_AUCTION_INFORMATION_REQ])},
+    )
+
+    # Response port
+    port: int = field(
+        default=com.UNICAST_PORT,
+        metadata={
+            "validate": lambda x: isinstance(x, int)
+            and validate.Range(min=0, max=65535)
+        },
     )
 
     # Data

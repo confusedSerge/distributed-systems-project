@@ -104,6 +104,7 @@ class AuctionData:
         auction._set_state(self.state)
         auction._set_bid_history(self.bid_history)
         auction._set_winner(self.winner)
+        return auction
 
     @staticmethod
     def from_auction(auction: Auction) -> AuctionData:
@@ -115,7 +116,7 @@ class AuctionData:
             item=auction.get_item(),
             price=auction.get_price(),
             time=auction.get_time(),
-            address=str(auction.get_multicast_address()),
+            address=str(auction.get_address()),
             state=auction.get_state()[0],
             bid_history=auction.get_bid_history(),
             winner=auction.get_winner(),

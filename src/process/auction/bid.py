@@ -40,7 +40,7 @@ class AuctionBidListener(Process):
         """Runs the auction listener process."""
         self._logger.info(f"{self._name} is starting background tasks")
         mc: Multicast = Multicast(
-            group=self._auction.get_multicast_address(),
+            group=self._auction.get_address(),
             port=MULTICAST_AUCTION_PORT,
             timeout=TIMEOUT_RECEIVE,
         )

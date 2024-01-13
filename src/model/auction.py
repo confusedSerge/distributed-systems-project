@@ -111,7 +111,7 @@ class Auction:
         return self._time
 
     # Multicast methods
-    def get_multicast_address(self) -> IPv4Address:
+    def get_address(self) -> IPv4Address:
         """Returns the multicast group and port of the auction.
 
         Returns:
@@ -289,7 +289,7 @@ class Auction:
         self._price = other.get_price()
         self._time = other.get_time()
 
-        self._multicast_address = other.get_multicast_address()
+        self._multicast_address = other.get_address()
 
         self._auction_state = other.get_state()
         self._bid_history = other.get_bid_history()
@@ -311,7 +311,7 @@ class Auction:
             item=other.get_item(),
             price=other.get_price(),
             time=other.get_time(),
-            address=other.get_multicast_address(),
+            address=other.get_address(),
         )
         auction._set_id(other.get_id())
         auction._set_state(other.get_state_id())
