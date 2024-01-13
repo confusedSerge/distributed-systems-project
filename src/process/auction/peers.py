@@ -37,17 +37,21 @@ class AuctionPeersListener(Process):
         self._logger: logger = create_logger(self._name.lower())
 
         self._auction: Auction = auction
+        self._seen_mid: list[str] = []
         self._store: AuctionPeersStore = auction_peers_store
+
+        self._logger.info(f"{self._name}: Initialized")
 
     def run(self) -> None:
         """Runs the auction listener process."""
-        self._logger.info(f"{self._name} is starting background tasks")
+        self._logger.info(f"{self._name}: Started")
         mc = Multicast(
             group=self._auction.get_address(),
             port=MULTICAST_AUCTION_PORT,
             timeout=TIMEOUT_RECEIVE,
         )
 
+        self._logger.info(f"{self._name}: Listening for peers announcements")
         while not self._exit.is_set():
             # Receive announcement
             try:
@@ -59,19 +63,34 @@ class AuctionPeersListener(Process):
                 continue
 
             peers: MessagePeersAnnouncement = MessagePeersAnnouncement.decode(peers)
-
-            if Auction.parse_id(peers._id) != self._auction.get_id():
+            if peers._id in self._seen_mid:
+                self._logger.info(
+                    f"{self._name}: Received duplicate peers announcement {peers}"
+                )
                 continue
 
-            self._store.replace(peers.peers)
-            self._logger.info(f"{self._name} updated peers store")
+            try:
+                if Auction.parse_id(peers._id) != self._auction.get_id():
+                    self._logger.info(
+                        f"{self._name}: Received peers announcement {peers} for auction {Auction.parse_id(peers._id)}"
+                    )
+                    continue
+            except ValueError:
+                self._logger.warning(
+                    f"{self._name}: Received peers announcement {peers} with invalid auction id {peers._id}"
+                )
+                continue
 
-        self._logger.info(f"{self._name} received stop signal; releasing resources")
+            self._logger.info(f"{self._name}: Received peers announcement {peers}")
+            self._seen_mid.append(peers._id)
+            self._store.replace(peers.peers)
+
+        self._logger.info(f"{self._name}: Releasing resources")
         mc.close()
 
-        self._logger.info(f"{self._name} stopped listening to auction announcements")
+        self._logger.info(f"{self._name}: Stopped")
 
     def stop(self) -> None:
         """Stops the auction listener process."""
-        self._logger.info(f"{self._name} received stop signal")
         self._exit.set()
+        self._logger.info(f"{self._name}: Stopping")

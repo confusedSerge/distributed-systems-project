@@ -53,37 +53,40 @@ class Client:
             auction_announcement_store=self.auction_announcement_store,
         )
 
-        self._logger.info(f"{self._name} initialized")
+        self._logger.info(f"{self._name}: Initialized")
 
     def run(self) -> None:
         """Starts the client background tasks."""
-        self._logger.info(f"{self._name} is starting background tasks")
+        self._logger.info(f"{self._name}: Started")
 
         # Start auction announcement listener
+        self._logger.info(f"{self._name}: Starting auction announcement listener")
         self._auction_announcement_process: AuctionAnnouncementStore = (
             AuctionAnnouncementListener(self.auction_announcement_store)
         )
         self._auction_announcement_process.start()
+        self._logger.info(f"{self._name}: Started auction announcement listener")
 
-        self._logger.info(f"{self._name} started background tasks")
-
+        # Interactive command line interface
+        self._logger.info(f"{self._name}: Starting interactive command line interface")
         self.interact()
+
+        self._logger.info(f"{self._name}: Releasing resources")
 
         self._auctioneer.stop()
         self._bidder.stop()
 
-        # No graceful shutdown needed, terminate all listeners
         self._auction_announcement_process.stop()
 
         self.manager_running.clear()
         self.manager.shutdown()
 
-        self._logger.info(f"{self._name} stopped background tasks")
+        self._logger.info(f"{self._name}: Stopped")
 
     def stop(self) -> None:
         """Stops the client background tasks."""
-        self._logger.info(f"{self._name} received stop signal")
         self._exit.set()
+        self._logger.info(f"{self._name}: Stopping")
 
     def interact(self) -> None:
         """Handles the interactive command line interface for the client.
@@ -116,4 +119,6 @@ class Client:
                 case "Stop":
                     self.stop()
                 case _:
-                    self._logger.error(f"Invalid action {answer}")
+                    self._logger.error(
+                        f"{self._name}: Invalid action {answer['action']}"
+                    )

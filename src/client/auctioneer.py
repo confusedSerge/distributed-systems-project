@@ -16,13 +16,13 @@ from communication import (
 )
 
 
-from util import create_logger, logging, gen_mcadd, gen_mid
+from util import create_logger, logging, gen_mcaddr, gen_mid
 
 from constant import (
     interaction as inter,
     USERNAME,
     SLEEP_TIME,
-    EMMITER_PERIOD,
+    EMITTER_PERIOD,
     REPLICA_AUCTION_POOL_SIZE,
     MULTICAST_DISCOVERY_GROUP,
     MULTICAST_DISCOVERY_PORT,
@@ -68,11 +68,11 @@ class Auctioneer:
         self._created_auctions: dict[str, Auction] = {}
         self._sub_auctioneers: list[_SubAuctioneer] = []
 
-        self._logger.info(f"{self._name} initialized")
+        self._logger.info(f"{self._name}: Initialized")
 
     def stop(self) -> None:
         """Stops the auctioneer background tasks."""
-        self._logger.info(f"{self._name} received stop signal")
+        self._logger.info(f"{self._name}: Releasing resources")
 
         # No graceful shutdown needed, terminate all listeners
         for sub_auctioneer in self._sub_auctioneers:
@@ -81,7 +81,7 @@ class Auctioneer:
         for sub_auctioneer in self._sub_auctioneers:
             sub_auctioneer.join()
 
-        self._logger.info(f"{self._name} stopped sub-auctioneers")
+        self._logger.info(f"{self._name}: Stopped")
 
     def interact(self) -> None:
         """Handles the interactive command line interface for the auctioneer.
@@ -128,15 +128,15 @@ class Auctioneer:
 
         This reads in the item, price and time from the user and instantiates a sub-auctioneer.
         """
-        self._logger.info(f"{self._name} is creating an auction")
+        self._logger.info(f"{self._name}: Creating auction")
         if not self.manager_running.is_set():
             self._logger.error(
-                "Manager is not running, cannot create auction. This should not happen."
+                f"{self._name}: Cannot create auction as manager is not running"
             )
             return
 
         aname, item, price, time = self._define_auction()
-        address: IPv4Address = gen_mcadd(
+        address: IPv4Address = gen_mcaddr(
             self.auction_announcement_store.get_addresses()
         )
         _auction: Auction = self.manager.Auction(
@@ -144,11 +144,17 @@ class Auctioneer:
         )
 
         self._created_auctions[_auction.get_id()] = _auction
-        self._logger.info(f"{self._name} created auction {_auction.get_id()}")
+        self._logger.info(f"{self._name}: Created auction {_auction}")
 
+        self._logger.info(
+            f"{self._name}: Starting sub-auctioneer for auction {_auction}"
+        )
         sub_auctioneer = _SubAuctioneer(_auction, self.manager)
         sub_auctioneer.start()
         self._sub_auctioneers.append(sub_auctioneer)
+        self._logger.info(
+            f"{self._name}: Started sub-auctioneer for auction {_auction}"
+        )
 
     def _define_auction(self) -> tuple[str, str, float, int]:
         """Defines the item of the auction.
@@ -208,7 +214,7 @@ class _SubAuctioneer(Process):
         self._auction: Auction = auction
         self._manager: Manager = manager
 
-        self._logger.info(f"{self._name} initialized")
+        self._logger.info(f"{self._name}: Initialized")
 
     def run(self) -> None:
         """Runs the sub-auctioneer.
@@ -216,10 +222,11 @@ class _SubAuctioneer(Process):
         Args:
             auction (Auction): The auction to run.
         """
-        self._logger.info(f"{self._name} is starting background task")
+        self._logger.info(f"{self._name}: Started")
         self._replicate()
 
         if self._exit.is_set():
+            self._logger.info(f"{self._name}: Exiting as process received stop signal")
             return
 
         # Announce auction
@@ -229,62 +236,47 @@ class _SubAuctioneer(Process):
         self._listen()
 
         if self._exit.is_set():
+            self._logger.info(f"{self._name}: Exiting as process received stop signal")
             return
 
         self._logger.info(
-            f"{self._name} for auction {self._auction.get_id()} stopped listening to bids as auction ended"
+            f"{self._name}: Auction {self._auction.get_id()} ended, announcing winner"
         )
-
-    def _announce(self):
-        self._logger.info(
-            f"{self._name} for auction {self._auction.get_id()} is announcing auction"
-        )
-        announcement: MessageAuctionAnnouncement = MessageAuctionAnnouncement(
-            _id=gen_mid(self._auction.get_id()),
-            auction=AuctionMessageData.from_auction(self._auction),
-        )
-        Multicast.qsend(
-            message=announcement.encode(),
-            group=MULTICAST_DISCOVERY_GROUP,
-            port=MULTICAST_DISCOVERY_PORT,
-            ttl=MULTICAST_DISCOVERY_TTL,
-        )
-        self._auction.next_state()
 
     def stop(self) -> None:
         """Stops the sub-auctioneer."""
-        self._logger.info(f"{self._name} received stop signal")
+        self._logger.info(f"{self._name}: Stop signal received")
         self._exit.set()
 
     def _replicate(self) -> None:
-        """Replicates the auction to the other auctioneers."""
+        """Replicates the auction"""
 
         self._logger.info(
-            f"{self._name} for auction {self._auction.get_id()} is finding replicas"
+            f"{self._name}: Replicating auction {self._auction.get_id()} to other auctioneers"
         )
         replica_list: AuctionPeersStore = self._manager.AuctionPeersStore()
         replica_finder: ReplicaFinder = ReplicaFinder(
-            self._auction, replica_list, EMMITER_PERIOD
+            self._auction, replica_list, EMITTER_PERIOD
         )
         replica_finder.start()
         replica_finder.join()
 
         if replica_list.len() < REPLICA_AUCTION_POOL_SIZE:
             self._logger.info(
-                f"{self._name} for auction {self._auction.get_id()} found not enough replicas, cancelling auction"
+                f"{self._name}: Not enough replicas found, cancelling auction {self._auction.get_id()}"
             )
             self._auction.cancel()
             self._exit.set()
             return
 
         self._logger.info(
-            f"{self._name} for auction {self._auction.get_id()} found replicas, releasing replica list"
+            f"{self._name}: Replicated auction {self._auction.get_id()} to other auctioneers"
         )
 
     def _listen(self):
         """Listens to bids for the auction."""
         self._logger.info(
-            f"{self._name} for auction {self._auction.get_id()} is listening to bids"
+            f"{self._name}: Listening to bids for auction {self._auction.get_id()}"
         )
         auction_bid_listener: AuctionBidListener = AuctionBidListener(self._auction)
         auction_bid_listener.start()
@@ -296,6 +288,21 @@ class _SubAuctioneer(Process):
         if self._exit.is_set():
             auction_bid_listener.stop()
             self._logger.info(
-                f"{self._name} stopped listening to bids as process received stop signal"
+                f"{self._name}: Stop signal received, stopping auction bid listener"
             )
             auction_bid_listener.join()
+
+    def _announce(self):
+        self._logger.info(f"{self._name}: Announcing auction {self._auction.get_id()}")
+        announcement: MessageAuctionAnnouncement = MessageAuctionAnnouncement(
+            _id=gen_mid(self._auction.get_id()),
+            auction=AuctionMessageData.from_auction(self._auction),
+        )
+        Multicast.qsend(
+            message=announcement.encode(),
+            group=MULTICAST_DISCOVERY_GROUP,
+            port=MULTICAST_DISCOVERY_PORT,
+            ttl=MULTICAST_DISCOVERY_TTL,
+        )
+        self._logger.info(f"{self._name}: Announced auction {self._auction.get_id()}")
+        self._auction.next_state()

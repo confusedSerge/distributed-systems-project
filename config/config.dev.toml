@@ -15,16 +15,16 @@ sleep_time = 0.5
 
 [server.replica]
 local_pool_size = 5
-auction_pool_size = 1
+auction_pool_size = 2
 
 [communication]
 buffer_size = 1024
 timeout_receive = 1
-timeout_response = 60
-timeout_replication = 60
+timeout_response = 20
+timeout_replication = 20
 
 [communication.replica]
-emitter_period = 60
+emitter_period = 2
 
 [communication.multicast.discovery]
 group = "224.1.1.1"

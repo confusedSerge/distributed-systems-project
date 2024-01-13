@@ -347,6 +347,6 @@ class Auction:
             ValueError: If the id is not in the correct format.
         """
         split: list[str] = id.split("::")
-        if len(split) == 2:
+        if len(split) == 2 or len(split) == 3:
             return Auction.id(split[0], split[1])
-        raise ValueError("Invalid id given for parsing")
+        raise ValueError("Invalid id given for parsing: {id}")

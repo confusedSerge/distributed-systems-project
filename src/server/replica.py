@@ -21,7 +21,7 @@ from constant import (
     communication as com,
     TIMEOUT_REPLICATION,
     BUFFER_SIZE,
-    UNICAST_PORT,
+    SLEEP_TIME,
 )
 
 from util import create_logger, logger, Timeout
@@ -73,21 +73,29 @@ class Replica(Process):
         self._auction_peers_listener: Process = None
         self._auction_bid_listener: Process = None
 
+        self._logger.info(f"{self._name}: Initialized")
+
     def run(self) -> None:
         """Runs the replica background tasks."""
-        self._logger.info(f"{self._name} is starting background tasks")
+        self._logger.info(f"{self._name}: Started")
+
         # Initialize shared memory
         self.manager.start()
         self.manager_running.set()
+        self.logger.info(f"{self._name}: Started manager")
 
         self._prelude()
 
         # Check if replica received stop signal during prelude
         if self._exit.is_set():
-            self._logger.info("Replica is exiting")
+            self._logger.info(
+                f"{self._name}: Replica received stop signal during prelude"
+            )
             return
 
         # Start listeners
+        self._logger.info(f"{self._name}: Starting listeners")
+
         self._auction_peers_listener: AuctionPeersListener = AuctionPeersListener(
             self.auction, self.peers
         )
@@ -97,15 +105,28 @@ class Replica(Process):
         self._auction_peers_listener.start()
         self._auction_bid_listener.start()
 
+        self._logger.info(f"{self._name}: Listeners started")
+
+        # Wait till initial peers are received
+        self._logger.info(f"{self._name}: Waiting for initial peers")
+        while not self._exit.is_set():
+            if len(self.peers) > 0:
+                break
+            sleep(SLEEP_TIME)
+        self._logger.info(f"{self._name}: Initial peers received")
+        self.auction.next_state()
+
         # Start replica leader/follower tasks (heartbeat, election, etc.)
         # TODO: impl leader/follower tasks
+        self._logger.info(f"{self._name}: Starting leader/follower tasks")
         while not self._exit.is_set():
             self._logger.info(
-                "Replica is running and will be at some point do something useful"
+                f"{self._name}: Replica will be doing leader/follower tasks"
             )
             sleep(10)
 
-        # TODO: Stop all possible sub processes (replica finder, auction listener, auction manager etc.)
+        self._logger.info(f"{self._name}: Releasing resources")
+
         if self._auction_peers_listener.is_alive():
             self._auction_peers_listener.stop()
             self._auction_peers_listener.join()
@@ -117,12 +138,12 @@ class Replica(Process):
         self.manager_running.clear()
         self.manager.shutdown()
 
-        self._logger.info("Replica is exiting")
+        self._logger.info(f"{self._name}: Stopped")
 
     def stop(self) -> None:
         """Stops the replica."""
         self._exit.set()
-        self._logger.info("Replica received stop signal")
+        self._logger.info(f"{self._name}: Stop signal received")
 
     def get_id(self) -> str:
         """Returns the id of the replica."""
@@ -137,7 +158,7 @@ class Replica(Process):
             - Waiting for the auctioneer to send the state of the auction.
             - On timeout, leave the auction multicast group and stop the replica.
         """
-        self._logger.info("Replica is starting prelude")
+        self._logger.info(f"{self._name}: PRELUDE: Started")
 
         # Send join message to auctioneer
         response: MessageFindReplicaResponse = MessageFindReplicaResponse(
@@ -148,29 +169,39 @@ class Replica(Process):
             host=self._sender,
             port=self._initial_find_request.port,
         )
+        self._logger.info(
+            f"{self._name}: PRELUDE: Replica response sent to ({self._sender}, {self._initial_find_request.port})"
+        )
 
         # Wait for auctioneer to acknowledge, or timeout
-        self._logger.info("Waiting for acknowledgement from auctioneer")
+        self._logger.info(f"{self._name}: PRELUDE: Waiting for acknowledgement")
         try:
             self._wait_acknowledge()
         except TimeoutError:
-            self._logger.info("Did not receive acknowledgement from auctioneer")
+            self._logger.info(
+                f"{self._name}: PRELUDE: Acknowledgement not received; Exiting"
+            )
             self._unicast.close()
             self.stop()
             return
+        self._logger.info(f"{self._name}: PRELUDE: Acknowledgement received")
 
         # Wait for auctioneer to send auction information and peers, or timeout
-        self._logger.info("Waiting for auction information from auctioneer")
+        self._logger.info(f"{self._name}: PRELUDE: Waiting for auction information")
         try:
             self._wait_information()
         except TimeoutError:
-            self._logger.info("Did not receive auction information from auctioneer")
+            self._logger.info(
+                f"{self._name}: PRELUDE: Auction information not received; Exiting"
+            )
             self.stop()
             return
         finally:
             self._unicast.close()
 
-        self._logger.info("Replica is ready")
+        self._logger.info(
+            f"{self._name}: PRELUDE: Auction information received; Prelude concluded"
+        )
 
     def _wait_acknowledge(self) -> None:
         """Waits for the auctioneer to acknowledge the join message.
@@ -180,7 +211,7 @@ class Replica(Process):
         """
         with Timeout(TIMEOUT_REPLICATION, throw_exception=True):
             while not self._exit.is_set():
-                response, address = self._unicast.receive(BUFFER_SIZE)
+                response, _ = self._unicast.receive(BUFFER_SIZE)
 
                 if not MessageSchema.of(com.HEADER_FIND_REPLICA_ACK, response):
                     continue
@@ -190,8 +221,6 @@ class Replica(Process):
                 )
                 if response._id != self._initial_find_request._id:
                     continue
-
-                self._logger.info(f"Received acknowledgement from auctioneer {address}")
 
                 break
 
@@ -215,8 +244,9 @@ class Replica(Process):
                     MessageAuctionInformationResponse.decode(response)
                 )
 
-                self._handle_auction_information_message(
-                    response, IPv4Address(address[0])
+                self._handle_auction_information_message(response)
+                self._logger.info(
+                    f"{self._name}: PRELUDE: Auction information received: {self.auction}"
                 )
 
                 acknowledgement: MessageAuctionInformationAcknowledgement = (
@@ -230,6 +260,9 @@ class Replica(Process):
                     host=address[0],
                     port=response.port,
                 )
+                self._logger.info(
+                    f"{self._name}: PRELUDE: Auction information acknowledgement sent ({address[0]}, {response.port})"
+                )
 
                 break
 
@@ -238,7 +271,6 @@ class Replica(Process):
     def _handle_auction_information_message(
         self,
         message: MessageAuctionInformationResponse,
-        address: IPv4Address,
     ) -> bool:
         """Handles an auction information message.
 
@@ -261,8 +293,4 @@ class Replica(Process):
             auction.get_address(),
         )
         self.auction.from_other(auction)
-
-        self._logger.info(
-            f"Received auction information from {address}: {self.auction}"
-        )
         return True

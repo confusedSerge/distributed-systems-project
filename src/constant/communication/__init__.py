@@ -24,4 +24,4 @@ from .multicast import (
 
 from .unicast import PORT as UNICAST_PORT
 
-from .replica import EMMITER_PERIOD
+from .replica import EMITTER_PERIOD

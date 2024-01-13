@@ -67,13 +67,15 @@ class ReplicaFinder(Process):
         self._peers: AuctionPeersStore = auction_peers_store
         self._emitter_period: int = emitter_period
 
+        self._logger.info(f"{self._name}: Initialized")
+
     def run(self):
         """Runs the replica finder process."""
-        self._logger.info(f"{self._name} is starting background tasks")
+        self._logger.info(f"{self._name}: Started")
         uc: Unicast = Unicast(host=None, port=None)
 
         # Start replica request emitter
-        self._logger.info(f"{self._name} starting replica request emitter")
+        self._logger.info(f"{self._name}: Starting replica request emitter")
         message_id: str = gen_mid(self._auction.get_id())
         emitter: Process = Process(
             target=self._emit_request,
@@ -84,13 +86,12 @@ class ReplicaFinder(Process):
         )
         emitter.start()
 
-        self._logger.info(f"{self._name} finding replicas")
         try:
             new_replicas: list[tuple[IPv4Address, int]] = self._find_replicas(
                 uc, message_id
             )
         except TimeoutError:
-            self._logger.info(f"{self._name} could not find enough replicas in time")
+            self._logger.info(f"{self._name}: Not enough replicas found; Exiting")
             uc.close()
             return
         finally:
@@ -102,21 +103,21 @@ class ReplicaFinder(Process):
         try:
             self._peers.append(new_replicas)
         except ValueError:
-            self._logger.info(
-                f"{self._name} duplicate replica found; this should not happen"
-            )
+            self._logger.info(f"{self._name}: Duplicate replica found; Exiting")
             return
 
         if self._exit.is_set():
-            self._logger.info(f"{self._name} stopped finding replicas")
+            self._logger.info(
+                f"{self._name}: Received stop signal during replica finding: Exiting"
+            )
             return
 
-        self._logger.info(f"{self._name} found replicas; sending information")
+        self._logger.info(f"{self._name}: Found enough replicas")
 
         self._send_information(uc, message_id, new_replicas)
         self._announce_replica(message_id)
 
-        self._logger.info(f"{self._name} sent information to all replicas")
+        self._logger.info(f"{self._name}: Releasing resources")
 
     def stop(self):
         """Stops the replica finder process."""
@@ -142,6 +143,7 @@ class ReplicaFinder(Process):
             _id=message_id
         ).encode()
 
+        self._logger.info(f"{self._name}: Finding replicas")
         with Timeout(TIMEOUT_REPLICATION, throw_exception=True):
             while (
                 self._peers.len() + len(new_replicas) < REPLICA_AUCTION_POOL_SIZE
@@ -151,24 +153,27 @@ class ReplicaFinder(Process):
                 response, address = uc.receive(BUFFER_SIZE)
 
                 if not MessageSchema.of(com.HEADER_FIND_REPLICA_RES, response):
-                    self._logger.info(
-                        f"{self._name} received message with invalid header from {address}"
-                    )
                     continue
 
                 response: MessageFindReplicaResponse = (
                     MessageFindReplicaResponse.decode(response)
                 )
 
-                self._logger.info(
-                    f"{self._name} received find replica response from {address}"
-                )
-
-                if response._id != message_id or address[0] in seen_addresses:
+                if address[0] in seen_addresses:
                     self._logger.info(
-                        f"{self._name} received find replica response from {address} with invalid id"
+                        f"{self._name}: Received duplicate find replica response {response} from {address}"
                     )
                     continue
+
+                if response._id != message_id:
+                    self._logger.info(
+                        f"{self._name}: Received find replica response {response} from {address} with invalid message id {response._id}"
+                    )
+                    continue
+
+                self._logger.info(
+                    f"{self._name}: Received find replica response {response} from {address}"
+                )
 
                 # Send find replica acknowledgement
                 Unicast.qsend(
@@ -177,7 +182,7 @@ class ReplicaFinder(Process):
                     port=response.port,
                 )
                 self._logger.info(
-                    f"{self._name} sent find replica acknowledgement to {address}"
+                    f"{self._name}: Acknowledged sent to {(IPv4Address(address[0]), response.port)}"
                 )
 
                 # Add replica to list
@@ -197,47 +202,63 @@ class ReplicaFinder(Process):
             new_replicas (list[IPv4Address]): The list of new replicas.
         """
         # Send Auction Information to new replicas
-        self._logger.info(f"{self._name} sending auction information to new replicas")
+        self._logger.info(f"{self._name}: Sending auction information to new replicas")
         response = MessageAuctionInformationResponse(
             _id=message_id,
             auction=AuctionMessageData.from_auction(self._auction),
             port=uc.get_port(),
         )
         for replica in new_replicas:
-            self._logger.info(f"{self._name} sending auction information to {replica}")
+            self._logger.info(f"{self._name}: Sending auction information to {replica}")
             Unicast.qsend(
                 message=response.encode(),
                 host=replica[0],
                 port=replica[1],
             )
 
-        try:
-            with Timeout(TIMEOUT_REPLICATION, throw_exception=True):
-                while not self._exit.is_set():
-                    acknowledgement, _ = uc.receive(BUFFER_SIZE)
+            try:
+                # TODO: Other timeout?
+                with Timeout(TIMEOUT_REPLICATION, throw_exception=True):
+                    while not self._exit.is_set():
+                        acknowledgement, address = uc.receive(BUFFER_SIZE)
 
-                    if not MessageSchema.of(
-                        com.HEADER_AUCTION_INFORMATION_ACK, acknowledgement
-                    ):
-                        continue
-                    acknowledgement: MessageAuctionInformationAcknowledgement = (
-                        MessageAuctionInformationAcknowledgement.decode(acknowledgement)
-                    )
+                        if not MessageSchema.of(
+                            com.HEADER_AUCTION_INFORMATION_ACK, acknowledgement
+                        ):
+                            continue
+                        acknowledgement: MessageAuctionInformationAcknowledgement = (
+                            MessageAuctionInformationAcknowledgement.decode(
+                                acknowledgement
+                            )
+                        )
 
-                    if acknowledgement._id != message_id:
-                        continue
+                        if address[0] != replica[0] or address[1] != replica[1]:
+                            self._logger.info(
+                                f"{self._name}: Received auction information acknowledgement {acknowledgement} from {address} instead of {replica}"
+                            )
+                            continue
 
-                    self._logger.info(
-                        f"{self._name} received auction information acknowledgement from {replica}"
-                    )
+                        if acknowledgement._id != message_id:
+                            self._logger.info(
+                                f"{self._name}: Received auction information acknowledgement {acknowledgement} with invalid message id {acknowledgement._id}"
+                            )
+                            continue
 
-                    break
-        except TimeoutError:
+                        self._logger.info(
+                            f"{self._name}: Received auction information acknowledgement {acknowledgement} from {address}"
+                        )
+
+                        break
+            except TimeoutError:
+                self._logger.info(
+                    f"{self._name}: Did not receive auction information acknowledgement from {replica}"
+                )
+                self._logger.info(f"{self._name}: Stopping replica finding")
+                return
+
             self._logger.info(
-                f"{self._name} did not receive auction information acknowledgement from {replica}; assuming failure"
+                f"{self._name}: Received auction information acknowledgement from all replicas"
             )
-            self._logger.info("This will be handled by the replicas in the auction")
-            return
 
     def _announce_replica(self, message_id: str) -> None:
         """Announces the replica to all other replicas.
@@ -245,7 +266,7 @@ class ReplicaFinder(Process):
         Args:
             message_id (str): The message id to use for the message.
         """
-        self._logger.info(f"{self._name} announcing replica to all replicas")
+        self._logger.info(f"{self._name}: Announcing replica to all replicas")
         peers: MessagePeersAnnouncement = MessagePeersAnnouncement(
             _id=message_id,
             peers=[(str(peer[0]), peer[1]) for peer in self._peers.iter()],
@@ -273,6 +294,8 @@ class ReplicaFinder(Process):
 
         while not self._exit.is_set():
             mc.send(req)
+            self._logger.info(f"{self._name}: Emitter: Sent find replica request")
             sleep(self._emitter_period)
 
         mc.close()
+        self._logger.info(f"{self._name}: Emitter: Stopped")

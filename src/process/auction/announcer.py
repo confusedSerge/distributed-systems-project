@@ -36,14 +36,19 @@ class AuctionAnnouncer(Process):
         self._auction: Auction = auction
         self._period: int = period
 
+        self._logger.info(f"{self._name}: Initialized")
+
     def run(self) -> None:
         """Runs the auction announcer process."""
-        self._logger.info(f"{self._name} is starting background tasks")
+        self._logger.info(f"{self._name}: Started")
         mc: Multicast = Multicast(
             group=MULTICAST_DISCOVERY_GROUP,
             port=MULTICAST_DISCOVERY_PORT,
         )
 
+        self._logger.info(
+            f"{self._name}: Emitting auction announcements every {self._period} seconds"
+        )
         while not self._exit.is_set():
             announcement: MessageAuctionAnnouncement = MessageAuctionAnnouncement(
                 _id=gen_mid(),
@@ -53,10 +58,13 @@ class AuctionAnnouncer(Process):
 
             sleep(self._period)
 
-        self._logger.info(f"{self._name} is shutting down")
+        self._logger.info(f"{self._name}: Releasing resources")
+
         mc.close()
+
+        self._logger.info(f"{self._name}: Stopped")
 
     def stop(self) -> None:
         """Stops the auction announcer process."""
-        self._logger.info(f"{self._name} is shutting down")
         self._exit.set()
+        self._logger.info(f"{self._name}: Stop signal received")

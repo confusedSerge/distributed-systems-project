@@ -7,7 +7,7 @@ from constant import communication as com
 from constant.account import USERNAME
 
 
-def gen_mcadd(known_addresses: list[IPv4Address]) -> IPv4Address:
+def gen_mcaddr(known_addresses: list[IPv4Address]) -> IPv4Address:
     """Generate a unique multicast address not in use, based on the list of known used multicast addresses.
 
     Args:

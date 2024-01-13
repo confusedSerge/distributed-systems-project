@@ -22,6 +22,16 @@ class AuctionAnnouncementStore:
             raise ValueError(f"Auction with id {announcement._id} already exists")
         self._announcements[announcement._id] = announcement
 
+    def update(self, announcement: MessageAuctionAnnouncement) -> None:
+        """Updates an auction announcement in the store.
+
+        Currently, this just replaces the old auction announcement with the new one.
+
+        Args:
+            auction (MessageAuctionAnnouncement): The auction announcement to update.
+        """
+        self._announcements[announcement._id] = announcement
+
     def get(self, auction: str) -> MessageAuctionAnnouncement:
         """Returns an auction announcement from the store.
 

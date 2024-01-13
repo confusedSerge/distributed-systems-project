@@ -33,26 +33,25 @@ class AuctionBidListener(Process):
         self._logger: logger = create_logger(self._name.lower())
 
         self._auction: Auction = auction
-        # List of seen message ids, to prevent duplicate bids
         self._seen_mid: list[str] = []
 
-        self._logger.info(f"{self._name} initialized")
+        self._logger.info(f"{self._name}: Initialized")
 
     def run(self) -> None:
         """Runs the auction listener process."""
-        self._logger.info(f"{self._name} is starting background tasks")
+        self._logger.info(f"{self._name}: Started")
         mc: Multicast = Multicast(
             group=self._auction.get_address(),
             port=MULTICAST_AUCTION_PORT,
             timeout=TIMEOUT_RECEIVE,
         )
 
+        self._logger.info(f"{self._name}: Listening for bids on auction")
         while not self._exit.is_set():
             # Receive bid
             try:
                 bid, address = mc.receive(BUFFER_SIZE)
             except TimeoutError:
-                self._logger.info(f"{self._name} timed out")
                 continue
 
             if not MessageSchema.of(com.HEADER_AUCTION_BID, bid):
@@ -61,20 +60,35 @@ class AuctionBidListener(Process):
             bid: MessageAuctionBid = MessageAuctionBid.decode(bid)
             if bid._id in self._seen_mid:
                 self._logger.info(
-                    f"{self._name} received duplicate bid {bid} from {address}"
+                    f"{self._name}: Received duplicate bid {bid} from {address}"
                 )
                 continue
 
-            self._logger.info(f"{self._name} received bid {bid} from {address}")
+            try:
+                if Auction.parse_id(bid._id) != self._auction.get_id():
+                    self._logger.info(
+                        f"{self._name}: Received bid {bid} from {address} for auction {Auction.parse_id(bid.auction)}"
+                    )
+                    continue
+            except ValueError:
+                self._logger.info(
+                    f"{self._name}: Received bid {bid} with invalid auction id {bid._id}"
+                )
+                continue
+
+            self._logger.info(
+                f"{self._name}: Received bid {bid} from {address} for auction {self._auction.get_id()}"
+            )
+
             self._auction.add_bid(bid.bidder, bid.bid)
             self._seen_mid.append(bid._id)
 
-        self._logger.info(f"{self._name} received stop signal; releasing resources")
+        self._logger.info(f"{self._name}: Releasing resources")
         mc.close()
 
-        self._logger.info(f"{self._name} stopped listening to auction")
+        self._logger.info(f"{self._name}: Stopped")
 
     def stop(self) -> None:
         """Stops the auction listener process."""
         self._exit.set()
-        self._logger.info(f"{self._name} received stop signal")
+        self._logger.info(f"{self._name}: Stopping")

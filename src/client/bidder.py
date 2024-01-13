@@ -75,11 +75,11 @@ class Bidder:
         self._joined_auctions: dict[str, Auction] = {}
         self._auction_bid_listeners: dict[str, AuctionBidListener] = {}
 
-        self._logger.info(f"{self._name} initialized")
+        self._logger.info(f"{self._name}: Initialized")
 
     def stop(self) -> None:
         """Stops the bidder background tasks."""
-        self._logger.info(f"{self._name} received stop signal")
+        self._logger.info(f"{self._name}: Releasing resources")
 
         for auction_listener in self._auction_bid_listeners.values():
             auction_listener.stop()
@@ -87,7 +87,7 @@ class Bidder:
         for auction_listener in self._auction_bid_listeners.values():
             auction_listener.join()
 
-        self._logger.info(f"{self._name} stopped active listeners")
+        self._logger.info(f"{self._name}: Stopped")
 
     def interact(self) -> None:
         """Handles the interactive command line interface for the bidder.
@@ -129,7 +129,9 @@ class Bidder:
                 case inter.BIDDER_ACTION_GO_BACK:
                     break
                 case _:
-                    self._logger.error(f"Invalid action {answer['action']}")
+                    self._logger.error(
+                        f"{self._name}: Invalid action {answer['action']}"
+                    )
 
     def _list_auctions(self) -> None:
         """Lists the auctions available to join."""
@@ -163,9 +165,6 @@ class Bidder:
         response: Auction = self._get_auction_information(auction)
 
         if response is None:
-            self._logger.error(
-                f"Could not get auction information for auction {auction}"
-            )
             print(f"Could not get auction information for auction {auction}")
             return
 
@@ -184,6 +183,9 @@ class Bidder:
         Returns:
             Auction: The auction information. None if the auction information could not be retrieved.
         """
+        self._logger.info(
+            f"{self._name}: Getting auction information for auction {auction}"
+        )
 
         # Send auction information request
         uc: Unicast = Unicast(host=None, port=None)
@@ -195,8 +197,14 @@ class Bidder:
             port=MULTICAST_DISCOVERY_PORT,
             ttl=MULTICAST_DISCOVERY_TTL,
         )
+        self._logger.info(
+            f"{self._name}: Sent auction information request for auction {auction}"
+        )
 
         # wait for auction information response
+        self._logger.info(
+            f"{self._name}: Waiting for auction information response for auction {auction}"
+        )
         try:
             with Timeout(TIMEOUT_RESPONSE, throw_exception=True):
                 while True:
@@ -215,10 +223,16 @@ class Bidder:
 
                     break
         except TimeoutError:
+            self._logger.info(
+                f"{self._name}: Timed out waiting for auction information response for auction {auction}"
+            )
             return None
         finally:
             uc.close()
 
+        self._logger.info(
+            f"{self._name}: Received auction information response for auction {auction}"
+        )
         return self._handle_auction_information_message(response)
 
     def _leave_auction(self) -> None:
@@ -253,8 +267,11 @@ class Bidder:
             group=auction.get_address(),
             port=MULTICAST_AUCTION_PORT,
         )
+        self._logger.info(
+            f"{self._name}: Sent bid {bid} for auction {auction.get_id()}"
+        )
 
-    def _choose_auction(self, auctions: list[str]) -> str:
+    def _choose_auction(self, auctions: list[str]) -> None | str:
         """Chooses an auction.
 
         Prompts the user to choose an auction and returns the auction id.

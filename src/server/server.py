@@ -38,17 +38,18 @@ class Server(Process):
             str
         ] = []  # List of seen message ids, to prevent duplicate replicas
 
-        self._logger.info(f"{self._name} initialized")
+        self._logger.info(f"{self._name}: Initialized")
 
     def run(self) -> None:
         """Runs the server background tasks."""
-        self._logger.info(f"{self._name} starting background tasks")
+        self._logger.info(f"{self._name}: Started")
         mc: Multicast = Multicast(
             group=MULTICAST_DISCOVERY_GROUP,
             port=MULTICAST_DISCOVERY_PORT,
             timeout=TIMEOUT_RECEIVE,
         )
 
+        self._logger.info(f"{self._name}: Listening for replica requests")
         while not self._exit.is_set():
             try:
                 request, address = mc.receive(BUFFER_SIZE)
@@ -62,7 +63,7 @@ class Server(Process):
                 continue
 
             request = MessageFindReplicaRequest.decode(request)
-            self._logger.info(f"Received replica request from {address}")
+            self._logger.info(f"{self.name}: Replica request received: {request}")
 
             # Create replica and add to pool
             replica = Replica(request=request, sender=IPv4Address(address[0]))
@@ -71,10 +72,10 @@ class Server(Process):
             self._seen_mid.append(request._id)
 
             self._logger.info(
-                f"Created replica {replica.get_id()} for Replica Request {request._id}"
+                f"{self._name}: Replica created and added to pool: {replica.get_id()}"
             )
 
-        self._logger.info("Server received stop signal; releasing resources")
+        self._logger.info(f"{self._name}: Releasing resources")
 
         mc.close()
 
@@ -85,9 +86,9 @@ class Server(Process):
         for replica in self._replica_pool:
             replica.join()
 
-        self._logger.info("Server stopped")
+        self._logger.info(f"{self._name}: Stopped")
 
     def stop(self) -> None:
         """Stops the server."""
         self._exit.set()
-        self._logger.info("Server received stop signal")
+        self._logger.info(f"{self._name}: Stop signal received")
