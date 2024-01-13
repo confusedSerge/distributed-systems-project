@@ -134,12 +134,16 @@ class Bidder:
     def _list_auctions(self) -> None:
         """Lists the auctions available to join."""
         print("Auctions available to join:")
-        for auction_id, auction in self.auction_announcement_store.items():
-            print(f"* {auction_id}: {auction}")
+        for _, auction in self.auction_announcement_store.items():
+            print(
+                f"* {auction.auction._id}: Auction {auction.auction.name} with item {auction.auction.item} by {auction.auction.auctioneer} starting at {auction.auction.price} with {auction.auction.time} seconds"
+            )
 
     def _list_auction_info(self) -> None:
         """Lists the information of an auction."""
         auction_id = self._choose_auction(list(self._joined_auctions.keys()))
+        if auction_id is None:
+            return
         auction = self._joined_auctions[auction_id]
         print(f"Information about auction {auction_id}:")
         print(f"* Joined auction {auction_id}: {auction}")
@@ -149,34 +153,36 @@ class Bidder:
     def _join_auction(self) -> None:
         """Joins an auction"""
         not_joined_auctions: list[str] = [
-            auction_id
-            for auction_id in self.auction_announcement_store.keys()
-            if auction_id not in self._joined_auctions
+            auction.auction._id
+            for _, auction in self.auction_announcement_store.items()
+            if auction.auction._id not in self._joined_auctions
         ]
         auction: str = self._choose_auction(not_joined_auctions)
-        response: AuctionMessageData = self._get_auction_information(auction)
+        if auction is None:
+            return
+        response: Auction = self._get_auction_information(auction)
 
         if response is None:
             self._logger.error(
                 f"Could not get auction information for auction {auction}"
             )
+            print(f"Could not get auction information for auction {auction}")
             return
 
-        auction: Auction = AuctionMessageData.to_auction(response)
-        listener: AuctionBidListener = AuctionBidListener(auction)
+        listener: AuctionBidListener = AuctionBidListener(response)
         listener.start()
 
-        self._joined_auctions[auction] = auction
+        self._joined_auctions[auction] = response
         self._auction_bid_listeners[auction] = listener
 
-    def _get_auction_information(self, auction: str) -> AuctionMessageData:
+    def _get_auction_information(self, auction: str) -> Auction:
         """Gets the auction information for an auction.
 
         Args:
             auction (str): The auction to get the information for.
 
         Returns:
-            AuctionMessageData: The auction information or None if the auction could not be found.
+            Auction: The auction information. None if the auction information could not be retrieved.
         """
 
         # Send auction information request
@@ -213,7 +219,7 @@ class Bidder:
         finally:
             uc.close()
 
-        return response.auction
+        return self._handle_auction_information_message(response)
 
     def _leave_auction(self) -> None:
         """Leaves an auction"""
@@ -259,12 +265,15 @@ class Bidder:
         Returns:
             str: The auction id of the auction.
         """
-        return int(
+        if len(auctions) == 0:
+            print("No auctions available")
+            return None
+        return str(
             inquirer.prompt(
                 [
                     inquirer.List(
                         "auction",
-                        message=inter.BIDDER_CHOOSE_AUCTION_QUESTION,
+                        message=inter.BIDDER_AUCTION_QUESTION,
                         choices=auctions,
                     )
                 ]
@@ -289,3 +298,25 @@ class Bidder:
                 ]
             )["bid"]
         )
+
+    def _handle_auction_information_message(
+        self, message: MessageAuctionInformationResponse
+    ) -> Auction:
+        """Handles an auction information message.
+
+        Args:
+            message (MessageAuctionInformationResponse): The auction information message.
+
+        """
+
+        auction = AuctionMessageData.to_auction(message.auction)
+        auction: Auction = self.manager.Auction(
+            auction.get_name(),
+            auction.get_auctioneer(),
+            auction.get_item(),
+            auction.get_price(),
+            auction.get_time(),
+            auction.get_address(),
+        )
+        auction.from_other(auction)
+        return auction

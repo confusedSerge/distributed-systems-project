@@ -4,6 +4,7 @@ from uuid import uuid4
 from random import choice
 
 from constant import communication as com
+from constant.account import USERNAME
 
 
 def generate_mc_address(known_addresses: list[IPv4Address]) -> IPv4Address:
@@ -37,4 +38,4 @@ def generate_message_id(auction: str = "") -> str:
     Returns:
         str: The unique message id.
     """
-    return f"{auction}::{uuid4()}" if auction else f"{com.USERNAME}::{uuid4()}"
+    return f"{auction}::{uuid4()}" if auction else f"{USERNAME}::{uuid4()}"

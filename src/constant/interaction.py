@@ -21,3 +21,6 @@ BIDDER_ACTION_LEAVE_AUCTION: str = "Leave an auction"
 BIDDER_ACTION_BID: str = "Bid on an auction"
 BIDDER_ACTION_GO_BACK: str = "Go back"
 BIDDER_BID_AMOUNT_QUESTION: str = "How much do you want to bid"
+
+# Bidder auction
+BIDDER_AUCTION_QUESTION: str = "Choose an auction"
