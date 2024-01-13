@@ -16,7 +16,7 @@ from communication import (
 )
 
 
-from util import create_logger, logging, Timeout, generate_message_id
+from util import create_logger, logging, Timeout, gen_mid
 
 from constant import (
     interaction as inter,
@@ -189,7 +189,7 @@ class Bidder:
         uc: Unicast = Unicast(host=None, port=None)
         Multicast.qsend(
             message=MessageAuctionInformationRequest(
-                _id=generate_message_id(), auction=auction, port=uc.get_port()
+                _id=gen_mid(), auction=auction, port=uc.get_port()
             ).encode(),
             group=MULTICAST_DISCOVERY_GROUP,
             port=MULTICAST_DISCOVERY_PORT,
@@ -244,7 +244,7 @@ class Bidder:
 
         auction.bid(USERNAME, bid_amount)
         bid: MessageAuctionBid = MessageAuctionBid(
-            _id=generate_message_id(auction.get_id()),
+            _id=gen_mid(auction.get_id()),
             bidder=USERNAME,
             bid=bid_amount,
         )

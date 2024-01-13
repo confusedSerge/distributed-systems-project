@@ -106,7 +106,18 @@ class Replica(Process):
             sleep(10)
 
         # TODO: Stop all possible sub processes (replica finder, auction listener, auction manager etc.)
-        self._auction_bid_listener.stop()
+        if self._auction_peers_listener.is_alive():
+            self._auction_peers_listener.stop()
+            self._auction_peers_listener.join()
+
+        if self._auction_bid_listener.is_alive():
+            self._auction_bid_listener.stop()
+            self._auction_bid_listener.join()
+
+        self.manager_running.clear()
+        self.manager.shutdown()
+
+        self._logger.info("Replica is exiting")
 
     def stop(self) -> None:
         """Stops the replica."""

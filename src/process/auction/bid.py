@@ -29,12 +29,14 @@ class AuctionBidListener(Process):
         super(AuctionBidListener, self).__init__()
         self._exit: Event = Event()
 
-        self._name: str = f"AuctionListener::{auction.get_id()}::{os.getpid()}"
+        self._name: str = f"AuctionBidListener::{auction.get_id()}::{os.getpid()}"
         self._logger: logger = create_logger(self._name.lower())
 
         self._auction: Auction = auction
         # List of seen message ids, to prevent duplicate bids
         self._seen_mid: list[str] = []
+
+        self._logger.info(f"{self._name} initialized")
 
     def run(self) -> None:
         """Runs the auction listener process."""
@@ -45,11 +47,12 @@ class AuctionBidListener(Process):
             timeout=TIMEOUT_RECEIVE,
         )
 
-        while self._auction.is_running() and not self._exit.is_set():
+        while not self._exit.is_set():
             # Receive bid
             try:
                 bid, address = mc.receive(BUFFER_SIZE)
             except TimeoutError:
+                self._logger.info(f"{self._name} timed out")
                 continue
 
             if not MessageSchema.of(com.HEADER_AUCTION_BID, bid):
@@ -73,5 +76,5 @@ class AuctionBidListener(Process):
 
     def stop(self) -> None:
         """Stops the auction listener process."""
-        self._logger.info(f"{self._name} received stop signal")
         self._exit.set()
+        self._logger.info(f"{self._name} received stop signal")

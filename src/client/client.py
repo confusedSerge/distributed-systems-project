@@ -13,7 +13,7 @@ from .auctioneer import Auctioneer
 from .bidder import Bidder
 
 
-class Client(Process):
+class Client:
     """Client class for the client side of the peer-to-peer network.
 
     The client class runs in a separate thread (process) from the server class (normally the main thread).
@@ -67,8 +67,7 @@ class Client(Process):
 
         self._logger.info(f"{self._name} started background tasks")
 
-        while not self._exit.is_set():
-            sleep(SLEEP_TIME)
+        self.interact()
 
         self._auctioneer.stop()
         self._bidder.stop()
@@ -91,7 +90,7 @@ class Client(Process):
 
         This should be run in the main thread (process), handling user input.
         """
-        while True:
+        while not self._exit.is_set():
             answer = inquirer.prompt(
                 [
                     inquirer.List(
@@ -115,6 +114,6 @@ class Client(Process):
                 case "Bidder":
                     self._bidder.interact()
                 case "Stop":
-                    break
+                    self.stop()
                 case _:
                     self._logger.error(f"Invalid action {answer}")

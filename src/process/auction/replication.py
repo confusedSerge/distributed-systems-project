@@ -28,7 +28,7 @@ from constant import (
     REPLICA_AUCTION_POOL_SIZE,
 )
 
-from util import create_logger, logger, Timeout, generate_message_id
+from util import create_logger, logger, Timeout, gen_mid
 
 
 class ReplicaFinder(Process):
@@ -74,7 +74,7 @@ class ReplicaFinder(Process):
 
         # Start replica request emitter
         self._logger.info(f"{self._name} starting replica request emitter")
-        message_id: str = generate_message_id(self._auction.get_id())
+        message_id: str = gen_mid(self._auction.get_id())
         emitter: Process = Process(
             target=self._emit_request,
             args=(

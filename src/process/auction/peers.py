@@ -64,6 +64,7 @@ class AuctionPeersListener(Process):
                 continue
 
             self._store.replace(peers.peers)
+            self._logger.info(f"{self._name} updated peers store")
 
         self._logger.info(f"{self._name} received stop signal; releasing resources")
         mc.close()
