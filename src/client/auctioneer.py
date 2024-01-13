@@ -306,4 +306,3 @@ class _SubAuctioneer(Process):
             ttl=MULTICAST_DISCOVERY_TTL,
         )
         self._logger.info(f"{self._name}: Announced auction {self._auction.get_id()}")
-        self._auction.next_state()

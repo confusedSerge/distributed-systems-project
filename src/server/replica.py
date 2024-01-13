@@ -67,7 +67,7 @@ class Replica(Process):
     TODO:
         - Implement actual election
         - Implement actual heartbeat
-        - Auction state
+        - Auction Management
     """
 
     def __init__(self, request: MessageFindReplicaRequest, sender: IPv4Address) -> None:
@@ -220,6 +220,7 @@ class Replica(Process):
 
     def _main_auction_loop(self):
         """Handles the main auction tasks of the replica."""
+        reelection_listener: Process = None
         while not self._exit.is_set():
             # Hold election
             self._logger.info(f"{self._name}: Election")
@@ -240,6 +241,16 @@ class Replica(Process):
 
             # Start Heartbeat
             self._heartbeat(self._leader)
+
+        # Stop Leader tasks
+        if (
+            self._leader
+            and reelection_listener is not None
+            and reelection_listener.is_alive()
+        ):
+            self._logger.info(f"{self._name}: LEADER: Stopping auction manager")
+            self._auction_manager.stop()
+            self._auction_manager.join()
 
     def _wait_acknowledge(self) -> None:
         """Waits for the auctioneer to acknowledge the join message.
@@ -323,16 +334,16 @@ class Replica(Process):
         if message._id != self._initial_find_request._id:
             return False
 
-        auction = AuctionMessageData.to_auction(message.auction)
+        msg = AuctionMessageData.to_auction(message.auction)
         self.auction: Auction = self.manager.Auction(
-            auction.get_name(),
-            auction.get_auctioneer(),
-            auction.get_item(),
-            auction.get_price(),
-            auction.get_time(),
-            auction.get_address(),
+            msg.get_name(),
+            msg.get_auctioneer(),
+            msg.get_item(),
+            msg.get_price(),
+            msg.get_time(),
+            msg.get_address(),
         )
-        self.auction.from_other(auction)
+        self.auction.from_other(msg)
         return True
 
     def _start_listeners(self) -> None:
