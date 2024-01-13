@@ -22,7 +22,7 @@ from constant import (
     interaction as inter,
     USERNAME,
     SLEEP_TIME,
-    EMITTER_PERIOD,
+    REPLICA_EMITTER_PERIOD,
     REPLICA_AUCTION_POOL_SIZE,
     MULTICAST_DISCOVERY_GROUP,
     MULTICAST_DISCOVERY_PORT,
@@ -168,7 +168,7 @@ class Auctioneer:
                     "name",
                     message="What's the name of the auction",
                     validate=lambda _, x: len(x) > 0
-                    and Auction.id(x, USERNAME) not in self._created_auctions.keys(),
+                    and Auction.id(USERNAME, x) not in self._created_auctions.keys(),
                 ),
                 inquirer.Text(
                     "item", message="What's the item", validate=lambda _, x: len(x) > 0
@@ -256,7 +256,7 @@ class _SubAuctioneer(Process):
         )
         replica_list: AuctionPeersStore = self._manager.AuctionPeersStore()
         replica_finder: ReplicaFinder = ReplicaFinder(
-            self._auction, replica_list, EMITTER_PERIOD
+            self._auction, replica_list, REPLICA_EMITTER_PERIOD
         )
         replica_finder.start()
         replica_finder.join()

@@ -17,3 +17,13 @@ from .auction import (
     MessageAuctionBid,
     AuctionMessageData,
 )
+
+from .heartbeat import (
+    MessageHeartbeatRequest,
+    MessageHeartbeatResponse,
+)
+
+from .election import (
+    MessageReelectionAnnouncement,
+    MessageElectionRequest,
+)

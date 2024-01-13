@@ -75,6 +75,17 @@ class Unicast:
         return self._port
 
     @staticmethod
+    def get_host() -> str:
+        """Returns the host of the unicast socket.
+
+        Returns:
+            str: The host of the unicast socket.
+        """
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.connect(("10.0.0.3", 1234))
+        return sock.getsockname()[0]
+
+    @staticmethod
     def qsend(message: bytes, host: IPv4Address, port: int) -> None:
         """Send a message to the unicast host.
 

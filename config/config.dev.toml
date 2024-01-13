@@ -15,16 +15,22 @@ sleep_time = 0.5
 
 [server.replica]
 local_pool_size = 5
-auction_pool_size = 2
+auction_pool_size = 1
 
 [communication]
 buffer_size = 1024
 timeout_receive = 1
 timeout_response = 20
-timeout_replication = 20
 
 [communication.replica]
 emitter_period = 2
+timeout = 20
+
+[communication.heartbeat]
+timeout = 5
+
+[communication.election]
+timeout = 5
 
 [communication.multicast.discovery]
 group = "224.1.1.1"
@@ -54,9 +60,10 @@ auction-bid = "AUCTION_BID"
 auction-win = "AUCTION_WIN"
 
 [communication.header.heartbeat]
-heartbeat-request = "HEARTBEAT_REQUEST"
-heartbeat-response = "HEARTBEAT_RESPONSE"
+heartbeat-req = "HEARTBEAT_REQUEST"
+heartbeat-res = "HEARTBEAT_RESPONSE"
 
 [communication.header.election]
-election-request = "ELECTION_REQUEST"
-election-response = "ELECTION_RESPONSE"
+reelection-announcement = "REELECTION_ANNOUNCEMENT"
+election-req = "ELECTION_REQUEST"
+election-res = "ELECTION_RESPONSE"

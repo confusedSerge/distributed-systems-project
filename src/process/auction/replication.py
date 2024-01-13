@@ -24,7 +24,6 @@ from constant import (
     MULTICAST_DISCOVERY_GROUP,
     MULTICAST_DISCOVERY_PORT,
     MULTICAST_AUCTION_PORT,
-    UNICAST_PORT,
     REPLICA_AUCTION_POOL_SIZE,
 )
 
@@ -115,6 +114,7 @@ class ReplicaFinder(Process):
         self._logger.info(f"{self._name}: Found enough replicas")
 
         self._send_information(uc, message_id, new_replicas)
+        sleep(5)  # TODO: Remove
         self._announce_replica(message_id)
 
         self._logger.info(f"{self._name}: Releasing resources")
@@ -232,7 +232,7 @@ class ReplicaFinder(Process):
                             )
                         )
 
-                        if address[0] != replica[0] or address[1] != replica[1]:
+                        if address[0] != str(replica[0]):
                             self._logger.info(
                                 f"{self._name}: Received auction information acknowledgement {acknowledgement} from {address} instead of {replica}"
                             )
@@ -254,6 +254,7 @@ class ReplicaFinder(Process):
                     f"{self._name}: Did not receive auction information acknowledgement from {replica}"
                 )
                 self._logger.info(f"{self._name}: Stopping replica finding")
+                self.stop()
                 return
 
             self._logger.info(
@@ -266,7 +267,9 @@ class ReplicaFinder(Process):
         Args:
             message_id (str): The message id to use for the message.
         """
-        self._logger.info(f"{self._name}: Announcing replica to all replicas")
+        self._logger.info(
+            f"{self._name}: Announcing replica to all replicas at {(self._auction.get_address(), MULTICAST_AUCTION_PORT)} with message id {message_id}"
+        )
         peers: MessagePeersAnnouncement = MessagePeersAnnouncement(
             _id=message_id,
             peers=[(str(peer[0]), peer[1]) for peer in self._peers.iter()],

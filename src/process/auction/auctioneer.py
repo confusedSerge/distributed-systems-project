@@ -19,7 +19,6 @@ from constant import (
     BUFFER_SIZE,
     MULTICAST_DISCOVERY_GROUP,
     MULTICAST_DISCOVERY_PORT,
-    UNICAST_PORT,
 )
 
 from util import create_logger, logger

@@ -35,7 +35,7 @@ class Auction:
         # Identification
         self._name: str = name
         self._auctioneer: str = auctioneer
-        self._id: str = Auction.id(name, auctioneer)
+        self._id: str = Auction.id(auctioneer, name)
 
         # Auction information
         self._item: str = item
@@ -319,7 +319,7 @@ class Auction:
         auction._set_winner(other.get_winner())
 
     @staticmethod
-    def id(name: str, auctioneer: str) -> str:
+    def id(auctioneer: str, name: str) -> str:
         """Returns the id of the auction.
 
         Args:
@@ -332,7 +332,7 @@ class Auction:
         return f"{auctioneer}::{name}".lower()
 
     @staticmethod
-    def parse_id(id: str) -> str:
+    def parse_id(_id: str) -> str:
         """Parses from the input id the auction id.
 
         The id is assumed to be in the format "uname::aname(::uuid)".
@@ -346,7 +346,7 @@ class Auction:
         Raises:
             ValueError: If the id is not in the correct format.
         """
-        split: list[str] = id.split("::")
+        split: list[str] = _id.split("::")
         if len(split) == 2 or len(split) == 3:
             return Auction.id(split[0], split[1])
         raise ValueError("Invalid id given for parsing: {id}")

@@ -33,7 +33,7 @@ class AuctionPeersListener(Process):
         super(AuctionPeersListener, self).__init__()
         self._exit: Event = Event()
 
-        self._name: str = f"AuctionPeersListener::{USERNAME}::{os.getpid()}"
+        self._name: str = f"AuctionPeersListener::{auction.get_id()}::{os.getpid()}"
         self._logger: logger = create_logger(self._name.lower())
 
         self._auction: Auction = auction
@@ -51,7 +51,9 @@ class AuctionPeersListener(Process):
             timeout=TIMEOUT_RECEIVE,
         )
 
-        self._logger.info(f"{self._name}: Listening for peers announcements")
+        self._logger.info(
+            f"{self._name}: Listening for peers announcements on {(self._auction.get_address(), MULTICAST_AUCTION_PORT)} for auction {self._auction.get_id()}"
+        )
         while not self._exit.is_set():
             # Receive announcement
             try:

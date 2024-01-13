@@ -17,3 +17,12 @@ AUCTION_INFORMATION_ACK: str = _config["auction"]["auction-information-ack"]
 
 AUCTION_BID: str = _config["auction"]["auction-bid"]
 AUCTION_WIN: str = _config["auction"]["auction-win"]
+
+# Heartbeat Header
+HEARTBEAT_REQ: str = _config["heartbeat"]["heartbeat-req"]
+HEARTBEAT_RES: str = _config["heartbeat"]["heartbeat-res"]
+
+# Election Header
+REELECTION_ANNOUNCEMENT: str = _config["election"]["reelection-announcement"]
+ELECTION_REQ: str = _config["election"]["election-req"]
+ELECTION_RES: str = _config["election"]["election-res"]
