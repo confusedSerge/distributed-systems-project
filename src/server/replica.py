@@ -63,6 +63,11 @@ class Replica(Process):
         - Leader and Follower: Background listener of auction.
 
         - Auction finished: Send winner and stop replica.
+
+    TODO:
+        - Implement actual election
+        - Implement actual heartbeat
+        - Auction state
     """
 
     def __init__(self, request: MessageFindReplicaRequest, sender: IPv4Address) -> None:
@@ -135,31 +140,11 @@ class Replica(Process):
         self.auction.next_state()
 
         # Start replica leader/follower tasks (heartbeat, election, etc.)
-        # TODO: impl leader/follower tasks
-        self._logger.info(f"{self._name}: Starting leader/follower tasks")
+        self._logger.info(
+            f"{self._name}: Starting leader/follower tasks with auction {self.auction} and {self.peers.len()} peers"
+        )
 
-        while not self._exit.is_set():
-            # Hold election
-            self._logger.info(f"{self._name}: Election")
-            self._election()
-
-            # Start listening for reelection announcements
-            self._logger.info(f"{self._name}: Starting reelection listener")
-            reelection_listener: Process = Process(
-                target=self._reelection_listener, name="ReelectionListener"
-            )
-            reelection_listener.start()
-
-            # Start Leader tasks
-            if self._leader:
-                self._logger.info(
-                    f"{self._name}: Elected leader; Starting auction manager"
-                )
-                self._auction_manager = AuctionManager(self.auction)
-                self._auction_manager.start()
-
-            # Start Heartbeat
-            self._heartbeat(self._leader)
+        self._main_auction_loop()
 
         self._logger.info(f"{self._name}: Releasing resources")
 
@@ -232,6 +217,29 @@ class Replica(Process):
         self._logger.info(
             f"{self._name}: PRELUDE: Auction information received; Prelude concluded"
         )
+
+    def _main_auction_loop(self):
+        """Handles the main auction tasks of the replica."""
+        while not self._exit.is_set():
+            # Hold election
+            self._logger.info(f"{self._name}: Election")
+            self._election()
+
+            # Start listening for reelection announcements
+            self._logger.info(f"{self._name}: Starting reelection listener")
+            reelection_listener: Process = Process(
+                target=self._reelection_listener, name="ReelectionListener"
+            )
+            reelection_listener.start()
+
+            # Start Leader tasks
+            if self._leader:
+                self._logger.info(f"{self._name}: LEADER: Starting auction manager")
+                self._auction_manager = AuctionManager(self.auction)
+                self._auction_manager.start()
+
+            # Start Heartbeat
+            self._heartbeat(self._leader)
 
     def _wait_acknowledge(self) -> None:
         """Waits for the auctioneer to acknowledge the join message.
@@ -467,6 +475,9 @@ class Replica(Process):
         while not self._reelection.is_set() and not self._exit.is_set():
             unresponsive_peers: list[tuple[IPv4Address, int]] = []
             for replica in self.peers.iter():
+                if replica[0] == self._unicast.get_host():
+                    continue
+
                 self._heartbeat_emit(replica)
 
                 try:
@@ -478,13 +489,32 @@ class Replica(Process):
                     unresponsive_peers.append(replica)
                     break
 
-            self._handle_unresponsive_replicas(unresponsive_peers)
+            if len(unresponsive_peers) > 0:
+                self._logger.info(
+                    f"{self._name}: HEARTBEAT SENDER: Unresponsive peers: {unresponsive_peers}"
+                )
+                self._handle_unresponsive_replicas(unresponsive_peers)
 
-    def _handle_unresponsive_replicas(self, unresponsive_peers):
+            sleep(TIMEOUT_HEARTBEAT)
+
+        self._logger.info(f"{self._name}: HEARTBEAT SENDER: Stopped")
+
+    def _handle_unresponsive_replicas(
+        self, unresponsive_peers: list[tuple[IPv4Address, int]]
+    ) -> None:
+        """Handles unresponsive replicas.
+
+        Args:
+            unresponsive_peers (list[tuple[IPv4Address, int]]): The unresponsive replicas.
+        """
+        self._logger.info(
+            f"{self._name}: HEARTBEAT SENDER: Handling unresponsive peers"
+        )
+
         for replica in unresponsive_peers:
             self.peers.remove(*replica)
 
-            # Start replica finder in background if unresponsive peers exist
+        # Start replica finder in background if unresponsive peers exist
         if (
             len(unresponsive_peers) > 0
             and self.peers.len() <= REPLICA_AUCTION_POOL_SIZE
@@ -501,7 +531,14 @@ class Replica(Process):
                     f"{self._name}: HEARTBEAT SENDER: Replica finder already running"
                 )
 
-    def _heartbeat_listen(self, replica):
+        self._logger.info(f"{self._name}: HEARTBEAT SENDER: Unresponsive peers handled")
+
+    def _heartbeat_listen(self, replica: tuple[IPv4Address, int]) -> None:
+        """Listens for a heartbeat response from a replica.
+
+        Args:
+            replica (tuple[IPv4Address, int]): The replica to listen to.
+        """
         with Timeout(TIMEOUT_HEARTBEAT, throw_exception=True):
             while not self._exit.is_set():
                 response, address = self._unicast.receive(BUFFER_SIZE)
@@ -530,9 +567,6 @@ class Replica(Process):
 
     def _heartbeat_emit(self, replica: tuple[IPv4Address, int]) -> None:
         """Emits a heartbeat to all replica peers, except itself."""
-
-        if replica == self._unicast.get_host():
-            return
 
         self._logger.info(
             f"{self._name}: HEARTBEAT EMITTER: Emitting heartbeat to {replica}"
@@ -598,8 +632,8 @@ class Replica(Process):
                 break
 
     def _reelection_listener(self) -> None:
-        mc = Multicast(
-            host=self.auction.get_address(),
+        mc: Multicast = Multicast(
+            group=self.auction.get_address(),
             port=MULTICAST_AUCTION_PORT,
             ttl=MULTICAST_AUCTION_TTL,
         )

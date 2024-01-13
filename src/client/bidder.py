@@ -189,9 +189,10 @@ class Bidder:
 
         # Send auction information request
         uc: Unicast = Unicast(host=None, port=None)
+        request_mid: str = gen_mid(auction)
         Multicast.qsend(
             message=MessageAuctionInformationRequest(
-                _id=gen_mid(), auction=auction, port=uc.get_port()
+                _id=request_mid, auction=auction, port=uc.get_port()
             ).encode(),
             group=MULTICAST_DISCOVERY_GROUP,
             port=MULTICAST_DISCOVERY_PORT,
@@ -218,7 +219,7 @@ class Bidder:
                     response: MessageAuctionInformationResponse = (
                         MessageAuctionInformationResponse.decode(response)
                     )
-                    if response._id != auction:
+                    if response._id != request_mid:
                         continue
 
                     break
@@ -231,7 +232,7 @@ class Bidder:
             uc.close()
 
         self._logger.info(
-            f"{self._name}: Received auction information response for auction {auction}"
+            f"{self._name}: Received auction information response for auction {auction}: {response}"
         )
         return self._handle_auction_information_message(response)
 
@@ -250,7 +251,7 @@ class Bidder:
         if not auction.is_running():
             print(f"Auction with id {auction} is not running. Cannot place bid.")
             return
-        if bid_amount <= auction.get_highest_bid():
+        if bid_amount <= auction.get_highest_bid()[1]:
             print(
                 f"Bid amount {bid_amount} is not higher than current highest bid {auction.get_highest_bid()}"
             )
@@ -326,14 +327,15 @@ class Bidder:
 
         """
 
-        auction = AuctionMessageData.to_auction(message.auction)
+        rec = AuctionMessageData.to_auction(message.auction)
         auction: Auction = self.manager.Auction(
-            auction.get_name(),
-            auction.get_auctioneer(),
-            auction.get_item(),
-            auction.get_price(),
-            auction.get_time(),
-            auction.get_address(),
+            rec.get_name(),
+            rec.get_auctioneer(),
+            rec.get_item(),
+            rec.get_price(),
+            rec.get_time(),
+            rec.get_address(),
         )
-        auction.from_other(auction)
+        auction.from_other(rec)
+
         return auction

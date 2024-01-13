@@ -80,7 +80,7 @@ class AuctionBidListener(Process):
                 f"{self._name}: Received bid {bid} from {address} for auction {self._auction.get_id()}"
             )
 
-            self._auction.add_bid(bid.bidder, bid.bid)
+            self._auction.bid(bid.bidder, bid.bid)
             self._seen_mid.append(bid._id)
 
         self._logger.info(f"{self._name}: Releasing resources")

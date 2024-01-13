@@ -69,7 +69,7 @@ class AuctionData:
 
     def __str__(self) -> str:
         """Return the string representation of the auction data."""
-        return f"AuctionData(id={self._id}, item={self.item}, price={self.price}, time={self.time}, address={self.address})"
+        return f"AuctionData(id={self._id}, item={self.item}, price={self.price}, time={self.time}, address={self.address}, state={self.state}, bid_history={self.bid_history}, winner={self.winner})"
 
     def __repr__(self) -> str:
         """Return the string representation of the auction data."""

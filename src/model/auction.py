@@ -247,6 +247,8 @@ class Auction:
         Returns:
             tuple[str, float]: The highest bid.
         """
+        if len(self._bid_history) == 0:
+            return ("n/a", 0.0)
         return max(self._bid_history, key=lambda x: x[1])
 
     def get_winner(self) -> str:

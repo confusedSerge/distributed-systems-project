@@ -64,7 +64,7 @@ class AuctionAnnouncementListener(Process):
             )
             if not self._store.exists(announcement._id):
                 self._logger.info(
-                    f"{self._name}: Received announcement for auction {announcement._id}"
+                    f"{self._name}: Received announcement for auction {announcement._id}: {announcement}"
                 )
                 self._store.update(announcement)
 

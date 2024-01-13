@@ -293,7 +293,8 @@ class _SubAuctioneer(Process):
             auction_bid_listener.join()
 
     def _announce(self):
-        self._logger.info(f"{self._name}: Announcing auction {self._auction.get_id()}")
+        self._auction.next_state()
+        self._logger.info(f"{self._name}: Announcing auction {self._auction}")
         announcement: MessageAuctionAnnouncement = MessageAuctionAnnouncement(
             _id=gen_mid(self._auction.get_id()),
             auction=AuctionMessageData.from_auction(self._auction),
