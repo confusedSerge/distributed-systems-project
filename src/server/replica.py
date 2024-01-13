@@ -410,7 +410,7 @@ class Replica(Process):
         tickets: list[tuple[int, IPv4Address, int]] = [
             (os.getpid(), self._unicast.get_host(), self._unicast.get_port())
         ]
-        return tickets
+        return tickets  # TODO: below doesn't work
         self._logger.info(f"{self._name}: ELECTION: Waiting for tickets")
 
         with Timeout(TIMEOUT_ELECTION, throw_exception=True):
