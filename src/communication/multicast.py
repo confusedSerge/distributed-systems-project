@@ -1,6 +1,7 @@
 from ipaddress import IPv4Address
 import socket
 import struct
+import os
 
 from typing import Optional
 
@@ -41,7 +42,7 @@ class Multicast:
         self._address_port: tuple[str, int] = (str(self._address), self._port)
 
         self._sender: bool = sender
-        self._socket: socket = None
+        self._socket: socket.socket = None
 
         self._timeout: Optional[int] = timeout
 
@@ -67,6 +68,13 @@ class Multicast:
             self._socket.settimeout(self._timeout) if self._timeout else None
             self._socket.bind(self._address_port)
 
+    def getIpAddress(self) -> str:
+        """Get IpAddr of own instance."""
+        gw = os.popen("ip -4 route show default").read().split()
+        self._socket.connect((gw[2], 0))
+
+        return self._socket.getsockname()[0]
+
     def send(self, message: bytes) -> None:
         """Send a message to the multicast group.
 
@@ -75,6 +83,38 @@ class Multicast:
         """
         assert self._sender, "The multicast object is not a sender."
         self._socket.sendto(message, self._address_port)
+
+    def send_message_with_counter(self, message: bytes, counter: int, sender_id: int) -> None:
+        """Send a message tuple to the multicast group.
+
+        Args:
+            message (bytes): The message to send in bytes.
+            counter:
+            sender_ip:
+        """
+        assert self._sender, "The multicast object is not a sender."
+        self._socket.sendto((message, counter, sender_id), self.multicast_group)    
+
+    def send_message_id_with_seq_id(self, message_id: int, sequence_id: int) -> None:
+        """Send a message tuple to the multicast group.
+
+        Args:
+            message_id:
+            sender_ip:
+        """
+        assert self._sender, "The multicast object is not a sender."
+        self._socket.sendto((message_id, sequence_id), self.multicast_group)  
+
+    def send_message_id_with_s_id_and_seq_id(self, message_id: int, sender_id: int, sequence_id: int, senderid_from_sequence_id: int) -> None:
+        """Send a message tuple to the multicast group.
+
+        Args:
+            message (bytes): The message to send in bytes.
+            sender_ip:
+
+        """
+        assert self._sender, "The multicast object is not a sender."
+        self._socket.sendto((message_id, sender_id, sequence_id, senderid_from_sequence_id), self.multicast_group)    
 
     def receive(self, buffer_size: int = 1024) -> (bytes, tuple[str, int]):
         """Receive a message from the multicast group.

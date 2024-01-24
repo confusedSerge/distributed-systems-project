@@ -1,5 +1,6 @@
-from util import Multicast, Message
-from constant import addresses as constant_multicast
+from communication.multicast import Multicast
+from communication.messages.isis_communication.isis_message import Message
+from constant.communication import multicast as constant_multicast
 from operator import itemgetter
 
 class ISISProcess:
@@ -9,16 +10,16 @@ class ISISProcess:
 
     """
     sender = Multicast(
-        constant_multicast.MULTICAST_DISCOVERY_GROUP,
-        constant_multicast.MULTICAST_DISCOVERY_PORT,
+        constant_multicast.DISCOVERY_GROUP,
+        constant_multicast.DISCOVERY_PORT,
         sender=True,
-        ttl=constant_multicast.MULTICAST_DISCOVERY_TTL,
+        ttl=constant_multicast.DISCOVERY_TTL,
     )
     receiver = Multicast(
-        constant_multicast.MULTICAST_DISCOVERY_GROUP,
-        constant_multicast.MULTICAST_DISCOVERY_PORT,
+        constant_multicast.DISCOVERY_GROUP,
+        constant_multicast.DISCOVERY_PORT,
         sender=False,
-        ttl=constant_multicast.MULTICAST_DISCOVERY_TTL,
+        ttl=constant_multicast.DISCOVERY_TTL,
     )
 
     def __init__(self):
