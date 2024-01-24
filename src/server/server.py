@@ -1,76 +1,94 @@
-import time
-import multiprocessing
+from ipaddress import IPv4Address
+from multiprocessing import Process, Event
+
+from communication import Multicast, MessageSchema, MessageFindReplicaRequest
+
+from constant import (
+    communication as com,
+    TIMEOUT_RECEIVE,
+    BUFFER_SIZE,
+    MULTICAST_DISCOVERY_GROUP,
+    MULTICAST_DISCOVERY_PORT,
+    REPLICA_LOCAL_POOL_SIZE,
+)
+
+from util import create_logger, logger
 
 from .replica import Replica
 
-from util import create_logger, Multicast, message as msgs
-from constant import addresses as addr, message as msg_tag
 
-
-class Server(multiprocessing.Process):
+class Server(Process):
     """Server class.
 
     This class is responsible for creating the backbone of the auction system.
-    As it is run completely in the background, using logging to keep track of what is happening.
     It handles the following:
         - Listening for replica requests (discovery group) and creating replicas for them, if there is enough space in the pool.
     """
 
-    def __init__(self, config: dict) -> None:
-        """Initializes the server class.
+    def __init__(self) -> None:
+        """Initializes the server class."""
+        super(Server, self).__init__()
+        self._exit: Event = Event()
 
-        Args:
-            config (dict): The configuration of the client.
+        self._name: str = "Server"
+        self._logger: logger = create_logger(self._name.lower())
 
-        """
-        multiprocessing.Process.__init__(self)
-        self.exit = multiprocessing.Event()
+        self._replica_pool: list[Replica] = []
+        self._seen_mid: list[
+            str
+        ] = []  # List of seen message ids, to prevent duplicate replicas
 
-        self.logger = create_logger("server")
-        self.config = config
-
-        self.replica_pool: list[Replica] = []
+        self._logger.info(f"{self._name}: Initialized")
 
     def run(self) -> None:
         """Runs the server background tasks."""
-        mc_discovery_listen = Multicast(
-            group=addr.MULTICAST_DISCOVERY_GROUP,
-            port=addr.MULTICAST_DISCOVERY_PORT,
-            sender=False,
-            ttl=addr.MULTICAST_DISCOVERY_TTL,
+        self._logger.info(f"{self._name}: Started")
+        mc: Multicast = Multicast(
+            group=MULTICAST_DISCOVERY_GROUP,
+            port=MULTICAST_DISCOVERY_PORT,
+            timeout=TIMEOUT_RECEIVE,
         )
 
-        while not self.exit.is_set():
+        self._logger.info(f"{self._name}: Listening for replica requests")
+        while not self._exit.is_set():
             try:
-                data, addr = mc_discovery_listen.receive()
+                request, address = mc.receive(BUFFER_SIZE)
+            except TimeoutError:
+                continue
 
-                if msgs.decode(data)["tag"] != msg_tag.FIND_REPLICA_REQUEST_TAG:
-                    continue
+            if (
+                not MessageSchema.of(com.HEADER_FIND_REPLICA_REQ, request)
+                or len(self._replica_pool) >= REPLICA_LOCAL_POOL_SIZE
+            ):
+                continue
 
-                decoded_msg = msgs.FindReplicaRequest.decode(data)
-                self.logger.info(f"Received replica request from {addr[0]}:{addr[1]}")
+            request = MessageFindReplicaRequest.decode(request)
+            self._logger.info(f"{self.name}: Replica request received: {request}")
 
-                if len(self.replica_pool) >= self.config["replica"]["pool_size"]:
-                    self.logger.info("Replica pool is full")
-                    continue
+            # Create replica and add to pool
+            replica = Replica(request=request, sender=IPv4Address(address[0]))
+            replica.start()
+            self._replica_pool.append(replica)
+            self._seen_mid.append(request._id)
 
-                # Create replica and add to pool
-                self.logger.info("Creating replica")
-                replica = Replica(replica_request=decoded_msg)
-                replica.start()
+            self._logger.info(
+                f"{self._name}: Replica created and added to pool: {replica.get_id()}"
+            )
 
-            except KeyboardInterrupt:
-                self.stop()
-            except Exception as e:
-                self.logger.error(f"Error in server: {e}")
+        self._logger.info(f"{self._name}: Releasing resources")
+
+        mc.close()
 
         # Release all replicas
-        for replica in self.replica_pool:
-            replica.terminate()
+        for replica in self._replica_pool:
+            replica.stop()
 
-        # Listen for replica requests
+        for replica in self._replica_pool:
+            replica.join()
+
+        self._logger.info(f"{self._name}: Stopped")
 
     def stop(self) -> None:
         """Stops the server."""
-        self.exit.set()
-        self.logger.info("Server received stop signal")
+        self._exit.set()
+        self._logger.info(f"{self._name}: Stop signal received")
