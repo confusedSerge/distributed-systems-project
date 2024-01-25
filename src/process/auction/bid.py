@@ -27,10 +27,10 @@ class AuctionBidListener(Process):
             auction (Auction): The auction to listen to. Should be a shared memory object.
         """
         super(AuctionBidListener, self).__init__()
-        self._exit: Event = Event()
+        self._exit = Event()
 
         self._name: str = f"AuctionBidListener::{auction.get_id()}::{os.getpid()}"
-        self._logger: logger = create_logger(self._name.lower())
+        self._logger: logger.logging = create_logger(self._name.lower())
 
         self._auction: Auction = auction
         self._seen_mid: list[str] = []

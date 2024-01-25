@@ -25,14 +25,14 @@ class Client:
     def __init__(self) -> None:
         """Initializes the client class."""
         super(Client, self).__init__()
-        self._exit: Event = Event()
+        self._exit = Event()
 
         self._name: str = "Client"
         self._logger: logging.Logger = create_logger(self._name.lower())
 
         # Shared memory
         self.manager: Manager = Manager()
-        self.manager_running: Event = Event()
+        self.manager_running = Event()
 
         self.manager.start()
         self.manager_running.set()
