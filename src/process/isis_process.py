@@ -1,5 +1,5 @@
 from communication.multicast import Multicast
-from communication.messages.isis_communication.isis_message import Message
+from communication.messages.isis_communication.isis_message import IsisMessage
 from constant.communication import multicast as constant_multicast
 from operator import itemgetter
 
@@ -30,16 +30,17 @@ class ISISProcess:
         self.sender_id = int(self.sender.getIpAddress().split(".")[3])
         self.receiver_ip = self.receiver.getIpAddress()
 
-    def on_multicast_message(self, message: Message):
-        """on_multicast_message should be called when a message is multicasted (in our case, when a bid is done)
+    def multicast_message_to_all(self, isis_message: IsisMessage):
+        """multicast_message_to_all should be called when a message is multicasted (in our case, when a bid is done).
 
         Args:
             message (Message): The message to multicast.
         """
+        # Counter represents the message_id
         self.counter += 1
-        self.sender.send_message_with_counter(message.message_content, self.counter, self.sender_id)
+        self.sender.send_message_with_counter(isis_message.message_content, self.counter, self.sender_id)
 
-    def get_sequence_number(self, message: dict) -> int:
+    def get_sequence_number(self, holdback_message: dict) -> int:
         """get_sequence_number returns the 'proposed_sequence_number' value
 
         Args:
@@ -48,18 +49,18 @@ class ISISProcess:
         Returns:
             int: The proposed sequence number of the message.
         """
-        return message['proposed_sequence_number']
+        return holdback_message['proposed_sequence_number']
     
-    def shift_to_head(self, queue: list, message: dict):
-        """shift_to_head shifts an item to the head of list
+    def shift_to_head(self, holdback_queue: list, holdback_message: dict):
+        """shift_to_head shifts an item from the holdback queue to the head of list
 
         Args:
             message (dict): A message element from the holdback queue.
         """
-        if message in queue:
-            index_to_shift = queue.index(message)
-            queue.pop(index_to_shift)
-            queue.insert(0, message)
+        if holdback_message in holdback_queue:
+            index_to_shift = holdback_queue.index(holdback_message)
+            holdback_queue.pop(index_to_shift)
+            holdback_queue.insert(0, holdback_message)
 
     def organize_holdback_queue(self):
         """organize_holdback_queue should be called on addition to holdback_queue or changing of element in holdback_queue"""
@@ -93,10 +94,10 @@ class ISISProcess:
             # TODO: deliver (do action of) the message at the head of the queue
             self.holdback_queue.pop(0)
 
-    def on_b_deliver_message(self):
-        """b_deliver_message should be called when a message with the tuple (message, message_id, sender_id) is received.
+    def on_receive_message_save_to_holdback_queue(self, message: bytes):
+        """on_receive_message_save_to_holdback_queue should be called when a bid is received.
 
-        TODO: This function should inside an if cause which checks for incoming messages in this format. 
+        TODO: This function should inside an if cause which checks for incoming bid. 
         """
         self.sequence_id += 1
         message, address = self.receiver.receive()
@@ -111,10 +112,10 @@ class ISISProcess:
         })
         self.organize_holdback_queue()
 
-    def on_receive(self):
-        """on_receive should be called when a message with the tuple (message_id, sequence_id) is received.
+    def send_proposed_priority(self, message: bytes):
+        """send_proposed_priority should be called when a proposed_sequence should be send.
 
-        TODO: This function should inside an if cause which checks for incoming messages in this format.
+        TODO: This function should inside an if cause which checks if proposed sequence should be send.
         """
         message, address = self.receiver.receive()
         # message[1] is sequence_id of sender and address[0] is sender_id
@@ -135,9 +136,8 @@ class ISISProcess:
                          senderid_from_sequence_id=max_sequence_number[1])
         # TODO: end if
 
-    def on_b_deliver_final_message(self):
-        """on_b_deliver_final_message should be called when a message with the tuple 
-        (message_id, sender_id, (highest) sequence_id, sender_id from (highest) sequence_id) is received.
+    def send_final_sequence(self, message: bytes):
+        """send_final_sequence_id should be called when the final proposed sequence should be re multicasted from the sender of the bid.
 
         TODO: This function should inside an if cause which checks for incoming messages in this format.
         """
