@@ -188,7 +188,7 @@ class Bidder:
         )
 
         # Send auction information request
-        uc: Unicast = Unicast(host=None, port=None)
+        uc: Unicast = Unicast()
         request_mid: str = gen_mid(auction)
         Multicast.qsend(
             message=MessageAuctionInformationRequest(

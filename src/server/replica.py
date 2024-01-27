@@ -2,7 +2,8 @@ import os
 from ipaddress import IPv4Address
 
 from time import sleep
-from multiprocessing import Process, Event
+from multiprocessing import Process
+from multiprocessing.synchronize import Event
 
 from model import Auction, AuctionPeersStore
 from communication import (
@@ -32,6 +33,7 @@ from process import (
 from constant import (
     communication as com,
     TIMEOUT_HEARTBEAT,
+    REPLICA_EMITTER_PERIOD,
     TIMEOUT_REPLICATION,
     TIMEOUT_ELECTION,
     REPLICA_AUCTION_POOL_SIZE,
@@ -41,7 +43,8 @@ from constant import (
     MULTICAST_AUCTION_TTL,
 )
 
-from util import create_logger, logger, gen_mid, Timeout
+from util import create_logger, gen_mid, Timeout
+from logging import Logger
 
 
 class Replica(Process):
@@ -76,13 +79,13 @@ class Replica(Process):
         self._exit: Event = Event()
 
         self._name: str = f"Replica::{request._id}"
-        self._logger: logger = create_logger(self._name.lower())
+        self._logger: Logger = create_logger(self._name.lower())
 
         self._initial_find_request: MessageFindReplicaRequest = request
         self._sender: IPv4Address = sender
 
         # Communication
-        self._unicast: Unicast = Unicast(host=None, port=None)
+        self._unicast: Unicast = Unicast()
 
         # Shared memory
         self.manager: Manager = Manager()
@@ -99,8 +102,8 @@ class Replica(Process):
 
         # Events
         self._reelection: Event = Event()
-        self._leader: bool = False
-        self._leader_address: tuple[IPv4Address, int] = None
+        self._leader: tuple[IPv4Address, int] = None
+        self._is_leader: bool = False
 
         self._logger.info(f"{self._name}: Initialized")
 
@@ -234,17 +237,17 @@ class Replica(Process):
             reelection_listener.start()
 
             # Start Leader tasks
-            if self._leader:
+            if self._is_leader:
                 self._logger.info(f"{self._name}: LEADER: Starting auction manager")
                 self._auction_manager = AuctionManager(self.auction)
                 self._auction_manager.start()
 
             # Start Heartbeat
-            self._heartbeat(self._leader)
+            self._heartbeat(self._is_leader)
 
         # Stop Leader tasks
         if (
-            self._leader
+            self._is_leader
             and reelection_listener is not None
             and reelection_listener.is_alive()
         ):
@@ -410,11 +413,11 @@ class Replica(Process):
         min_ticket: tuple[int, IPv4Address, int] = min(tickets, key=lambda x: x[0])
         self._logger.info(f"{self._name}: ELECTION: Min ticket: {min_ticket}")
 
-        self._leader = min_ticket[1] == self._unicast.get_host()
-        self._leader_address = min_ticket[1:]
+        self._is_leader = min_ticket[1] == self._unicast.get_host()
+        self._leader = min_ticket[1:]
 
         self._logger.info(
-            f"{self._name}: ELECTION: Is leader: {self._leader} at {self._leader_address}"
+            f"{self._name}: ELECTION: Is leader: {self._is_leader} at {self._leader}"
         )
 
         self._logger.info(f"{self._name}: ELECTION: Stopped")
@@ -467,181 +470,6 @@ class Replica(Process):
         self._logger.info(f"{self._name}: ELECTION: Tickets received")
         return tickets
 
-    def _heartbeat(self, leader: bool) -> None:
-        """Handles the heartbeat of the replica.
-
-        # TODO: Implement actual heartbeat, this is just a placeholder
-
-        Args:
-            leader (bool): Whether the replica is the leader of the auction.
-        """
-        if leader:
-            self._heartbeat_sender()
-        else:
-            self._heartbeat_listener()
-
-    def _heartbeat_sender(self) -> None:
-        """Handles the heartbeat sender of the replica."""
-        self._logger.info(f"{self._name}: HEARTBEAT SENDER: Started")
-        while not self._reelection.is_set() and not self._exit.is_set():
-            unresponsive_peers: list[tuple[IPv4Address, int]] = []
-            for replica in self.peers.iter():
-                if replica[0] == self._unicast.get_host():
-                    continue
-
-                self._heartbeat_emit(replica)
-
-                try:
-                    self._heartbeat_listen(replica)
-                except TimeoutError:
-                    self._logger.info(
-                        f"{self._name}: HEARTBEAT SENDER: Timeout; Replica {replica[0]} is unresponsive"
-                    )
-                    unresponsive_peers.append(replica)
-                    break
-
-            if len(unresponsive_peers) > 0:
-                self._logger.info(
-                    f"{self._name}: HEARTBEAT SENDER: Unresponsive peers: {unresponsive_peers}"
-                )
-                self._handle_unresponsive_replicas(unresponsive_peers)
-
-            sleep(TIMEOUT_HEARTBEAT)
-
-        self._logger.info(f"{self._name}: HEARTBEAT SENDER: Stopped")
-
-    def _handle_unresponsive_replicas(
-        self, unresponsive_peers: list[tuple[IPv4Address, int]]
-    ) -> None:
-        """Handles unresponsive replicas.
-
-        Args:
-            unresponsive_peers (list[tuple[IPv4Address, int]]): The unresponsive replicas.
-        """
-        self._logger.info(
-            f"{self._name}: HEARTBEAT SENDER: Handling unresponsive peers"
-        )
-
-        for replica in unresponsive_peers:
-            self.peers.remove(*replica)
-
-        # Start replica finder in background if unresponsive peers exist
-        if (
-            len(unresponsive_peers) > 0
-            and self.peers.len() <= REPLICA_AUCTION_POOL_SIZE
-        ):
-            if self._replica_finder is None or not self._replica_finder.is_alive():
-                self._logger.info(
-                    f"{self._name}: HEARTBEAT SENDER: Starting replica finder"
-                )
-                self._replica_finder = ReplicaFinder(
-                    self.auction, self.peers, TIMEOUT_REPLICATION
-                )
-            else:
-                self._logger.info(
-                    f"{self._name}: HEARTBEAT SENDER: Replica finder already running"
-                )
-
-        self._logger.info(f"{self._name}: HEARTBEAT SENDER: Unresponsive peers handled")
-
-    def _heartbeat_listen(self, replica: tuple[IPv4Address, int]) -> None:
-        """Listens for a heartbeat response from a replica.
-
-        Args:
-            replica (tuple[IPv4Address, int]): The replica to listen to.
-        """
-        with Timeout(TIMEOUT_HEARTBEAT, throw_exception=True):
-            while not self._exit.is_set():
-                response, address = self._unicast.receive(BUFFER_SIZE)
-
-                if not MessageSchema.of(com.HEADER_HEARTBEAT_RES, response):
-                    continue
-
-                heartbeat: MessageHeartbeatResponse = MessageHeartbeatResponse.decode(
-                    response
-                )
-
-                if heartbeat._id != self._initial_find_request._id:
-                    continue
-
-                if address[0] != replica[0]:
-                    self._logger.info(
-                        f"{self._name}: HEARTBEAT SENDER: Received heartbeat {heartbeat._id} a different replica {replica[0]}"
-                    )
-                    continue
-
-                self._logger.info(
-                    f"{self._name}: HEARTBEAT SENDER: Received heartbeat {heartbeat._id} from {address}"
-                )
-
-                break
-
-    def _heartbeat_emit(self, replica: tuple[IPv4Address, int]) -> None:
-        """Emits a heartbeat to all replica peers, except itself."""
-
-        self._logger.info(
-            f"{self._name}: HEARTBEAT EMITTER: Emitting heartbeat to {replica}"
-        )
-        heartbeat: MessageHeartbeatRequest = MessageHeartbeatRequest(
-            _id=gen_mid(self.auction.get_id())
-        )
-
-        Unicast.qsend(
-            message=heartbeat.encode(),
-            host=replica,
-            port=self._unicast.get_port(),
-        )
-
-        self._logger.info(
-            f"{self._name}: HEARTBEAT SENDER: Sent heartbeat {heartbeat._id} to {replica}"
-        )
-
-    def _heartbeat_listener(self) -> None:
-        """Handles the heartbeat listener of the replica."""
-        self._logger.info(f"{self._name}: HEARTBEAT LISTENER: Started")
-        while not self._reelection.is_set() and not self._exit.is_set():
-            try:
-                with Timeout(
-                    TIMEOUT_HEARTBEAT * self.peers.len(), throw_exception=True
-                ):
-                    while not self._exit.is_set():
-                        response, address = self._unicast.receive(BUFFER_SIZE)
-
-                        if not MessageSchema.of(com.HEADER_HEARTBEAT_REQ, response):
-                            continue
-
-                        heartbeat: MessageHeartbeatRequest = (
-                            MessageHeartbeatRequest.decode(response)
-                        )
-
-                        if address[0] != self._leader_address[0]:
-                            self._logger.info(
-                                f"{self._name}: HEARTBEAT LISTENER: Received heartbeat {heartbeat._id} from {address} for another leader {self._leader_address[0]}"
-                            )
-                            continue
-
-                        self._logger.info(
-                            f"{self._name}: HEARTBEAT LISTENER: Received heartbeat {heartbeat._id} from {address}"
-                        )
-
-                        heartbeat_response: MessageHeartbeatResponse = (
-                            MessageHeartbeatResponse(_id=heartbeat._id)
-                        )
-
-                        Unicast.qsend(
-                            message=heartbeat_response.encode(),
-                            host=self._leader_address[0],
-                            port=self._leader_address[1],
-                        )
-
-                        break
-            except TimeoutError:
-                self._logger.info(
-                    f"{self._name}: HEARTBEAT LISTENER: Timeout; Starting election"
-                )
-                self._reelection.set()
-                break
-
     def _reelection_listener(self) -> None:
         mc: Multicast = Multicast(
             group=self.auction.get_address(),
@@ -677,3 +505,184 @@ class Replica(Process):
             break
 
         self._logger.info(f"{self._name}: REELECTION LISTENER: Stopped")
+
+    # === HEARTBEAT ===
+
+    def _heartbeat(self) -> None:
+        """Handles the heartbeat of the replica."""
+        if self._is_leader:
+            self._heartbeat_sender()
+        else:
+            self._heartbeat_listener()
+
+    def _heartbeat_sender(self) -> None:
+        """Handles the heartbeat emission of heartbeats and removal of unresponsive replicas."""
+        self._logger.info(f"{self._name}: HEARTBEAT SENDER: Started")
+
+        while not self._reelection.is_set() and not self._exit.is_set():
+            # Create peers dict for keeping track of unresponsive peers
+            responses: dict[tuple[IPv4Address, int], bool] = {
+                replica: False
+                for replica in self.peers.iter()
+                if replica != self._unicast.get_host()
+            }
+
+            heartbeat_id: str = self._heartbeat_emit(responses)
+
+            try:
+                self._heartbeat_response_listener(heartbeat_id, responses)
+            except TimeoutError:
+                self._logger.info(
+                    f"{self._name}: HEARTBEAT SENDER: Timeout; Certain peers are unresponsive"
+                )
+
+            unresponsive_peers: list[tuple[IPv4Address, int]] = [
+                replica for replica, responded in responses.items() if not responded
+            ]
+            if len(unresponsive_peers) > 0:
+                self._logger.info(
+                    f"{self._name}: HEARTBEAT SENDER: Unresponsive peers: {unresponsive_peers}"
+                )
+                self._handle_unresponsive_replicas(unresponsive_peers)
+
+        self._logger.info(f"{self._name}: HEARTBEAT SENDER: Stopped")
+
+    def _heartbeat_emit(self, replicas: dict[tuple[IPv4Address, int], bool]) -> str:
+        """Emits a heartbeat to all replica peers in the dict.
+        If a replica responds, the value of the replica is set to True.
+
+        Args:
+            replicas (dict[tuple[IPv4Address, int], bool]): The replicas to emit a heartbeat to.
+
+        Returns:
+            str: The id of the heartbeat.
+        """
+        heartbeat_id = gen_mid(self.auction.get_id())
+        heartbeat: bytes = MessageHeartbeatRequest(_id=heartbeat_id).encode()
+
+        self._logger.info(
+            f"{self._name}: HEARTBEAT SENDER: Emitting heartbeats with id {heartbeat_id}"
+        )
+        for replica in replicas.keys():
+            self._unicast.send(heartbeat, replica)
+
+        self._logger.info(f"{self._name}: HEARTBEAT SENDER: Heartbeats emitted")
+
+        return heartbeat_id
+
+    def _heartbeat_response_listener(
+        self, heartbeat_id: str, replicas: dict[tuple[IPv4Address, int], bool]
+    ) -> None:
+        """Listens for a heartbeat response from the replicas.
+
+        Args:
+            heartbeat_id (str): The id of the heartbeat.
+            replicas (dict[tuple[IPv4Address, int], bool]): The replicas to listen for a heartbeat response from.
+        """
+        self._logger.info(
+            f"{self._name}: HEARTBEAT SENDER: Listening for heartbeat responses from {replicas.keys()}"
+        )
+        with Timeout(TIMEOUT_HEARTBEAT, throw_exception=True):
+            while (
+                not self._reelection.is_set()
+                and not self._exit.is_set()
+                and not all(replicas.values())
+            ):
+                response, address = self._unicast.receive(BUFFER_SIZE)
+
+                if not MessageSchema.of(com.HEADER_HEARTBEAT_RES, response):
+                    continue
+
+                heartbeat_response: MessageHeartbeatResponse = (
+                    MessageHeartbeatResponse.decode(response)
+                )
+
+                if heartbeat_response._id != heartbeat_id:
+                    self._logger.info(
+                        f"{self._name}: HEARTBEAT SENDER: Received heartbeat {heartbeat_response._id} for another heartbeat {heartbeat_id}"
+                    )
+                    continue
+
+                if address not in replicas.keys():
+                    self._logger.error(
+                        f"{self._name}: HEARTBEAT SENDER: Received heartbeat from unknown replica {address}"
+                    )
+                    continue
+
+                self._logger.info(
+                    f"{self._name}: HEARTBEAT SENDER: Received heartbeat {heartbeat_response._id} from {address}"
+                )
+                replicas[address] = True
+
+    def _handle_unresponsive_replicas(
+        self, unresponsive_peers: list[tuple[IPv4Address, int]]
+    ) -> None:
+        """Handles unresponsive replicas by removing them from the peers list and starting a replica finder if necessary.
+
+        Args:
+            unresponsive_peers (list[tuple[IPv4Address, int]]): The unresponsive replicas.
+        """
+        self._logger.info(
+            f"{self._name}: HEARTBEAT SENDER: Handling unresponsive peers"
+        )
+
+        for replica in unresponsive_peers:
+            self.peers.remove(*replica)
+
+        # Start replica finder in background if there are not enough replicas
+        if self.peers.len() <= REPLICA_AUCTION_POOL_SIZE:
+            if self._replica_finder is None or not self._replica_finder.is_alive():
+                self._logger.info(
+                    f"{self._name}: HEARTBEAT SENDER: Starting replica finder"
+                )
+                self._replica_finder = ReplicaFinder(
+                    self.auction, self.peers, REPLICA_EMITTER_PERIOD
+                )
+            else:
+                self._logger.info(
+                    f"{self._name}: HEARTBEAT SENDER: Replica finder already running"
+                )
+
+        self._logger.info(f"{self._name}: HEARTBEAT SENDER: Unresponsive peers handled")
+
+    def _heartbeat_listener(self) -> None:
+        """Handles the heartbeat listener of the replica.
+        If the replica does not receive a heartbeat from the leader in time, it will start a new election.
+        """
+        self._logger.info(f"{self._name}: HEARTBEAT LISTENER: Started")
+        while not self._reelection.is_set() and not self._exit.is_set():
+            try:
+                with Timeout(TIMEOUT_HEARTBEAT, throw_exception=True):
+                    while not self._reelection.is_set() and not self._exit.is_set():
+                        response, address = self._unicast.receive(BUFFER_SIZE)
+
+                        if not MessageSchema.of(com.HEADER_HEARTBEAT_REQ, response):
+                            continue
+
+                        heartbeat: MessageHeartbeatRequest = (
+                            MessageHeartbeatRequest.decode(response)
+                        )
+
+                        if address != self._leader:
+                            self._logger.info(
+                                f"{self._name}: HEARTBEAT LISTENER: Received heartbeat {heartbeat._id} from {address}, but expected from {self._leader}"
+                            )
+                            continue
+
+                        self._logger.info(
+                            f"{self._name}: HEARTBEAT LISTENER: Received heartbeat {heartbeat._id} from {address}"
+                        )
+
+                        heartbeat_response: MessageHeartbeatResponse = (
+                            MessageHeartbeatResponse(_id=heartbeat._id)
+                        )
+
+                        self._unicast.send(heartbeat_response.encode(), self._leader)
+
+                        break
+            except TimeoutError:
+                self._logger.info(
+                    f"{self._name}: HEARTBEAT LISTENER: Timeout; Starting election"
+                )
+                self._reelection.set()
+                break

@@ -71,7 +71,7 @@ class ReplicaFinder(Process):
     def run(self):
         """Runs the replica finder process."""
         self._logger.info(f"{self._name}: Started")
-        uc: Unicast = Unicast(host=None, port=None)
+        uc: Unicast = Unicast()
 
         # Start replica request emitter
         self._logger.info(f"{self._name}: Starting replica request emitter")

@@ -9,8 +9,6 @@ class Unicast:
 
     def __init__(
         self,
-        host: Optional[IPv4Address],
-        port: Optional[int],
         timeout: Optional[int] = None,
         no_bind: Optional[bool] = False,
     ):
@@ -24,11 +22,7 @@ class Unicast:
             timeout (int, optional): The timeout for receiving messages. Defaults to None.
             sender (bool, optional): Whether the unicast object is used for sending or receiving. Defaults to False.
         """
-        self._host: str = "" if not host else str(host)
-        self._port: int = 0 if not port else port
-        self._address_port: tuple[str, int] = (self._host, self._port)
-
-        self._socket: socket = None
+        self._socket: socket.socket = None
         self._no_bind: bool = no_bind
 
         # https://stackoverflow.com/questions/54192308/how-to-duplicate-udp-packets-to-two-or-more-sockets
@@ -36,20 +30,17 @@ class Unicast:
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         if not no_bind:
             self._socket.settimeout(timeout) if timeout else None
-            self._socket.bind(self._address_port)
+            self._socket.bind(("", 0))
 
-        # After binding, the port might have changed
-        self._port = self._socket.getsockname()[1]
-
-    def send(self, message: bytes) -> None:
+    def send(self, message: bytes, address: tuple[IPv4Address, int] = None) -> None:
         """Send a message to the unicast host.
 
         Args:
             message (str): The message to send.
         """
-        self._socket.sendto(message, self._address_port)
+        self._socket.sendto(message, (str(address[0]), address[1]))
 
-    def receive(self, buffer_size: int = 1024) -> (bytes, tuple[str, int]):
+    def receive(self, buffer_size: int = 1024) -> tuple[bytes, tuple[IPv4Address, int]]:
         """Receive a message from the unicast host.
 
         Args:
@@ -60,7 +51,8 @@ class Unicast:
             tuple[str, int]: The address of the sender.
         """
         assert not self._no_bind, "Cannot receive on unbound socket"
-        return self._socket.recvfrom(buffer_size)
+        message, address = self._socket.recvfrom(buffer_size)
+        return message, (IPv4Address(address[0]), address[1])
 
     def close(self) -> None:
         """Close the unicast socket."""
@@ -72,7 +64,7 @@ class Unicast:
         Returns:
             int: The port of the unicast socket.
         """
-        return self._port
+        return (Unicast.get_host(), self._socket.getsockname()[1])
 
     @staticmethod
     def get_host() -> str:
@@ -94,6 +86,6 @@ class Unicast:
             host (IPv4Address): The host to send the message to.
             port (int): The port to send the message to.
         """
-        uc = Unicast(host, port, no_bind=True)
-        uc.send(message)
+        uc = Unicast(no_bind=True)
+        uc.send(message, (str(host), port))
         uc.close()
