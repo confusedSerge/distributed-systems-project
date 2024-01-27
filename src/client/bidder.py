@@ -192,7 +192,7 @@ class Bidder:
         request_mid: str = gen_mid(auction)
         Multicast.qsend(
             message=MessageAuctionInformationRequest(
-                _id=request_mid, auction=auction, port=uc.get_port()
+                _id=request_mid, auction=auction, port=uc.get_address()[1]
             ).encode(),
             group=MULTICAST_DISCOVERY_GROUP,
             port=MULTICAST_DISCOVERY_PORT,

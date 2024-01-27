@@ -58,13 +58,13 @@ class Unicast:
         """Close the unicast socket."""
         self._socket.close()
 
-    def get_port(self) -> int:
-        """Returns the port of the unicast socket.
+    def get_address(self) -> tuple[IPv4Address, int]:
+        """Returns the address of the unicast socket.
 
         Returns:
-            int: The port of the unicast socket.
+            int: The address of the unicast socket.
         """
-        return (Unicast.get_host(), self._socket.getsockname()[1])
+        return (IPv4Address(Unicast.get_host()), self._socket.getsockname()[1])
 
     @staticmethod
     def get_host() -> str:

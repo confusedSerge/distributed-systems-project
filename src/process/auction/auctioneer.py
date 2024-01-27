@@ -98,7 +98,7 @@ class AuctionManager(Process):
             )
             Unicast.qsend(
                 message=response.encode(),
-                host=IPv4Address(address[0]),
+                host=address[0],
                 port=request.port,
             )
             self._logger.info(

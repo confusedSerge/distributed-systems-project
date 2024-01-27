@@ -76,7 +76,7 @@ class Multicast:
         assert self._sender, "The multicast object is not a sender."
         self._socket.sendto(message, self._address_port)
 
-    def receive(self, buffer_size: int = 1024) -> (bytes, tuple[str, int]):
+    def receive(self, buffer_size: int = 1024) -> tuple[bytes, tuple[IPv4Address, int]]:
         """Receive a message from the multicast group.
 
         Args:
@@ -90,7 +90,8 @@ class Multicast:
             socket.timeout: If the timeout is set and no message was received.
         """
         assert not self._sender, "The multicast object is not a receiver."
-        return self._socket.recvfrom(buffer_size)
+        message, address = self._socket.recvfrom(buffer_size)
+        return message, (IPv4Address(address[0]), address[1])
 
     def close(self) -> None:
         """Close the multicast socket."""

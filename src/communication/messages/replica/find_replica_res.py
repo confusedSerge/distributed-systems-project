@@ -28,15 +28,6 @@ class MessageFindReplicaResponse:
         metadata={"validate": validate.OneOf([com.HEADER_FIND_REPLICA_RES])},
     )
 
-    # Acknowledgement UC port
-    port: int = field(
-        default=com.UNICAST_PORT,
-        metadata={
-            "validate": lambda x: isinstance(x, int)
-            and validate.Range(min=0, max=65535)
-        },
-    )
-
     def __str__(self) -> str:
         """Returns the string representation of the message."""
         return f"{com.HEADER_FIND_REPLICA_RES}(id={self._id})"

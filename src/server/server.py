@@ -52,24 +52,28 @@ class Server(Process):
         self._logger.info(f"{self._name}: Listening for replica requests")
         while not self._exit.is_set():
             try:
-                request, address = mc.receive(BUFFER_SIZE)
+                message, address = mc.receive(BUFFER_SIZE)
             except TimeoutError:
                 continue
 
             if (
-                not MessageSchema.of(com.HEADER_FIND_REPLICA_REQ, request)
+                not MessageSchema.of(com.HEADER_FIND_REPLICA_REQ, message)
                 or len(self._replica_pool) >= REPLICA_LOCAL_POOL_SIZE
             ):
                 continue
 
-            request = MessageFindReplicaRequest.decode(request)
-            self._logger.info(f"{self.name}: Replica request received: {request}")
+            find_req: MessageFindReplicaRequest = MessageFindReplicaRequest.decode(
+                message
+            )
+            self._logger.info(f"{self.name}: Replica request received: {find_req}")
 
             # Create replica and add to pool
-            replica = Replica(request=request, sender=IPv4Address(address[0]))
+            replica = Replica(
+                request=find_req, sender=(IPv4Address(address[0]), find_req.port)
+            )
             replica.start()
             self._replica_pool.append(replica)
-            self._seen_mid.append(request._id)
+            self._seen_mid.append(find_req._id)
 
             self._logger.info(
                 f"{self._name}: Replica created and added to pool: {replica.get_id()}"

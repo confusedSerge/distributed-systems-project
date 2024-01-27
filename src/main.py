@@ -1,7 +1,8 @@
 from client import Client
 from server import Server
 
-import socket
+from communication import Unicast, Multicast
+from constant import MULTICAST_DISCOVERY_GROUP, MULTICAST_DISCOVERY_PORT
 
 if __name__ == "__main__":
     # client = Client()
@@ -15,19 +16,14 @@ if __name__ == "__main__":
     # server.stop()
     # server.join()
 
-    s1 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    s1.bind(("", 0))
-    print(s1.getsockname())
+    uc = Unicast()
+    address = uc.get_address()
+    print(address)
+    address = f"{str(address[0])},{address[1]}"
 
-    s2 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    s2.bind(("", 0))
-    print(s2.getsockname())
+    mc = Multicast(MULTICAST_DISCOVERY_GROUP, MULTICAST_DISCOVERY_PORT, sender=True)
+    mc.send(address.encode())
+    mc.close()
 
-    s1.sendto(b"Hello", s2.getsockname())
-    print(s2.recvfrom(1024))
-
-    s2.sendto(b"World", s1.getsockname())
-    print(s1.recvfrom(1024))
-
-    s1.close()
-    s2.close()
+    response = uc.receive()
+    print(response)

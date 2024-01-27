@@ -80,7 +80,7 @@ class ReplicaFinder(Process):
             target=self._emit_request,
             args=(
                 message_id,
-                uc.get_port(),
+                uc.get_address(),
             ),
         )
         emitter.start()
@@ -159,7 +159,7 @@ class ReplicaFinder(Process):
                     MessageFindReplicaResponse.decode(response)
                 )
 
-                if address[0] in seen_addresses:
+                if address in seen_addresses:
                     self._logger.info(
                         f"{self._name}: Received duplicate find replica response {response} from {address}"
                     )
@@ -176,18 +176,14 @@ class ReplicaFinder(Process):
                 )
 
                 # Send find replica acknowledgement
-                Unicast.qsend(
-                    message=acknowledgement,
-                    host=IPv4Address(address[0]),
-                    port=response.port,
-                )
+                uc.send(acknowledgement, address)
                 self._logger.info(
-                    f"{self._name}: Acknowledged sent to {(IPv4Address(address[0]), response.port)}"
+                    f"{self._name}: Acknowledged sent to {address} for find replica response {response}"
                 )
 
                 # Add replica to list
-                new_replicas.append((IPv4Address(address[0]), response.port))
-                seen_addresses.append((IPv4Address(address[0]), response.port))
+                new_replicas.append(address)
+                seen_addresses.append(address)
 
         return new_replicas
 
@@ -206,15 +202,11 @@ class ReplicaFinder(Process):
         response = MessageAuctionInformationResponse(
             _id=message_id,
             auction=AuctionMessageData.from_auction(self._auction),
-            port=uc.get_port(),
+            port=uc.get_address(),
         )
         for replica in new_replicas:
             self._logger.info(f"{self._name}: Sending auction information to {replica}")
-            Unicast.qsend(
-                message=response.encode(),
-                host=replica[0],
-                port=replica[1],
-            )
+            uc.send(response.encode(), replica)
 
             try:
                 # TODO: Other timeout?
@@ -291,6 +283,7 @@ class ReplicaFinder(Process):
         )
         req: bytes = MessageFindReplicaRequest(
             _id=message_id,
+            # TODO: THIS IS WRONG
             address=str(self._auction.get_address()),
             port=uc_port,
         ).encode()

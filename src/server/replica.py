@@ -1,3 +1,5 @@
+from typing import Optional
+
 import os
 from ipaddress import IPv4Address
 
@@ -73,7 +75,9 @@ class Replica(Process):
         - Auction Management
     """
 
-    def __init__(self, request: MessageFindReplicaRequest, sender: IPv4Address) -> None:
+    def __init__(
+        self, request: MessageFindReplicaRequest, sender: tuple[IPv4Address, int]
+    ) -> None:
         """Initializes the replica class."""
         super(Replica, self).__init__()
         self._exit: Event = Event()
@@ -81,8 +85,8 @@ class Replica(Process):
         self._name: str = f"Replica::{request._id}"
         self._logger: Logger = create_logger(self._name.lower())
 
-        self._initial_find_request: MessageFindReplicaRequest = request
-        self._sender: IPv4Address = sender
+        self._initial_sender: tuple[IPv4Address, int] = sender
+        self._initial_request: MessageFindReplicaRequest = request
 
         # Communication
         self._unicast: Unicast = Unicast()
@@ -102,7 +106,7 @@ class Replica(Process):
 
         # Events
         self._reelection: Event = Event()
-        self._leader: tuple[IPv4Address, int] = None
+        self._leader: tuple[IPv4Address, int] = self._unicast.get_address()
         self._is_leader: bool = False
 
         self._logger.info(f"{self._name}: Initialized")
@@ -165,7 +169,43 @@ class Replica(Process):
 
     def get_id(self) -> str:
         """Returns the id of the replica."""
-        return self._initial_find_request._id
+        return self._initial_request._id
+
+    def _main_auction_loop(self):
+        """Handles the main auction tasks of the replica."""
+        reelection_listener: Optional[Process] = None
+        while not self._exit.is_set():
+            # Hold election
+            self._logger.info(f"{self._name}: Election")
+            self._election()
+
+            # Start listening for reelection announcements
+            self._logger.info(f"{self._name}: Starting reelection listener")
+            reelection_listener: Process = Process(
+                target=self._reelection_listener, name="ReelectionListener"
+            )
+            reelection_listener.start()
+
+            # Start Leader tasks
+            if self._is_leader:
+                self._logger.info(f"{self._name}: LEADER: Starting auction manager")
+                self._auction_manager = AuctionManager(self.auction)
+                self._auction_manager.start()
+
+            # Start Heartbeat
+            self._heartbeat()
+
+        # Stop Leader tasks
+        if (
+            self._is_leader
+            and reelection_listener is not None
+            and reelection_listener.is_alive()
+        ):
+            self._logger.info(f"{self._name}: LEADER: Stopping auction manager")
+            self._auction_manager.stop()
+            self._auction_manager.join()
+
+    # === PRELUDE ===
 
     def _prelude(self) -> None:
         """Handles the prelude of the replica.
@@ -180,15 +220,11 @@ class Replica(Process):
 
         # Send join message to auctioneer
         response: MessageFindReplicaResponse = MessageFindReplicaResponse(
-            _id=self._initial_find_request._id, port=self._unicast.get_port()
+            _id=self._initial_request._id
         )
-        Unicast.qsend(
-            message=response.encode(),
-            host=self._sender,
-            port=self._initial_find_request.port,
-        )
+        self._unicast.send(response.encode(), self._initial_sender)
         self._logger.info(
-            f"{self._name}: PRELUDE: Replica response sent to ({self._sender}, {self._initial_find_request.port})"
+            f"{self._name}: PRELUDE: Replica response sent to ({self._initial_sender})"
         )
 
         # Wait for auctioneer to acknowledge, or timeout
@@ -221,40 +257,6 @@ class Replica(Process):
             f"{self._name}: PRELUDE: Auction information received; Prelude concluded"
         )
 
-    def _main_auction_loop(self):
-        """Handles the main auction tasks of the replica."""
-        reelection_listener: Process = None
-        while not self._exit.is_set():
-            # Hold election
-            self._logger.info(f"{self._name}: Election")
-            self._election()
-
-            # Start listening for reelection announcements
-            self._logger.info(f"{self._name}: Starting reelection listener")
-            reelection_listener: Process = Process(
-                target=self._reelection_listener, name="ReelectionListener"
-            )
-            reelection_listener.start()
-
-            # Start Leader tasks
-            if self._is_leader:
-                self._logger.info(f"{self._name}: LEADER: Starting auction manager")
-                self._auction_manager = AuctionManager(self.auction)
-                self._auction_manager.start()
-
-            # Start Heartbeat
-            self._heartbeat(self._is_leader)
-
-        # Stop Leader tasks
-        if (
-            self._is_leader
-            and reelection_listener is not None
-            and reelection_listener.is_alive()
-        ):
-            self._logger.info(f"{self._name}: LEADER: Stopping auction manager")
-            self._auction_manager.stop()
-            self._auction_manager.join()
-
     def _wait_acknowledge(self) -> None:
         """Waits for the auctioneer to acknowledge the join message.
 
@@ -263,7 +265,7 @@ class Replica(Process):
         """
         with Timeout(TIMEOUT_REPLICATION, throw_exception=True):
             while not self._exit.is_set():
-                response, _ = self._unicast.receive(BUFFER_SIZE)
+                response, address = self._unicast.receive(BUFFER_SIZE)
 
                 if not MessageSchema.of(com.HEADER_FIND_REPLICA_ACK, response):
                     continue
@@ -271,7 +273,10 @@ class Replica(Process):
                 response: MessageFindReplicaAcknowledgement = (
                     MessageFindReplicaAcknowledgement.decode(response)
                 )
-                if response._id != self._initial_find_request._id:
+                if (
+                    self._initial_sender != address
+                    or response._id != self._initial_request._id
+                ):
                     continue
 
                 break
@@ -305,7 +310,7 @@ class Replica(Process):
 
                 acknowledgement: MessageAuctionInformationAcknowledgement = (
                     MessageAuctionInformationAcknowledgement(
-                        _id=self._initial_find_request._id
+                        _id=self._initial_request._id
                     )
                 )
 
@@ -322,65 +327,7 @@ class Replica(Process):
 
         self._logger.info(f"{self._name}: PRELUDE: Received auction information")
 
-    def _handle_auction_information_message(
-        self,
-        message: MessageAuctionInformationResponse,
-    ) -> bool:
-        """Handles an auction information message.
-
-        Args:
-            message (MessageAuctionInformationResponse): The auction information message.
-
-        Returns:
-            bool: Whether the message was for this replica.
-        """
-        if message._id != self._initial_find_request._id:
-            return False
-
-        msg = AuctionMessageData.to_auction(message.auction)
-        self.auction: Auction = self.manager.Auction(
-            msg.get_name(),
-            msg.get_auctioneer(),
-            msg.get_item(),
-            msg.get_price(),
-            msg.get_time(),
-            msg.get_address(),
-        )
-        self.auction.from_other(msg)
-        return True
-
-    def _start_listeners(self) -> None:
-        """Starts the listeners after the auction information is received."""
-
-        # Start listeners
-        self._logger.info(f"{self._name}: PRELUDE: Starting listeners")
-
-        self._auction_peers_listener: AuctionPeersListener = AuctionPeersListener(
-            self.auction, self.peers
-        )
-        self._auction_bid_listener: AuctionBidListener = AuctionBidListener(
-            self.auction
-        )
-
-        self._auction_peers_listener.start()
-        self._auction_bid_listener.start()
-
-        self._logger.info(f"{self._name}: PRELUDE: Listeners started")
-
-    def _stop_listeners(self):
-        """Stops the listeners."""
-
-        self._logger.info(f"{self._name}: Stopping listeners")
-
-        if self._auction_peers_listener.is_alive():
-            self._auction_peers_listener.stop()
-            self._auction_peers_listener.join()
-
-        if self._auction_bid_listener.is_alive():
-            self._auction_bid_listener.stop()
-            self._auction_bid_listener.join()
-
-        self._logger.info(f"{self._name}: Listeners stopped")
+    # === ELECTION ===
 
     def _election(self) -> None:
         """Handles the election of the replica.
@@ -430,7 +377,7 @@ class Replica(Process):
         """
 
         tickets: list[tuple[int, IPv4Address, int]] = [
-            (os.getpid(), self._unicast.get_host(), self._unicast.get_port())
+            (os.getpid(), self._unicast.get_host(), self._unicast.get_address())
         ]
         return tickets  # TODO: below doesn't work
         self._logger.info(f"{self._name}: ELECTION: Waiting for tickets")
@@ -614,37 +561,6 @@ class Replica(Process):
                 )
                 replicas[address] = True
 
-    def _handle_unresponsive_replicas(
-        self, unresponsive_peers: list[tuple[IPv4Address, int]]
-    ) -> None:
-        """Handles unresponsive replicas by removing them from the peers list and starting a replica finder if necessary.
-
-        Args:
-            unresponsive_peers (list[tuple[IPv4Address, int]]): The unresponsive replicas.
-        """
-        self._logger.info(
-            f"{self._name}: HEARTBEAT SENDER: Handling unresponsive peers"
-        )
-
-        for replica in unresponsive_peers:
-            self.peers.remove(*replica)
-
-        # Start replica finder in background if there are not enough replicas
-        if self.peers.len() <= REPLICA_AUCTION_POOL_SIZE:
-            if self._replica_finder is None or not self._replica_finder.is_alive():
-                self._logger.info(
-                    f"{self._name}: HEARTBEAT SENDER: Starting replica finder"
-                )
-                self._replica_finder = ReplicaFinder(
-                    self.auction, self.peers, REPLICA_EMITTER_PERIOD
-                )
-            else:
-                self._logger.info(
-                    f"{self._name}: HEARTBEAT SENDER: Replica finder already running"
-                )
-
-        self._logger.info(f"{self._name}: HEARTBEAT SENDER: Unresponsive peers handled")
-
     def _heartbeat_listener(self) -> None:
         """Handles the heartbeat listener of the replica.
         If the replica does not receive a heartbeat from the leader in time, it will start a new election.
@@ -686,3 +602,98 @@ class Replica(Process):
                 )
                 self._reelection.set()
                 break
+
+    # === HANDLERS ===
+
+    def _handle_unresponsive_replicas(
+        self, unresponsive_peers: list[tuple[IPv4Address, int]]
+    ) -> None:
+        """Handles unresponsive replicas by removing them from the peers list and starting a replica finder if necessary.
+
+        Args:
+            unresponsive_peers (list[tuple[IPv4Address, int]]): The unresponsive replicas.
+        """
+        self._logger.info(
+            f"{self._name}: HEARTBEAT SENDER: Handling unresponsive peers"
+        )
+
+        for replica in unresponsive_peers:
+            self.peers.remove(*replica)
+
+        # Start replica finder in background if there are not enough replicas
+        if self.peers.len() <= REPLICA_AUCTION_POOL_SIZE:
+            if self._replica_finder is None or not self._replica_finder.is_alive():
+                self._logger.info(
+                    f"{self._name}: HEARTBEAT SENDER: Starting replica finder"
+                )
+                self._replica_finder = ReplicaFinder(
+                    self.auction, self.peers, REPLICA_EMITTER_PERIOD
+                )
+            else:
+                self._logger.info(
+                    f"{self._name}: HEARTBEAT SENDER: Replica finder already running"
+                )
+
+        self._logger.info(f"{self._name}: HEARTBEAT SENDER: Unresponsive peers handled")
+
+    def _handle_auction_information_message(
+        self,
+        message: MessageAuctionInformationResponse,
+    ) -> bool:
+        """Handles an auction information message.
+
+        Args:
+            message (MessageAuctionInformationResponse): The auction information message.
+
+        Returns:
+            bool: Whether the message was for this replica.
+        """
+        if message._id != self._initial_request._id:
+            return False
+
+        msg = AuctionMessageData.to_auction(message.auction)
+        self.auction: Auction = self.manager.Auction(
+            msg.get_name(),
+            msg.get_auctioneer(),
+            msg.get_item(),
+            msg.get_price(),
+            msg.get_time(),
+            msg.get_address(),
+        )
+        self.auction.from_other(msg)
+        return True
+
+    # === LISTENERS ===
+
+    def _start_listeners(self) -> None:
+        """Starts the listeners after the auction information is received."""
+
+        # Start listeners
+        self._logger.info(f"{self._name}: PRELUDE: Starting listeners")
+
+        self._auction_peers_listener: AuctionPeersListener = AuctionPeersListener(
+            self.auction, self.peers
+        )
+        self._auction_bid_listener: AuctionBidListener = AuctionBidListener(
+            self.auction
+        )
+
+        self._auction_peers_listener.start()
+        self._auction_bid_listener.start()
+
+        self._logger.info(f"{self._name}: PRELUDE: Listeners started")
+
+    def _stop_listeners(self):
+        """Stops the listeners."""
+
+        self._logger.info(f"{self._name}: Stopping listeners")
+
+        if self._auction_peers_listener.is_alive():
+            self._auction_peers_listener.stop()
+            self._auction_peers_listener.join()
+
+        if self._auction_bid_listener.is_alive():
+            self._auction_bid_listener.stop()
+            self._auction_bid_listener.join()
+
+        self._logger.info(f"{self._name}: Listeners stopped")
