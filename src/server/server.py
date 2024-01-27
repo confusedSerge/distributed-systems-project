@@ -1,5 +1,11 @@
 from ipaddress import IPv4Address
-from multiprocessing import Process, Event
+
+from multiprocessing import Process, Event as ProcessEvent
+from multiprocessing.synchronize import Event
+
+from logging import Logger
+
+# === Custom Modules ===
 
 from communication import Multicast, MessageSchema, MessageFindReplicaRequest
 
@@ -12,7 +18,9 @@ from constant import (
     REPLICA_LOCAL_POOL_SIZE,
 )
 
-from util import create_logger, logger
+from util import create_logger
+
+# === Local Modules ===
 
 from .replica import Replica
 
@@ -20,28 +28,29 @@ from .replica import Replica
 class Server(Process):
     """Server class.
 
-    This class is responsible for creating the backbone of the auction system.
-    It handles the following:
-        - Listening for replica requests (discovery group) and creating replicas for them, if there is enough space in the pool.
+    The server is responsible for creating and managing replicas.
+    This is done by listening for replica requests on a multicast group and delegating the request to a replica.
+    If the server is already managing the maximum number of replicas, the request is ignored.
+
     """
 
     def __init__(self) -> None:
         """Initializes the server class."""
         super(Server, self).__init__()
-        self._exit: Event = Event()
+        self._exit: Event = ProcessEvent()
 
         self._name: str = "Server"
-        self._logger: logger = create_logger(self._name.lower())
+        self._logger: Logger = create_logger(self._name.lower())
 
         self._replica_pool: list[Replica] = []
-        self._seen_mid: list[
-            str
-        ] = []  # List of seen message ids, to prevent duplicate replicas
+        self._seen_message_ids: list[str] = []
 
         self._logger.info(f"{self._name}: Initialized")
 
     def run(self) -> None:
-        """Runs the server background tasks."""
+        """
+        Starts the server.
+        """
         self._logger.info(f"{self._name}: Started")
         mc: Multicast = Multicast(
             group=MULTICAST_DISCOVERY_GROUP,
@@ -56,16 +65,21 @@ class Server(Process):
             except TimeoutError:
                 continue
 
+            # Ignore if message is not a replica request, if the pool is full, or if the message has already been seen
             if (
                 not MessageSchema.of(com.HEADER_FIND_REPLICA_REQ, message)
                 or len(self._replica_pool) >= REPLICA_LOCAL_POOL_SIZE
+                or MessageSchema.get_id(message) in self._seen_message_ids
             ):
                 continue
 
+            # Convert message to replica request
             find_req: MessageFindReplicaRequest = MessageFindReplicaRequest.decode(
                 message
             )
-            self._logger.info(f"{self.name}: Replica request received: {find_req}")
+            self._logger.info(
+                f"{self.name}: Replica request received: {find_req} from Multicast {address}"
+            )
 
             # Create replica and add to pool
             replica = Replica(
@@ -73,14 +87,14 @@ class Server(Process):
             )
             replica.start()
             self._replica_pool.append(replica)
-            self._seen_mid.append(find_req._id)
+            self._seen_message_ids.append(find_req._id)
 
             self._logger.info(
                 f"{self._name}: Replica created and added to pool: {replica.get_id()}"
             )
 
+        # Stop listening for replica requests
         self._logger.info(f"{self._name}: Releasing resources")
-
         mc.close()
 
         # Release all replicas

@@ -1,4 +1,4 @@
-from typing import Self
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from marshmallow import validate
@@ -68,9 +68,9 @@ class MessageFindReplicaRequest:
         return bytes(dumps(SCHEMA_MESSAGE_FIND_REPLICA_REQUEST().dump(self)), "utf-8")
 
     @staticmethod
-    def decode(message: bytes) -> Self:
+    def decode(message: bytes) -> MessageFindReplicaRequest:
         """Return the decoded find new replica request."""
-        return SCHEMA_MESSAGE_FIND_REPLICA_REQUEST().load(loads(message))
+        return SCHEMA_MESSAGE_FIND_REPLICA_REQUEST().load(loads(message))  # type: ignore
 
 
 SCHEMA_MESSAGE_FIND_REPLICA_REQUEST = marshmallow_dataclass.class_schema(
