@@ -4,6 +4,8 @@ from server import Server
 from communication import Unicast, Multicast
 from constant import MULTICAST_DISCOVERY_GROUP, MULTICAST_DISCOVERY_PORT
 
+from ipaddress import IPv4Address
+
 if __name__ == "__main__":
     # client = Client()
     # server = Server()
@@ -16,6 +18,9 @@ if __name__ == "__main__":
     # server.stop()
     # server.join()
 
+    # Example of how to use the Unicast and Multicast classes
+
+    # On one machine
     uc = Unicast()
     address = uc.get_address()
     print(address)
@@ -25,5 +30,22 @@ if __name__ == "__main__":
     mc.send(address.encode())
     mc.close()
 
-    response = uc.receive()
-    print(response)
+    response, address = uc.receive()
+    print(f"Received {response.decode()} from {address}")
+    uc.send("Hello".encode(), address)
+
+    # On another machine
+    uc = Unicast()
+    print(uc.get_address())
+
+    mc = Multicast(MULTICAST_DISCOVERY_GROUP, MULTICAST_DISCOVERY_PORT, sender=False)
+    message, address = mc.receive()
+
+    print(f"Received {message.decode()} from Multicast group {address}")
+    mc.close()
+
+    address = message.decode().split(",")
+    address = (IPv4Address(address[0]), int(address[1]))
+    uc.send("Hello".encode(), address)
+    response, address = uc.receive()
+    print(f"Received {response.decode()} from {address}")

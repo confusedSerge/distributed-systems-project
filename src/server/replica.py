@@ -45,7 +45,7 @@ from constant import (
     MULTICAST_AUCTION_TTL,
 )
 
-from util import create_logger, gen_mid, Timeout
+from util import create_logger, generate_message_id, Timeout
 from logging import Logger
 
 
@@ -337,7 +337,7 @@ class Replica(Process):
         self._logger.info(f"{self._name}: ELECTION: Started")
 
         ticket: MessageElectionRequest = MessageElectionRequest(
-            _id=gen_mid(self.auction.get_id()), ticket=os.getpid()
+            _id=generate_message_id(self.auction.get_id()), ticket=os.getpid()
         )
 
         for replica in self.peers.iter():
@@ -504,7 +504,7 @@ class Replica(Process):
         Returns:
             str: The id of the heartbeat.
         """
-        heartbeat_id = gen_mid(self.auction.get_id())
+        heartbeat_id = generate_message_id(self.auction.get_id())
         heartbeat: bytes = MessageHeartbeatRequest(_id=heartbeat_id).encode()
 
         self._logger.info(

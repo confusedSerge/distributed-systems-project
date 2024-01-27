@@ -11,7 +11,7 @@ from constant import (
     MULTICAST_DISCOVERY_PORT,
 )
 
-from util import create_logger, logger, gen_mid
+from util import create_logger, logger, generate_message_id
 
 
 class AuctionAnnouncer(Process):
@@ -51,7 +51,7 @@ class AuctionAnnouncer(Process):
         )
         while not self._exit.is_set():
             announcement: MessageAuctionAnnouncement = MessageAuctionAnnouncement(
-                _id=gen_mid(),
+                _id=generate_message_id(),
                 auction=self._auction,
             )
             mc.send(announcement.encode())

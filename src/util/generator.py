@@ -7,7 +7,7 @@ from constant import communication as com
 from constant.account import USERNAME
 
 
-def gen_mcaddr(known_addresses: list[IPv4Address]) -> IPv4Address:
+def generate_mc_address(known_addresses: list[IPv4Address]) -> IPv4Address:
     """Generate a unique multicast address not in use, based on the list of known used multicast addresses.
 
     Args:
@@ -24,7 +24,7 @@ def gen_mcaddr(known_addresses: list[IPv4Address]) -> IPv4Address:
     return choice(unused_addresses)
 
 
-def gen_mid(auction: str = "") -> str:
+def generate_message_id(auction: str = "") -> str:
     """Generates a unique message id.
 
     If auction is not empty, the auction id is also included in the message id.

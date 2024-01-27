@@ -16,7 +16,7 @@ from communication import (
 )
 
 
-from util import create_logger, logging, gen_mcaddr, gen_mid
+from util import create_logger, logging, generate_mc_address, generate_message_id
 
 from constant import (
     interaction as inter,
@@ -136,7 +136,7 @@ class Auctioneer:
             return
 
         aname, item, price, time = self._define_auction()
-        address: IPv4Address = gen_mcaddr(
+        address: IPv4Address = generate_mc_address(
             self.auction_announcement_store.get_addresses()
         )
         _auction: Auction = self.manager.Auction(
@@ -296,7 +296,7 @@ class _SubAuctioneer(Process):
         self._auction.next_state()
         self._logger.info(f"{self._name}: Announcing auction {self._auction}")
         announcement: MessageAuctionAnnouncement = MessageAuctionAnnouncement(
-            _id=gen_mid(self._auction.get_id()),
+            _id=generate_message_id(self._auction.get_id()),
             auction=AuctionMessageData.from_auction(self._auction),
         )
         Multicast.qsend(
