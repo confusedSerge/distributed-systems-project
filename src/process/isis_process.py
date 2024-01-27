@@ -81,7 +81,7 @@ class ISISProcess:
 
         # TODO: While message at head of queue has status deliverable do deliver the message at the head of the queue remove this message from the queueend while
         while self.holdback_queue[0]['status'] == 'deliverable':
-            # TODO: deliver (do action of) the message at the head of the queue
+            # TODO: deliver (execute action of) the message at the head of the queue
             self.holdback_queue.pop(0)
 
     def on_receive_message_send_sequence_id_save_to_holdback_queue(self, message: bytes):
