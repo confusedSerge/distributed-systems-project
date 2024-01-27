@@ -93,7 +93,7 @@ class Multicast:
             sender_ip:
         """
         assert self._sender, "The multicast object is not a sender."
-        self._socket.sendto((message, counter, sender_id), self.multicast_group)    
+        self._socket.sendto((message, counter, sender_id), self._address_port)    
 
     def send_message_id_with_seq_id(self, message_id: int, sequence_id: int) -> None:
         """Send a message tuple to the multicast group.
@@ -103,7 +103,7 @@ class Multicast:
             sender_ip:
         """
         assert self._sender, "The multicast object is not a sender."
-        self._socket.sendto((message_id, sequence_id), self.multicast_group)  
+        self._socket.sendto((message_id, sequence_id), self._address_port)  
 
     def send_message_id_with_s_id_and_seq_id(self, message_id: int, sender_id: int, sequence_id: int, senderid_from_sequence_id: int) -> None:
         """Send a message tuple to the multicast group.

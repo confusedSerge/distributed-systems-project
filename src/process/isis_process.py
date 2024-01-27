@@ -9,13 +9,13 @@ class ISISProcess:
     This class implements the ISIS algorithm.
 
     """
-    sender = Multicast(
+    multicast_sender = Multicast(
         constant_multicast.DISCOVERY_GROUP,
         constant_multicast.DISCOVERY_PORT,
         sender=True,
         ttl=constant_multicast.DISCOVERY_TTL,
     )
-    receiver = Multicast(
+    multicast_receiver = Multicast(
         constant_multicast.DISCOVERY_GROUP,
         constant_multicast.DISCOVERY_PORT,
         sender=False,
@@ -27,19 +27,9 @@ class ISISProcess:
         self.counter = 0
         self.holdback_queue = []
         self.suggested_sequence_list = []
-        self.sender_id = int(self.sender.getIpAddress().split(".")[3])
-        self.receiver_ip = self.receiver.getIpAddress()
-
-    def multicast_message_to_all(self, isis_message: IsisMessage):
-        """multicast_message_to_all should be called when a message is multicasted (in our case, when a bid is done).
-
-        Args:
-            message (Message): The message to multicast.
-        """
-        # Counter represents the message_id
-        self.counter += 1
-        self.sender.send_message_with_counter(isis_message.message_content, self.counter, self.sender_id)
-
+        self.sender_id = int(self.multicast_sender.getIpAddress().split(".")[3])
+        self.receiver_ip = self.multicast_receiver.getIpAddress()
+    
     def get_sequence_number(self, holdback_message: dict) -> int:
         """get_sequence_number returns the 'proposed_sequence_number' value
 
@@ -94,14 +84,15 @@ class ISISProcess:
             # TODO: deliver (do action of) the message at the head of the queue
             self.holdback_queue.pop(0)
 
-    def on_receive_message_save_to_holdback_queue(self, message: bytes):
+    def on_receive_message_send_sequence_id_save_to_holdback_queue(self, message: bytes):
         """on_receive_message_save_to_holdback_queue should be called when a bid is received.
 
         TODO: This function should inside an if cause which checks for incoming bid. 
         """
         self.sequence_id += 1
-        message, address = self.receiver.receive()
-        self.sender.send_message_id_with_seq_id(message_id=message[1], sequence_id=self.sequence_id)
+        #message, address = self.receiver.receive()
+        # TODO define unicast
+        self.unicast_sender.send_message_id_with_seq_id(message_id=message[1], sequence_id=self.sequence_id)
         self.holdback_queue.append({
             'message': message[0],
             'message_id': message[1],
@@ -112,12 +103,22 @@ class ISISProcess:
         })
         self.organize_holdback_queue()
 
-    def send_proposed_priority(self, message: bytes):
+    def multicast_message_to_all(self, isis_message: IsisMessage):
+        """multicast_message_to_all should be called when a message is multicasted (in our case, when a bid is done).
+
+        Args:
+            message (Message): The message to multicast.
+        """
+        # Counter represents the message_id
+        self.counter += 1
+        self.multicast_sender.send_message_with_counter(isis_message.message_content, self.counter, self.sender_id)
+
+    def send_proposed_priority(self, message: bytes, address):
         """send_proposed_priority should be called when a proposed_sequence should be send.
 
         TODO: This function should inside an if cause which checks if proposed sequence should be send.
         """
-        message, address = self.receiver.receive()
+        #message, address = self.receiver.receive()
         # message[1] is sequence_id of sender and address[0] is sender_id
         self.suggested_sequence_list.append((message[1], int(str(address[0]).split('.')[3])))
         
@@ -132,17 +133,17 @@ class ISISProcess:
                 if sequence_tuple < max_sequence_tuple:
                     max_sequence_tuple = sequence_tuple
         # messagge[0] is the actual message id in this following line
-        self.sender.send_message_id_with_s_id_and_seq_id(message_id=message[0], sender_id=self.sender_id, sequence_id=max_sequence_number[0], 
+        self.multicast_sender.send_message_id_with_s_id_and_seq_id(message_id=message[0], sender_id=self.sender_id, sequence_id=max_sequence_number[0], 
                          senderid_from_sequence_id=max_sequence_number[1])
         # TODO: end if
 
-    def send_final_sequence(self, message: bytes):
-        """send_final_sequence_id should be called when the final proposed sequence should be re multicasted from the sender of the bid.
+    def put_final_sequence(self, message: bytes):
+        """put_final_sequence should be called when the final proposed sequence should be put into the hold_back_queue.
 
         TODO: This function should inside an if cause which checks for incoming messages in this format.
         """
 
-        message, address = self.receiver.receive()
+        #message, address = self.receiver.receive()
         # message[2] is the received sender_sequence
         self.sequence_id = max(self.sequence_id, message[2])
         for message_in_dict in self.holdback_queue:

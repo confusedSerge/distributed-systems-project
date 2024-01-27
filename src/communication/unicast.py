@@ -28,7 +28,7 @@ class Unicast:
         self._port: int = 0 if not port else port
         self._address_port: tuple[str, int] = (self._host, self._port)
 
-        self._socket: socket = None
+        self._socket: socket.socket = None
         self._no_bind: bool = no_bind
 
         # https://stackoverflow.com/questions/54192308/how-to-duplicate-udp-packets-to-two-or-more-sockets
@@ -48,6 +48,15 @@ class Unicast:
             message (str): The message to send.
         """
         self._socket.sendto(message, self._address_port)
+
+    def send_message_id_with_seq_id(self, message_id: int, sequence_id: int) -> None:
+        """Send a message tuple to the multicast group.
+
+        Args:
+            message_id:
+            sender_ip:
+        """
+        self._socket.sendto((message_id, sequence_id), self._address_port)
 
     def receive(self, buffer_size: int = 1024) -> (bytes, tuple[str, int]):
         """Receive a message from the unicast host.
