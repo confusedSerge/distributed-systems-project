@@ -22,6 +22,9 @@ from communication import (
     MessageElectionRequest,
     MessageElectionWin,
     MessageElectionResponse,
+    MessageIsis,
+    MessageProposedSequence,
+    MessageAgreedSequence,
 )
 
 from process import (
@@ -732,3 +735,25 @@ class Replica(Process):
             break
 
         self._logger.info(f"{self._name}: REELECTION LISTENER: Stopped")
+    
+    def isis(self) -> None:
+
+        if MessageSchema.of(com.HEADER_AUCTION_BID, response):
+            #start the isis algo
+            return
+
+        mc: Multicast = Multicast(
+            group=self.auction.get_address(),
+            port=MULTICAST_AUCTION_PORT,
+            ttl=MULTICAST_AUCTION_TTL,
+        )
+    
+        response, address = mc.receive(BUFFER_SIZE)
+
+        if MessageSchema.of(com.HEADER_ISIS_MESSAGE, response):
+            return
+        elif MessageSchema.of(com.HEADER_PROPOSED_SEQ):
+            return
+        elif MessageSchema.of(com.HEADER_AGREED_SEQ):  
+            return
+        

@@ -27,3 +27,9 @@ REELECTION_ANNOUNCEMENT: str = _config["election"]["reelection-announcement"]
 ELECTION_WIN: str = _config["election"]["reelection-win"]
 ELECTION_REQ: str = _config["election"]["election-req"]
 ELECTION_RES: str = _config["election"]["election-res"]
+
+# Total Ordering Header
+ISIS_MESSAGE : str = _config["total_ordering_isis"]["isis-message"]
+PROPOSED_SEQ: str = _config["total_ordering_isis"]["proposed-seq"]
+AGREED_SEQ: str = _config["total_ordering_isis"]["agreed-seq"]
+
