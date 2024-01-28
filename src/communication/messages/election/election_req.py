@@ -1,33 +1,28 @@
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 from marshmallow import validate
 import marshmallow_dataclass
 
 from json import dumps, loads
-
 from constant import communication as com
 
 
 @dataclass
 class MessageElectionRequest:
-    """Request message for election of leader in an auction
+    """Election request message.
+
+    This message is used to initiate the leader election process.
 
     Fields:
         _id: (str) Unique identifier of the message. Structure is "uname::aname::uuid".
         header: (str) Header of the message. Should be constant HEADER_ELECTION_REQ.
-        ticket: (int) Ticket number of the replica (lowest ticket wins).
+        ticket: (int) Priority of the sender.
     """
 
-    # Message ID
     _id: str = field(metadata={"validate": lambda x: len(x) > 0})
     header: str = field(
         default=com.HEADER_ELECTION_REQ,
         metadata={"validate": validate.OneOf([com.HEADER_ELECTION_REQ])},
     )
-
-    # Data
-    ticket: int = field(default=0)
 
     def __str__(self) -> str:
         """Returns the string representation of the message."""
@@ -37,21 +32,18 @@ class MessageElectionRequest:
         """Returns the string representation of the message."""
         return self.__str__()
 
-    def __eq__(self, o: object) -> bool:
-        """Returns whether the value is equal to the message."""
-        if not isinstance(o, MessageElectionRequest):
-            return False
-        return self._id == o._id
-
     def encode(self) -> bytes:
-        """Encodes the message into a bytes object."""
-        return dumps(
-            marshmallow_dataclass.class_schema(MessageElectionRequest)().dump(self)
-        ).encode()
+        """Returns the encoded message."""
+        return bytes(
+            dumps(SCHEMA_MESSAGE_ELECTION_REQ().dump(self)), "utf-8"
+        )
 
     @staticmethod
-    def decode(data: bytes) -> MessageElectionRequest:
-        """Decodes the bytes object into a message object."""
-        return marshmallow_dataclass.class_schema(MessageElectionRequest)().load(
-            loads(data.decode())
-        )
+    def decode(message: bytes) -> 'MessageElectionRequest':
+        """Return the decoded election request."""
+        return SCHEMA_MESSAGE_ELECTION_REQ().load(loads(message))
+
+
+SCHEMA_MESSAGE_ELECTION_REQ = marshmallow_dataclass.class_schema(
+    MessageElectionRequest
+)

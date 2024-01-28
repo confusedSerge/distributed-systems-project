@@ -24,5 +24,6 @@ HEARTBEAT_RES: str = _config["heartbeat"]["heartbeat-res"]
 
 # Election Header
 REELECTION_ANNOUNCEMENT: str = _config["election"]["reelection-announcement"]
+ELECTION_WIN: str = _config["election"]["reelection-win"]
 ELECTION_REQ: str = _config["election"]["election-req"]
 ELECTION_RES: str = _config["election"]["election-res"]

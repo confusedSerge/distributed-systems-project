@@ -33,7 +33,7 @@ class AuctionAnnouncementListener(Process):
         self._exit: Event = Event()
 
         self._name: str = f"AuctionAnnouncementListener::{USERNAME}::{os.getpid()}"
-        self._logger: logger = create_logger(self._name.lower())
+        self._logger: logger.logging = create_logger(self._name.lower())
 
         self._store: AuctionAnnouncementStore = auction_announcement_store
 

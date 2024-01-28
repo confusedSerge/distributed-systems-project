@@ -26,4 +26,6 @@ from .heartbeat import (
 from .election import (
     MessageReelectionAnnouncement,
     MessageElectionRequest,
+    MessageElectionResponse,
+    MessageElectionWin
 )
