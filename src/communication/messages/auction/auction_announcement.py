@@ -1,4 +1,4 @@
-from typing import Self, List
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from marshmallow import validate
@@ -7,7 +7,7 @@ import marshmallow_dataclass
 from json import dumps, loads
 
 from .auction_dataclass import AuctionData
-from constant import communication as com
+from constant import HEADER_AUCTION_ANNOUNCEMENT
 
 
 @dataclass
@@ -25,21 +25,19 @@ class MessageAuctionAnnouncement:
     # Message ID
     _id: str = field(metadata={"validate": lambda x: len(x) > 0})
     header: str = field(
-        default=com.HEADER_AUCTION_ANNOUNCEMENT,
-        metadata={"validate": validate.OneOf([com.HEADER_AUCTION_ANNOUNCEMENT])},
+        default=HEADER_AUCTION_ANNOUNCEMENT,
+        metadata={"validate": validate.OneOf([HEADER_AUCTION_ANNOUNCEMENT])},
     )
 
     # Data
     auction: AuctionData = field(
-        default_factory=AuctionData,
+        default_factory=AuctionData,  # type: ignore
         metadata={"validate": lambda x: isinstance(x, AuctionData)},
     )
 
     def __str__(self) -> str:
         """Returns the string representation of the message."""
-        return (
-            f"{com.HEADER_AUCTION_ANNOUNCEMENT}(id={self._id}, auction={self.auction})"
-        )
+        return f"{HEADER_AUCTION_ANNOUNCEMENT}(id={self._id}, auction={self.auction})"
 
     def __repr__(self) -> str:
         """Returns the string representation of the message."""
@@ -56,9 +54,11 @@ class MessageAuctionAnnouncement:
         return bytes(dumps(SCHEMA_MESSAGE_AUCTION_ANNOUNCEMENT().dump(self)), "utf-8")
 
     @staticmethod
-    def decode(message: bytes) -> Self:
+    def decode(message: bytes) -> MessageAuctionAnnouncement:
         """Return the decoded auction announcement."""
-        return SCHEMA_MESSAGE_AUCTION_ANNOUNCEMENT().load(loads(message))
+        return SCHEMA_MESSAGE_AUCTION_ANNOUNCEMENT().load(
+            loads(message.decode("utf-8"))
+        )  # type: ignore
 
 
 SCHEMA_MESSAGE_AUCTION_ANNOUNCEMENT = marshmallow_dataclass.class_schema(

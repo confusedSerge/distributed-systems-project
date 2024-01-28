@@ -38,7 +38,7 @@ class AuctionData:
 
     # Auction information
     item: str = field(metadata={"validate": lambda x: isinstance(x, str)})
-    price: int = field(metadata={"validate": lambda x: isinstance(x, int)})
+    price: float = field(metadata={"validate": lambda x: isinstance(x, float)})
     time: int = field(metadata={"validate": lambda x: isinstance(x, int)})
 
     # Multicast address for the auction
@@ -53,14 +53,14 @@ class AuctionData:
 
     # Auction state
     state: int = field(metadata={"validate": lambda x: isinstance(x, int)})
-    bid_history: list[tuple[str, int]] = field(
+    bid_history: list[tuple[str, float]] = field(
         metadata={
             "validate": lambda x: isinstance(x, list)
             and all(
                 isinstance(y, tuple)
                 and len(y) == 2
                 and isinstance(y[0], str)
-                and isinstance(y[1], int)
+                and isinstance(y[1], float)
                 for y in x
             )
         }
@@ -88,7 +88,7 @@ class AuctionData:
     @staticmethod
     def decode(message: bytes) -> AuctionData:
         """Return the decoded auction data."""
-        return AUCTION_DATA_SCHEMA().load(loads(message))
+        return AUCTION_DATA_SCHEMA().load(loads(message.decode("utf-8")))  # type: ignore
 
     def to_auction(self) -> Auction:
         """Return the auction from the auction data."""

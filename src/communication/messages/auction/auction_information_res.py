@@ -1,4 +1,4 @@
-from typing import Self
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from marshmallow import validate
@@ -7,7 +7,7 @@ import marshmallow_dataclass
 from json import dumps, loads
 
 from .auction_dataclass import AuctionData
-from constant import communication as com
+from constant import HEADER_AUCTION_INFORMATION_RES
 
 
 @dataclass
@@ -25,19 +25,21 @@ class MessageAuctionInformationResponse:
 
     _id: str = field(metadata={"validate": lambda x: len(x) > 0})
     header: str = field(
-        default=com.HEADER_AUCTION_INFORMATION_RES,
-        metadata={"validate": validate.OneOf([com.HEADER_AUCTION_INFORMATION_RES])},
+        default=HEADER_AUCTION_INFORMATION_RES,
+        metadata={"validate": validate.OneOf([HEADER_AUCTION_INFORMATION_RES])},
     )
 
     # corresponding auction information.
     auction: AuctionData = field(
-        default_factory=AuctionData,
+        default_factory=AuctionData,  # type: ignore
         metadata={"validate": lambda x: isinstance(x, AuctionData)},
     )
 
     def __str__(self) -> str:
         """Returns the string representation of the message."""
-        return f"{com.HEADER_AUCTION_INFORMATION_RES}(id={self._id}, auction={self.auction})"
+        return (
+            f"{HEADER_AUCTION_INFORMATION_RES}(id={self._id}, auction={self.auction})"
+        )
 
     def __repr__(self) -> str:
         """Returns the string representation of the message."""
@@ -56,9 +58,9 @@ class MessageAuctionInformationResponse:
         )
 
     @staticmethod
-    def decode(message: bytes) -> Self:
-        """Return the decoded auction information response."""
-        return SCHEMA_MESSAGE_AUCTION_INFORMATION_RES().load(loads(message))
+    def decode(message: bytes) -> MessageAuctionInformationResponse:
+        """Return the decoded replica announcement."""
+        return SCHEMA_MESSAGE_AUCTION_INFORMATION_RES().load(loads(message.decode("utf-8")))  # type: ignore
 
 
 SCHEMA_MESSAGE_AUCTION_INFORMATION_RES = marshmallow_dataclass.class_schema(

@@ -6,7 +6,7 @@ import marshmallow_dataclass
 
 from json import dumps, loads
 
-from constant import communication as com
+from constant import HEADER_PEERS_ANNOUNCEMENT
 
 
 @dataclass
@@ -24,8 +24,8 @@ class MessagePeersAnnouncement:
     # Message ID
     _id: str = field(metadata={"validate": lambda x: len(x) > 0})
     header: str = field(
-        default=com.HEADER_PEERS_ANNOUNCEMENT,
-        metadata={"validate": validate.OneOf([com.HEADER_PEERS_ANNOUNCEMENT])},
+        default=HEADER_PEERS_ANNOUNCEMENT,
+        metadata={"validate": validate.OneOf([HEADER_PEERS_ANNOUNCEMENT])},
     )
 
     # Data
@@ -36,7 +36,7 @@ class MessagePeersAnnouncement:
 
     def __str__(self) -> str:
         """Returns the string representation of the message."""
-        return f"{com.HEADER_PEERS_ANNOUNCEMENT}(id={self._id}, replicas={self.peers})"
+        return f"{HEADER_PEERS_ANNOUNCEMENT}(id={self._id}, replicas={self.peers})"
 
     def __repr__(self) -> str:
         """Returns the string representation of the message."""
@@ -55,9 +55,7 @@ class MessagePeersAnnouncement:
     @staticmethod
     def decode(message: bytes) -> MessagePeersAnnouncement:
         """Return the decoded replica announcement."""
-        return SCHEMA_MESSAGE_REPLICA_ANNOUNCEMENT().load(
-            loads(message.decode("utf-8"))
-        )  # type: ignore
+        return SCHEMA_MESSAGE_REPLICA_ANNOUNCEMENT().load(loads(message.decode("utf-8")))  # type: ignore
 
 
 SCHEMA_MESSAGE_REPLICA_ANNOUNCEMENT = marshmallow_dataclass.class_schema(

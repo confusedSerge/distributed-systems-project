@@ -22,8 +22,3 @@ from .heartbeat import (
     MessageHeartbeatRequest,
     MessageHeartbeatResponse,
 )
-
-from .election import (
-    MessageReelectionAnnouncement,
-    MessageElectionRequest,
-)

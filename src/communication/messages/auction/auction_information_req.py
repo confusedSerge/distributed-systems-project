@@ -1,4 +1,4 @@
-from typing import Self
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from marshmallow import validate
@@ -6,7 +6,7 @@ import marshmallow_dataclass
 
 from json import dumps, loads
 
-from constant import communication as com
+from constant import HEADER_AUCTION_INFORMATION_REQ
 
 
 @dataclass
@@ -26,13 +26,13 @@ class MessageAuctionInformationRequest:
     # Message ID
     _id: str = field(metadata={"validate": lambda x: len(x) > 0})
     header: str = field(
-        default=com.HEADER_AUCTION_INFORMATION_REQ,
-        metadata={"validate": validate.OneOf([com.HEADER_AUCTION_INFORMATION_REQ])},
+        default=HEADER_AUCTION_INFORMATION_REQ,
+        metadata={"validate": validate.OneOf([HEADER_AUCTION_INFORMATION_REQ])},
     )
 
     # Response port
     port: int = field(
-        default=com.UNICAST_PORT,
+        default=0,
         metadata={
             "validate": lambda x: isinstance(x, int)
             and validate.Range(min=0, max=65535)
@@ -47,7 +47,9 @@ class MessageAuctionInformationRequest:
 
     def __str__(self) -> str:
         """Returns the string representation of the message."""
-        return f"{com.HEADER_AUCTION_INFORMATION_REQ}(id={self._id}, auction={self.auction})"
+        return (
+            f"{HEADER_AUCTION_INFORMATION_REQ}(id={self._id}, auction={self.auction})"
+        )
 
     def __repr__(self) -> str:
         """Returns the string representation of the message."""
@@ -66,9 +68,9 @@ class MessageAuctionInformationRequest:
         )
 
     @staticmethod
-    def decode(message: bytes) -> Self:
+    def decode(message: bytes) -> MessageAuctionInformationRequest:
         """Return the decoded auction information request."""
-        return SCHEMA_MESSAGE_AUCTION_INFORMATION_REQ().load(loads(message))
+        return SCHEMA_MESSAGE_AUCTION_INFORMATION_REQ().load(loads(message.decode("utf-8")))  # type: ignore
 
 
 SCHEMA_MESSAGE_AUCTION_INFORMATION_REQ = marshmallow_dataclass.class_schema(

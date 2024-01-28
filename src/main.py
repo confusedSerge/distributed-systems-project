@@ -1,4 +1,11 @@
 from client import Client
+from communication.messages.auction.auction_winner import MessageAuctionWinner
+from communication.messages.heartbeat.heartbeat_req import MessageHeartbeatRequest
+from communication.messages.heartbeat.heartbeat_res import MessageHeartbeatResponse
+from communication.messages.replica.find_replica_ack import (
+    MessageFindReplicaAcknowledgement,
+)
+from communication.messages.replica.find_replica_req import MessageFindReplicaRequest
 from server import Server
 
 from communication import Unicast, Multicast
@@ -19,6 +26,13 @@ if __name__ == "__main__":
     # server.join()
 
     # Example of how to use the Unicast and Multicast classes
+
+    message = MessageAuctionWinner(_id="uname::aname::uuid")
+    encoded = message.encode()
+    print(encoded)
+    decoded = MessageAuctionWinner.decode(encoded)
+    print(decoded)
+    exit()
 
     # On one machine
     uc = Unicast()

@@ -1,7 +1,10 @@
+from typing import Optional
+
 from ipaddress import IPv4Address
 import socket
 
-from typing import Optional
+# === Constants ===
+from constant import BUFFER_SIZE
 
 
 class Unicast:
@@ -37,11 +40,13 @@ class Unicast:
         """
         self._socket.sendto(message, (str(address[0]), address[1]))
 
-    def receive(self, buffer_size: int = 1024) -> tuple[bytes, tuple[IPv4Address, int]]:
+    def receive(
+        self, buffer_size: int = BUFFER_SIZE
+    ) -> tuple[bytes, tuple[IPv4Address, int]]:
         """Receive a message from the unicast host.
 
         Args:
-            buffer_size (int): The buffer size for the received message. Defaults to 1024.
+            buffer_size (int): The buffer size for the received message. Defaults to BUFFER_SIZE.
 
         Returns:
             bytes: The received message.

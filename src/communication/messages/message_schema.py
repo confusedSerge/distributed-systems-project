@@ -1,5 +1,7 @@
 from marshmallow import Schema, fields, EXCLUDE
 
+from json import loads
+
 
 class MessageSchema(Schema):
     """MessageSchema class for marshmallow de/serialization.
@@ -52,4 +54,4 @@ class MessageSchema(Schema):
         Returns:
             dict: The decoded message containing the tag and id.
         """
-        return MessageSchema(partial=True).loads(message)
+        return MessageSchema(partial=True).loads(loads(message))  # type: ignore

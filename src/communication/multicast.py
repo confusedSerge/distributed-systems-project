@@ -1,8 +1,12 @@
+from typing import Optional
+
 from ipaddress import IPv4Address
 import socket
+
 import struct
 
-from typing import Optional
+# === Constants ===
+from constant import BUFFER_SIZE
 
 
 class Multicast:
@@ -36,23 +40,23 @@ class Multicast:
 
         assert isinstance(port, int), "The port must be an integer."
 
-        self._address: IPv4Address = group
+        # Address
+        self._group: IPv4Address = group
         self._port: int = port if isinstance(port, int) else int(port)
-        self._address_port: tuple[str, int] = (str(self._address), self._port)
+        self._address: tuple[str, int] = (str(self._group), self._port)
 
+        # Options
         self._sender: bool = sender
-        self._socket: socket = None
-
         self._timeout: Optional[int] = timeout
 
         # Create the socket for multicast sender/receiver
         if sender:
-            self._socket = socket.socket(
+            self._socket: socket.socket = socket.socket(
                 socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP
             )
             self._socket.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, ttl)
         else:
-            self._socket = socket.socket(
+            self._socket: socket.socket = socket.socket(
                 socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP
             )
             self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -61,11 +65,11 @@ class Multicast:
                 socket.IPPROTO_IP,
                 socket.IP_ADD_MEMBERSHIP,
                 struct.pack(
-                    "4sl", socket.inet_aton(str(self._address)), socket.INADDR_ANY
+                    "4sl", socket.inet_aton(str(self._group)), socket.INADDR_ANY
                 ),
             )
             self._socket.settimeout(self._timeout) if self._timeout else None
-            self._socket.bind(self._address_port)
+            self._socket.bind(self._address)
 
     def send(self, message: bytes) -> None:
         """Send a message to the multicast group.
@@ -74,13 +78,15 @@ class Multicast:
             message (bytes): The message to send in bytes.
         """
         assert self._sender, "The multicast object is not a sender."
-        self._socket.sendto(message, self._address_port)
+        self._socket.sendto(message, self._address)
 
-    def receive(self, buffer_size: int = 1024) -> tuple[bytes, tuple[IPv4Address, int]]:
+    def receive(
+        self, buffer_size: int = BUFFER_SIZE
+    ) -> tuple[bytes, tuple[IPv4Address, int]]:
         """Receive a message from the multicast group.
 
         Args:
-            buffer_size (int): The buffer size for the received message. Defaults to 1024.
+            buffer_size (int): The buffer size for the received message. Defaults to BUFFER_SIZE.
 
         Returns:
             bytes: The received message.
