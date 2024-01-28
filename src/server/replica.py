@@ -165,8 +165,8 @@ class Replica(Process):
         self._logger.info(f"{self._name}: Stop signal received")
 
     def get_id(self) -> str:
-        """Returns the id of the replica."""
-        return self._initial_request._id
+        """Returns the id of the replica consisting of the ip address and port of the replica."""
+        return f"{self._unicast.get_address()[0]}:{self._unicast.get_address()[1]}"
 
     # === MAIN AUCTION LOOP ===
 
