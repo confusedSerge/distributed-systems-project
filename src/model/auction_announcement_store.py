@@ -61,7 +61,7 @@ class AuctionAnnouncementStore:
         Returns:
             list[tuple[str, MessageAuctionAnnouncement]]: The items of the store.
         """
-        return self._announcements.items()
+        return list(self._announcements.items())
 
     def exists(self, auction: str) -> bool:
         """Returns whether an auction announcement exists in the store.
@@ -80,7 +80,7 @@ class AuctionAnnouncementStore:
         Returns:
             list[str]: The keys of the store.
         """
-        return self._announcements.keys()
+        return list(self._announcements.keys())
 
     def values(self) -> list[MessageAuctionAnnouncement]:
         """Returns the values of the store.
@@ -88,7 +88,7 @@ class AuctionAnnouncementStore:
         Returns:
             list[MessageAuctionAnnouncement]: The values of the store.
         """
-        return self._announcements.values()
+        return list(self._announcements.values())
 
     def get_addresses(self) -> list[IPv4Address]:
         """Returns the addresses of the auctions in the store.
@@ -97,6 +97,6 @@ class AuctionAnnouncementStore:
             list[IPv4Address]: The addresses of the auctions in the store.
         """
         return [
-            announcement.auction.address
+            IPv4Address(announcement.auction.address)
             for announcement in self._announcements.values()
         ]
