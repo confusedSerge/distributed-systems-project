@@ -93,6 +93,14 @@ class AuctionPeersStore:
         """
         return iter(self._peers)
 
+    def str(self) -> str:
+        """Returns a string representation of the store.
+
+        Returns:
+            str: A string representation of the store.
+        """
+        return str(self._peers)
+
     def __len__(self) -> int:
         """Returns the length of the store, i.e. the number of peers.
 

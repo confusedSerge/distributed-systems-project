@@ -18,7 +18,7 @@ class Auction:
         item: str,
         price: float,
         time: int,
-        address: IPv4Address,
+        group: IPv4Address,
     ) -> None:
         """Initializes the auction class.
 
@@ -30,7 +30,7 @@ class Auction:
             price (float): The starting price of the auction.
             time (int): The time of the auction.
 
-            multicast_address (IPv4Address): The multicast address of the auction. (port are constant for all auctions)
+            group (IPv4Address): The multicast group of the auction. (port are same for all auctions)
         """
         # Identification
         self._name: str = name
@@ -43,7 +43,7 @@ class Auction:
         self._time: int = time
 
         # Multicast group and port are initially empty
-        self._multicast_group: IPv4Address = address
+        self._multicast_group: IPv4Address = group
 
         # Auction states
         self._auction_state: tuple[int, str] = state.AUCTION_PREPARATION
@@ -313,7 +313,7 @@ class Auction:
             item=other.get_item(),
             price=other.get_price(),
             time=other.get_time(),
-            address=other.get_group(),
+            group=other.get_group(),
         )
         auction._set_id(other.get_id())
         auction._set_state(other.get_state_id())

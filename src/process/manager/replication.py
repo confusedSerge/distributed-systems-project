@@ -123,7 +123,7 @@ class ReplicaFinder(Process):
             return
 
         sleep(5)
-        self._announce_replica(message_id)
+        self._announce_peers(message_id)
 
         self._logger.info(f"{self._name}: Releasing resources")
 
@@ -272,14 +272,14 @@ class ReplicaFinder(Process):
         )
         return list(response_received.keys())
 
-    def _announce_replica(self, message_id: str) -> None:
-        """Announces the replica to all replicas on the auction multicast group.
+    def _announce_peers(self, message_id: str) -> None:
+        """Announces the peers to all replicas on the auction multicast group.
 
         Args:
             message_id (str): The message id to use for the message.
         """
         self._logger.info(
-            f"{self._name}: Announcing replica to all replicas at {(self._auction.get_group(), MULTICAST_AUCTION_PORT)} with message id {message_id}"
+            f"{self._name}: Announcing peers to all replicas at {(self._auction.get_group(), MULTICAST_AUCTION_PORT)} with message id {message_id}"
         )
         peers: MessagePeersAnnouncement = MessagePeersAnnouncement(
             _id=generate_message_id(self._auction.get_id()),

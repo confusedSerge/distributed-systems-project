@@ -1,7 +1,12 @@
-from multiprocessing import Event
+from multiprocessing.synchronize import Event
+
+from logging import Logger
+from typing import Optional
 
 import re
 import inquirer
+
+# === Custom Modules ===
 
 from model import Auction, AuctionAnnouncementStore
 from process import Manager, AuctionBidListener
@@ -15,8 +20,7 @@ from communication import (
     MessageAuctionBid,
 )
 
-
-from util import create_logger, logging, Timeout, generate_message_id
+from util import create_logger, Timeout, generate_message_id
 
 from constant import (
     interaction as inter,
@@ -36,13 +40,8 @@ class Bidder:
 
     Bidder is run in the client thread and delegates its background tasks (listeners) to other processes, sharing the same memory.
 
-    The bidder class is responsible for the following:
-    - Joining as a bidder: The bidder sends a discovery message to the multicast group to find auctions and keeps listening for auction announcements (background process for listening).
-    - Joining an auction: The bidder joins the auction by joining the multicast group of the auction
-        and starts listening for messages from the auction, keeping track of the highest bid and announcements of the winner.
-    - Bidding: The bidder sends a bid to the auction by sending a message to the multicast group of the auction containing the bid.
-    - Leaving an auction: The bidder leaves the auction by leaving the multicast group of the auction, and stops listening for messages from the auction.
-    - Leaving as a bidder: The bidder leaves the multicast group, stops listening for auction announcements and clears the list of auctions.
+    The bidder class provides an interactive command line interface to the user to join auctions, place bids and leave auctions.
+    The bidder class also handles the auction information requests and responses.
     """
 
     def __init__(
@@ -62,16 +61,16 @@ class Bidder:
             auction_announcement_store (AuctionAnnouncementStore): The auction announcement store to store the auction announcements in. Should be a shared memory object.
         """
         self._name: str = "Bidder"
-        self._logger: logging.Logger = create_logger(self._name.lower())
+        self._logger: Logger = create_logger(self._name.lower())
 
         # Shared memory
         self.manager: Manager = manager
         self.manager_running: Event = manager_running
-
         self.auction_announcement_store: AuctionAnnouncementStore = (
             auction_announcement_store
         )
 
+        # Keep track of joined auctions and their listeners
         self._joined_auctions: dict[str, Auction] = {}
         self._auction_bid_listeners: dict[str, AuctionBidListener] = {}
 
@@ -133,6 +132,8 @@ class Bidder:
                         f"{self._name}: Invalid action {answer['action']}"
                     )
 
+    # === Interaction Methods ===
+
     def _list_auctions(self) -> None:
         """Lists the auctions available to join."""
         print("Auctions available to join:")
@@ -143,27 +144,33 @@ class Bidder:
 
     def _list_auction_info(self) -> None:
         """Lists the information of an auction."""
-        auction_id = self._choose_auction(list(self._joined_auctions.keys()))
+        auction_id: str | None = self._choose_auction(
+            list(self._joined_auctions.keys())
+        )
         if auction_id is None:
             return
         auction = self._joined_auctions[auction_id]
         print(f"Information about auction {auction_id}:")
         print(f"* Joined auction {auction_id}: {auction}")
         print(f"* Highest bid: {auction.get_highest_bid()}")
-        print(f"* Winner: {auction.get_winner() if auction.get_winner() else 'None'}")
+        print(
+            f"* Winner: {auction.get_winner() if auction.is_winner_declared() else 'No winner yet'}"
+        )
 
     def _join_auction(self) -> None:
         """Joins an auction"""
+        # Choose auction to join from auctions that have not been joined yet
         not_joined_auctions: list[str] = [
             auction.auction._id
             for _, auction in self.auction_announcement_store.items()
             if auction.auction._id not in self._joined_auctions
         ]
-        auction: str = self._choose_auction(not_joined_auctions)
+        auction: str | None = self._choose_auction(not_joined_auctions)
         if auction is None:
             return
-        response: Auction = self._get_auction_information(auction)
 
+        # Query auction information
+        response: Optional[Auction] = self._fetch_auction_information(auction)
         if response is None:
             print(f"Could not get auction information for auction {auction}")
             return
@@ -174,7 +181,137 @@ class Bidder:
         self._joined_auctions[auction] = response
         self._auction_bid_listeners[auction] = listener
 
-    def _get_auction_information(self, auction: str) -> Auction:
+    def _leave_auction(self) -> None:
+        """Leaves an auction"""
+        auction_id: str | None = self._choose_auction(
+            list(self._joined_auctions.keys())
+        )
+        if auction_id is None:
+            return
+
+        self._joined_auctions.pop(auction_id)
+        self._auction_bid_listeners.pop(auction_id).stop()
+
+    def _bid(self) -> None:
+        """Bids in an auction"""
+        # Prompt for auction and bid amount
+        auction_id: str | None = self._choose_auction(
+            list(self._joined_auctions.keys())
+        )
+        if auction_id is None:
+            return
+
+        bid_amount: float | None = self._bid_amount()
+        if bid_amount is None:
+            return
+
+        # Check if bid amount is higher than current highest bid
+        auction: Auction = self._joined_auctions[auction_id]
+        if not auction.is_running():
+            print(f"Auction with id {auction} is not running. Cannot place bid.")
+            return
+        if bid_amount <= auction.get_highest_bid()[1]:
+            print(
+                f"Bid amount {bid_amount} is not higher than current highest bid {auction.get_highest_bid()}"
+            )
+            return
+
+        # Place bid
+        auction.bid(USERNAME, bid_amount)
+        bid: MessageAuctionBid = MessageAuctionBid(
+            _id=generate_message_id(auction.get_id()),
+            bidder=USERNAME,
+            bid=bid_amount,
+        )
+        Multicast.qsend(
+            message=bid.encode(),
+            group=auction.get_group(),
+            port=MULTICAST_AUCTION_PORT,
+        )
+        self._logger.info(
+            f"{self._name}: Sent bid {bid} for auction {auction.get_id()}"
+        )
+
+    # === Prompt Methods ===
+
+    def _choose_auction(self, auctions: list[str]) -> None | str:
+        """Chooses an auction.
+
+        Prompts the user to choose an auction and returns the auction id.
+
+        Args:
+            auction (list[str]): The auction ids of the auctions to choose from.
+
+        Returns:
+            str: The auction id of the auction.
+        """
+        if len(auctions) == 0:
+            print("No auctions available")
+            return None
+
+        answer = inquirer.prompt(
+            [
+                inquirer.List(
+                    "auction",
+                    message=inter.BIDDER_AUCTION_QUESTION,
+                    choices=auctions,
+                )
+            ]
+        )
+
+        if answer is None:
+            return None
+
+        return str(answer["auction"])
+
+    def _bid_amount(self) -> float | None:
+        """Prompts the user for a bid amount.
+
+        Returns:
+            float: The bid amount.
+        """
+        answer = inquirer.prompt(
+            [
+                inquirer.Text(
+                    "bid",
+                    message=inter.BIDDER_BID_AMOUNT_QUESTION,
+                    validate=lambda _, x: re.match(r"^\d+(\.\d{1,2})?$", x) is not None,
+                )
+            ]
+        )
+
+        if answer is None:
+            return None
+
+        return float(answer["bid"])
+
+    # === Helper Methods ===
+
+    def _get_auction_from_message(
+        self, message: MessageAuctionInformationResponse
+    ) -> Auction:
+        """Handles an auction information message.
+
+        Args:
+            message (MessageAuctionInformationResponse): The auction information message.
+
+        """
+        assert self.manager_running.is_set()
+
+        rec = AuctionMessageData.to_auction(message.auction)
+        auction: Auction = self.manager.Auction(  # type: ignore
+            rec.get_name(),
+            rec.get_auctioneer(),
+            rec.get_item(),
+            rec.get_price(),
+            rec.get_time(),
+            rec.get_group(),
+        )
+        auction.from_other(rec)
+
+        return auction
+
+    def _fetch_auction_information(self, auction: str) -> Optional[Auction]:
         """Gets the auction information for an auction.
 
         Args:
@@ -183,16 +320,16 @@ class Bidder:
         Returns:
             Auction: The auction information. None if the auction information could not be retrieved.
         """
+        # Prepare unicast socket
+        uc: Unicast = Unicast()
+        request_message_id: str = generate_message_id(auction)
+
         self._logger.info(
             f"{self._name}: Getting auction information for auction {auction}"
         )
-
-        # Send auction information request
-        uc: Unicast = Unicast()
-        request_mid: str = generate_message_id(auction)
         Multicast.qsend(
             message=MessageAuctionInformationRequest(
-                _id=request_mid, auction=auction, port=uc.get_address()[1]
+                _id=request_message_id, auction=auction, port=uc.get_address()[1]
             ).encode(),
             group=MULTICAST_DISCOVERY_GROUP,
             port=MULTICAST_DISCOVERY_PORT,
@@ -209,19 +346,19 @@ class Bidder:
         try:
             with Timeout(TIMEOUT_RESPONSE, throw_exception=True):
                 while True:
-                    response, _ = uc.receive(BUFFER_SIZE)
+                    message, _ = uc.receive(BUFFER_SIZE)
 
-                    if not MessageSchema.of(
-                        com.HEADER_AUCTION_INFORMATION_RES, response
+                    if (
+                        not MessageSchema.of(
+                            com.HEADER_AUCTION_INFORMATION_RES, message
+                        )
+                        or MessageSchema.get_id(message) != request_message_id
                     ):
                         continue
 
                     response: MessageAuctionInformationResponse = (
-                        MessageAuctionInformationResponse.decode(response)
+                        MessageAuctionInformationResponse.decode(message)
                     )
-                    if response._id != request_mid:
-                        continue
-
                     break
         except TimeoutError:
             self._logger.info(
@@ -234,108 +371,4 @@ class Bidder:
         self._logger.info(
             f"{self._name}: Received auction information response for auction {auction}: {response}"
         )
-        return self._handle_auction_information_message(response)
-
-    def _leave_auction(self) -> None:
-        """Leaves an auction"""
-        auction: str = self._choose_auction(list(self._joined_auctions.keys()))
-        self._joined_auctions.pop(auction)
-        self._auction_bid_listeners.pop(auction).stop()
-
-    def _bid(self) -> None:
-        """Bids in an auction"""
-        auction: str = self._choose_auction(list(self._joined_auctions.keys()))
-        bid_amount: float = self._bid_amount()
-
-        auction: Auction = self._joined_auctions[auction]
-        if not auction.is_running():
-            print(f"Auction with id {auction} is not running. Cannot place bid.")
-            return
-        if bid_amount <= auction.get_highest_bid()[1]:
-            print(
-                f"Bid amount {bid_amount} is not higher than current highest bid {auction.get_highest_bid()}"
-            )
-            return
-
-        auction.bid(USERNAME, bid_amount)
-        bid: MessageAuctionBid = MessageAuctionBid(
-            _id=generate_message_id(auction.get_id()),
-            bidder=USERNAME,
-            bid=bid_amount,
-        )
-        Multicast.qsend(
-            message=bid.encode(),
-            group=auction.get_group(),
-            port=MULTICAST_AUCTION_PORT,
-        )
-        self._logger.info(
-            f"{self._name}: Sent bid {bid} for auction {auction.get_id()}"
-        )
-
-    def _choose_auction(self, auctions: list[str]) -> None | str:
-        """Chooses an auction.
-
-        Prompts the user to choose an auction and returns the auction id.
-
-        Args:
-            auction (list[str]): The auction ids of the auctions to choose from.
-
-        Returns:
-            str: The auction id of the auction.
-        """
-        if len(auctions) == 0:
-            print("No auctions available")
-            return None
-        return str(
-            inquirer.prompt(
-                [
-                    inquirer.List(
-                        "auction",
-                        message=inter.BIDDER_AUCTION_QUESTION,
-                        choices=auctions,
-                    )
-                ]
-            )["auction"]
-        )
-
-    def _bid_amount(self) -> float:
-        """Prompts the user for a bid amount.
-
-        Returns:
-            float: The bid amount.
-        """
-        return float(
-            inquirer.prompt(
-                [
-                    inquirer.Text(
-                        "bid",
-                        message=inter.BIDDER_BID_AMOUNT_QUESTION,
-                        validate=lambda _, x: re.match(r"^\d+(\.\d{1,2})?$", x)
-                        is not None,
-                    )
-                ]
-            )["bid"]
-        )
-
-    def _handle_auction_information_message(
-        self, message: MessageAuctionInformationResponse
-    ) -> Auction:
-        """Handles an auction information message.
-
-        Args:
-            message (MessageAuctionInformationResponse): The auction information message.
-
-        """
-
-        rec = AuctionMessageData.to_auction(message.auction)
-        auction: Auction = self.manager.Auction(
-            rec.get_name(),
-            rec.get_auctioneer(),
-            rec.get_item(),
-            rec.get_price(),
-            rec.get_time(),
-            rec.get_group(),
-        )
-        auction.from_other(rec)
-
-        return auction
+        return self._get_auction_from_message(response)

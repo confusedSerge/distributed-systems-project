@@ -50,21 +50,6 @@ class Replica(Process):
 
     A replica is a server that is responsible for handling a single auction (in combination with other replica peers).
 
-    A replica can be described by the following state machine:
-        - Joining: The replica is joining the auction multicast group and sending a join message to the auctioneer.
-        - Ready: The replica has received its peers and state of auction.
-        - Timeout: The replica has did not receive its peers and state of auction in time.
-
-        - Leader Election -> Leader: The replica is the leader of the auction.
-        - Leader Election -> Follower: The replica is a follower of the auction.
-
-        - Leader: Handles monitoring of replica peers (heartbeats), finding replicas and "auctioning" (answering incoming requests).
-        - Follower: Answers heartbeat messages from the leader and starts a new election if the leader is not responding.
-
-        - Leader and Follower: Background listener of auction.
-
-        - Auction finished: Send winner and stop replica.
-
     TODO:
         - Implement actual election
         - Auction Management
@@ -118,7 +103,15 @@ class Replica(Process):
             - Running the prelude (setting up the replica)
             - Waiting for initial peers to be received from peers listener
             - If replica is one of the initial peers, move auction to running state
+            - Start replica leader/follower tasks (heartbeat, election, etc.)
+            - Wait for auction to end
+            - Perform Auction finish tasks
+            - Release resources
 
+        TODO:
+            - Implement actual election
+            - Auction Management
+            - Auction Finish tasks
 
         """
         self._logger.info(f"{self._name}: Started")

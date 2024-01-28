@@ -42,7 +42,7 @@ class AuctionData:
     time: int = field(metadata={"validate": lambda x: isinstance(x, int)})
 
     # Multicast address for the auction
-    address: str = field(
+    group: str = field(
         metadata={
             "validate": lambda x: isinstance(x, str)
             and validate.Regexp(
@@ -69,7 +69,7 @@ class AuctionData:
 
     def __str__(self) -> str:
         """Return the string representation of the auction data."""
-        return f"AuctionData(id={self._id}, item={self.item}, price={self.price}, time={self.time}, address={self.address}, state={self.state}, bid_history={self.bid_history}, winner={self.winner})"
+        return f"AuctionData(id={self._id}, item={self.item}, price={self.price}, time={self.time}, address={self.group}, state={self.state}, bid_history={self.bid_history}, winner={self.winner})"
 
     def __repr__(self) -> str:
         """Return the string representation of the auction data."""
@@ -98,7 +98,7 @@ class AuctionData:
             item=self.item,
             price=self.price,
             time=self.time,
-            address=IPv4Address(self.address),
+            group=IPv4Address(self.group),
         )
         auction._set_id(self._id)
         auction._set_state(self.state)
@@ -116,7 +116,7 @@ class AuctionData:
             item=auction.get_item(),
             price=auction.get_price(),
             time=auction.get_time(),
-            address=str(auction.get_group()),
+            group=str(auction.get_group()),
             state=auction.get_state()[0],
             bid_history=auction.get_bid_history(),
             winner=auction.get_winner(),

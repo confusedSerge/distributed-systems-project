@@ -90,13 +90,13 @@ class AuctionAnnouncementStore:
         """
         return list(self._announcements.values())
 
-    def get_addresses(self) -> list[IPv4Address]:
-        """Returns the addresses of the auctions in the store.
+    def get_groups(self) -> list[IPv4Address]:
+        """Returns the address groups of the auctions in the store.
 
         Returns:
-            list[IPv4Address]: The addresses of the auctions in the store.
+            list[IPv4Address]: The address groups of the auctions in the store.
         """
         return [
-            IPv4Address(announcement.auction.address)
+            IPv4Address(announcement.auction.group)
             for announcement in self._announcements.values()
         ]
