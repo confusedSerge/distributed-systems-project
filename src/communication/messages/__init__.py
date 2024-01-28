@@ -27,7 +27,8 @@ from .election import (
     MessageReelectionAnnouncement,
     MessageElectionRequest,
     MessageElectionResponse,
-    MessageElectionWin
+    MessageElectionWin,
+    MessageElectionImAlive
 )
 from .total_ordering_isis import (
     MessageIsis,

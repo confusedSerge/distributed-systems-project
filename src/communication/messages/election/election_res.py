@@ -16,12 +16,15 @@ class MessageElectionResponse:
     This message is used to respond to an election request.
 
     Fields:
-        _id: (str) Unique identifier of the message. Structure is "uname::aname::uuid". Should match the ID of the election request.
+        _id: (int) Unique identifier of the replicant. Should match the ID of the election request.
         header: (str) Header of the message. Should be constant HEADER_ELECTION_RES.
-        response: (str) Response of the replica to the election request.
     """
 
-    _id: str = field(metadata={"validate": lambda x: len(x) > 0})
+    _id: int = field(
+        metadata={
+            "validate": lambda x: isinstance(x, int) and x > 0
+        }
+    )
     header: str = field(
         default=com.HEADER_ELECTION_RES,
         metadata={"validate": validate.OneOf([com.HEADER_ELECTION_RES])},

@@ -10,28 +10,27 @@ from constant import communication as com
 
 
 @dataclass
-class MessageElectionWin:
+class MessageElectionImAlive:
     """Announcement message for reelection of leader in an auction
 
     Fields:
         _id: (int) Unique identifier of the replicant.
-        header: (str) Header of the message. Should be constant HEADER_REELECTION_WIN.
+        header: (str) Header of the message. Should be constant HEADER_REELECTION_ANNOUNCEMENT.
     """
 
-    # Message ID
     _id: int = field(
         metadata={
             "validate": lambda x: isinstance(x, int) and x > 0
         }
     )
     header: str = field(
-        default=com.HEADER_ELECTION_WIN,
-        metadata={"validate": validate.OneOf([com.HEADER_ELECTION_WIN])},
+        default=com.HEADER_ELECTION_ALIVE,
+        metadata={"validate": validate.OneOf([com.HEADER_ELECTION_ALIVE])},
     )
 
     def __str__(self) -> str:
         """Returns the string representation of the message."""
-        return f"{com.HEADER_ELECTION_WIN}(id={self._id})"
+        return f"{com.HEADER_ELECTION_ALIVE}(id={self._id})"
 
     def __repr__(self) -> str:
         """Returns the string representation of the message."""
@@ -39,21 +38,21 @@ class MessageElectionWin:
 
     def __eq__(self, o: object) -> bool:
         """Returns whether the value is equal to the message."""
-        if not isinstance(o, MessageElectionWin):
+        if not isinstance(o, MessageElectionImAlive):
             return False
         return self._id == o._id
 
     def encode(self) -> bytes:
         """Encodes the message into a bytes object."""
         return dumps(
-            marshmallow_dataclass.class_schema(MessageElectionWin)().dump(
+            marshmallow_dataclass.class_schema(MessageElectionImAlive)().dump(
                 self
             )
         ).encode()
 
     @staticmethod
-    def decode(data: bytes) -> MessageElectionWin:
+    def decode(data: bytes) -> MessageElectionImAlive:
         """Decodes the bytes object into a message object."""
-        return marshmallow_dataclass.class_schema(MessageElectionWin)().load(
+        return marshmallow_dataclass.class_schema(MessageElectionImAlive)().load(
             loads(data.decode())
         )

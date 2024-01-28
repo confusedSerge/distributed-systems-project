@@ -13,12 +13,15 @@ class MessageElectionRequest:
     This message is used to initiate the leader election process.
 
     Fields:
-        _id: (str) Unique identifier of the message. Structure is "uname::aname::uuid".
+        _id: (int) Unique identifier of the replicant.
         header: (str) Header of the message. Should be constant HEADER_ELECTION_REQ.
-        ticket: (int) Priority of the sender.
     """
 
-    _id: str = field(metadata={"validate": lambda x: len(x) > 0})
+    _id: int = field(
+        metadata={
+            "validate": lambda x: isinstance(x, int) and x > 0
+        }
+    )
     header: str = field(
         default=com.HEADER_ELECTION_REQ,
         metadata={"validate": validate.OneOf([com.HEADER_ELECTION_REQ])},

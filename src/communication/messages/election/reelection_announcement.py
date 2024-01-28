@@ -14,12 +14,15 @@ class MessageReelectionAnnouncement:
     """Announcement message for reelection of leader in an auction
 
     Fields:
-        _id: (str) Unique identifier of the message. Structure is "uname::aname::uuid".
+        _id: (int) Unique identifier of the replicant.
         header: (str) Header of the message. Should be constant HEADER_REELECTION_ANNOUNCEMENT.
     """
 
-    # Message ID
-    _id: str = field(metadata={"validate": lambda x: len(x) > 0})
+    _id: int = field(
+        metadata={
+            "validate": lambda x: isinstance(x, int) and x > 0
+        }
+    )
     header: str = field(
         default=com.HEADER_REELECTION_ANNOUNCEMENT,
         metadata={"validate": validate.OneOf([com.HEADER_REELECTION_ANNOUNCEMENT])},

@@ -71,6 +71,7 @@ reelection-announcement = "REELECTION_ANNOUNCEMENT"
 election-req = "ELECTION_REQUEST"
 election-res = "ELECTION_RESPONSE"
 election-win = "ELECTION_WIN"
+election-alive = "ELECTION_ALIVE"
 
 [communication.header.total_ordering_isis]
 isis-message = "ISIS_MESSAGE"
