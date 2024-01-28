@@ -308,7 +308,7 @@ class ReplicaFinder(Process):
             target=self._emitter_process,
             args=(
                 message_id,
-                uc.get_address(),
+                uc.get_address()[1],
             ),
         )
         emitter.start()

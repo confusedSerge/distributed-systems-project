@@ -1,65 +1,35 @@
+from ipaddress import IPv4Address
+from multiprocessing import Event
 from client import Client
-from communication.messages.auction.auction_winner import MessageAuctionWinner
-from communication.messages.heartbeat.heartbeat_req import MessageHeartbeatRequest
-from communication.messages.heartbeat.heartbeat_res import MessageHeartbeatResponse
-from communication.messages.replica.find_replica_ack import (
-    MessageFindReplicaAcknowledgement,
+from constant.communication.multicast import DISCOVERY_GROUP
+from model import auction
+from model.auction_peers_store import AuctionPeersStore
+from process.listener.auction_peers_announcement_listener import (
+    AuctionPeersAnnouncementListener,
 )
-from communication.messages.replica.find_replica_req import MessageFindReplicaRequest
+from process.memory_manager import Manager
 from server import Server
 
-from communication import Unicast, Multicast
-from constant import MULTICAST_DISCOVERY_GROUP, MULTICAST_DISCOVERY_PORT
-
-from ipaddress import IPv4Address
 
 if __name__ == "__main__":
-    # client = Client()
-    # server = Server()
+    client = Client()
+    server = Server()
 
-    # # Start background processes
-    # server.start()
-    # client.run()
+    # Start background processes
+    server.start()
+    client.run()
 
-    # # Terminate client and server processes when client interaction is done
-    # server.stop()
-    # server.join()
+    # Terminate client and server processes when client interaction is done
+    server.stop()
+    server.join()
 
-    # Example of how to use the Unicast and Multicast classes
+    # new_peers = [("0.0.0.0", 5555), ("0.0.0.0", 6666), ("0.0.0.0", 7777)]
 
-    message = MessageAuctionWinner(_id="uname::aname::uuid")
-    encoded = message.encode()
-    print(encoded)
-    decoded = MessageAuctionWinner.decode(encoded)
-    print(decoded)
-    exit()
+    # manager = Manager()
+    # manager.start()
 
-    # On one machine
-    uc = Unicast()
-    address = uc.get_address()
-    print(address)
-    address = f"{str(address[0])},{address[1]}"
-
-    mc = Multicast(MULTICAST_DISCOVERY_GROUP, MULTICAST_DISCOVERY_PORT, sender=True)
-    mc.send(address.encode())
-    mc.close()
-
-    response, address = uc.receive()
-    print(f"Received {response.decode()} from {address}")
-    uc.send("Hello".encode(), address)
-
-    # On another machine
-    uc = Unicast()
-    print(uc.get_address())
-
-    mc = Multicast(MULTICAST_DISCOVERY_GROUP, MULTICAST_DISCOVERY_PORT, sender=False)
-    message, address = mc.receive()
-
-    print(f"Received {message.decode()} from Multicast group {address}")
-    mc.close()
-
-    address = message.decode().split(",")
-    address = (IPv4Address(address[0]), int(address[1]))
-    uc.send("Hello".encode(), address)
-    response, address = uc.receive()
-    print(f"Received {response.decode()} from {address}")
+    # store = manager.AuctionPeersStore()  # type: ignore
+    # auction = manager.Auction("a", "a", "a", 0.0, 10, DISCOVERY_GROUP)  # type: ignore
+    # listener = AuctionPeersAnnouncementListener(auction, store, Event())
+    # listener.start()
+    # listener.join()

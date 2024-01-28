@@ -39,7 +39,9 @@ class AuctionPeersAnnouncementListener(Process):
         super(AuctionPeersAnnouncementListener, self).__init__()
         self._exit: Event = ProcessEvent()
 
-        self._name: str = f"AuctionPeersListener::{auction.get_id()}::{os.getpid()}"
+        self._name: str = (
+            f"AuctionPeersAnnouncementListener::{auction.get_id()}::{os.getpid()}"
+        )
         self._logger: Logger = create_logger(self._name.lower())
 
         self._auction: Auction = auction
@@ -84,14 +86,13 @@ class AuctionPeersAnnouncementListener(Process):
             peers_announcement: MessagePeersAnnouncement = (
                 MessagePeersAnnouncement.decode(message)
             )
+            peers: list[tuple[IPv4Address, int]] = [
+                (IPv4Address(peer[0]), peer[1]) for peer in peers_announcement.peers
+            ]
 
-            self._logger.info(
-                f"{self._name}: Received peers announcement {peers_announcement}"
-            )
+            self._logger.info(f"{self._name}: Received peers announcement {peers}")
             self._seen_message_ids.append(peers_announcement._id)
-            changes: bool = self._store.replace(
-                [(IPv4Address(peer[0]), peer[1]) for peer in peers_announcement.peers]
-            )
+            changes: bool = self._store.replace(peers)
 
             # Set change event if changes were made
             if not changes:

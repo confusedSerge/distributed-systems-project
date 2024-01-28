@@ -577,6 +577,7 @@ class Replica(Process):
 
     def _init_shared_memory(self):
         """Initializes the shared memory."""
+        self._logger.info(f"{self._name}: Initializing shared memory")
         self.manager.start()
         self.manager_running.set()
         self._logger.info(f"{self._name}: Started manager")

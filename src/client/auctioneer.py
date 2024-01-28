@@ -1,3 +1,5 @@
+import os
+
 from ipaddress import IPv4Address
 
 from multiprocessing import Process, Event as ProcessEvent
@@ -234,14 +236,16 @@ class _SubAuctioneer(Process):
         super(_SubAuctioneer, self).__init__()
         self._exit: Event = ProcessEvent()
 
-        self._name = f"SubAuctioneer::{auction.get_id()}"
+        self._name = f"SubAuctioneer::{auction.get_id()}::{os.getpid()}"
         self._logger: Logger = create_logger(self._name.lower())
 
         # Shared memory
         self._auction: Auction = auction
         self._manager: Manager = manager
 
-        self._logger.info(f"{self._name}: Initialized")
+        self._logger.info(
+            f"{self._name}: Initialized for auction {auction} on {auction.get_group()}"
+        )
 
     def run(self) -> None:
         """Runs the sub-auctioneer.

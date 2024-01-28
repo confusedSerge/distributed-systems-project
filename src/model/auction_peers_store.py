@@ -6,7 +6,7 @@ class AuctionPeersStore:
     """The auction peers store class stores auction peers."""
 
     def __init__(self) -> None:
-        self._peers: list[tuple[IPv4Address, int]] = []
+        self._peers: list[tuple[IPv4Address, int]] = list()
 
     def add(self, address: IPv4Address, port: int) -> None:
         """Adds an Address to the store.
