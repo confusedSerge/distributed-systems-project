@@ -4,6 +4,10 @@ import struct
 import os
 
 from typing import Optional
+from communication.messages.message_schema import MessageSchema
+from constant.communication import(HEADER_AUCTION_BID)
+from messages import MessageIsis, MessageProposedSequence, MessageAgreedSequence
+from process.isis_process import ISISProcess
 
 
 class Multicast:
@@ -82,7 +86,13 @@ class Multicast:
             message (bytes): The message to send in bytes.
         """
         assert self._sender, "The multicast object is not a sender."
-        self._socket.sendto(message, self._address_port)
+
+        if MessageSchema.of(HEADER_AUCTION_BID, message):
+            #start the isis algo
+            isis_process = ISISProcess(self)
+            isis_process.run() #TODO
+        else:
+            self._socket.sendto(message, self._address_port)
 
     def send_message_with_counter(self, message: bytes, counter: int, sender_id: int) -> None:
         """Send a message tuple to the multicast group.
@@ -92,21 +102,23 @@ class Multicast:
             counter:
             sender_ip:
         """
+        isis_message: MessageIsis = MessageIsis(_id = counter, message_content = message, sendeissr_ip = sender_id)
         assert self._sender, "The multicast object is not a sender."
-        self._socket.sendto((message, counter, sender_id), self._address_port)    
+        self._socket.sendto(isis_message, self._address_port)    
 
     def send_message_id_with_seq_id(self, message_id: int, sequence_id: int) -> None:
-        """Send a message tuple to the multicast group.
+        """Send a MessageProposedSequence to the sender of the inital msg it schould be unicast #TODO
 
         Args:
             message_id:
             sender_ip:
         """
         assert self._sender, "The multicast object is not a sender."
-        self._socket.sendto((message_id, sequence_id), self._address_port)  
+        msg_with_seq_num : MessageProposedSequence = MessageProposedSequence(_id = message_id,proposed_sequence = sequence_id)
+        self._socket.sendto(msg_with_seq_num, self._address_port)  
 
     def send_message_id_with_s_id_and_seq_id(self, message_id: int, sender_id: int, sequence_id: int, senderid_from_sequence_id: int) -> None:
-        """Send a message tuple to the multicast group.
+        """Send a MessageAgreedSequence to the multicast group.
 
         Args:
             message (bytes): The message to send in bytes.
@@ -114,7 +126,8 @@ class Multicast:
 
         """
         assert self._sender, "The multicast object is not a sender."
-        self._socket.sendto((message_id, sender_id, sequence_id, senderid_from_sequence_id), self.multicast_group)    
+        msg_with_agreed_seq: MessageAgreedSequence = MessageAgreedSequence(_id = message_id, sender_id = sender_id,sequence_id = sequence_id, senderid_from_sequence_id = senderid_from_sequence_id )
+        self._socket.sendto(msg_with_agreed_seq, self._address_port)    
 
     def receive(self, buffer_size: int = 1024) -> (bytes, tuple[str, int]):
         """Receive a message from the multicast group.

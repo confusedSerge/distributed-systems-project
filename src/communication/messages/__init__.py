@@ -27,3 +27,8 @@ from .election import (
     MessageReelectionAnnouncement,
     MessageElectionRequest,
 )
+from .total_ordering_isis import (
+    MessageIsis,
+    MessageProposedSequence,
+    MessageAgreedSequence,
+)    

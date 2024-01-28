@@ -32,6 +32,9 @@ timeout = 5
 [communication.election]
 timeout = 5
 
+[communication.total_ordering_isis]
+timeout = 5
+
 [communication.multicast.discovery]
 group = "224.1.1.1"
 port = 5007
@@ -67,3 +70,8 @@ heartbeat-res = "HEARTBEAT_RESPONSE"
 reelection-announcement = "REELECTION_ANNOUNCEMENT"
 election-req = "ELECTION_REQUEST"
 election-res = "ELECTION_RESPONSE"
+
+[communication.header.total_ordering_isis]
+isis-message = "ISIS_MESSAGE"
+proposed-seq = "PROPOSED_SEQ"
+agreed-seq = "AGREED_SEQ"

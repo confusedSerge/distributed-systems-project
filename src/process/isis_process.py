@@ -1,5 +1,4 @@
 from communication.multicast import Multicast
-from communication.messages.isis_communication.isis_message import IsisMessage
 from constant.communication import multicast as constant_multicast
 from operator import itemgetter
 
