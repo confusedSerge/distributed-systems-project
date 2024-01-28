@@ -265,7 +265,7 @@ class Bidder:
         )
         Multicast.qsend(
             message=bid.encode(),
-            group=auction.get_address(),
+            group=auction.get_group(),
             port=MULTICAST_AUCTION_PORT,
         )
         self._logger.info(
@@ -334,7 +334,7 @@ class Bidder:
             rec.get_item(),
             rec.get_price(),
             rec.get_time(),
-            rec.get_address(),
+            rec.get_group(),
         )
         auction.from_other(rec)
 

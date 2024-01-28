@@ -1,4 +1,4 @@
-from typing import Self, List
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from marshmallow import validate
@@ -53,11 +53,11 @@ class MessagePeersAnnouncement:
         return bytes(dumps(SCHEMA_MESSAGE_REPLICA_ANNOUNCEMENT().dump(self)), "utf-8")
 
     @staticmethod
-    def decode(message: bytes) -> Self:
+    def decode(message: bytes) -> MessagePeersAnnouncement:
         """Return the decoded replica announcement."""
         return SCHEMA_MESSAGE_REPLICA_ANNOUNCEMENT().load(
             loads(message.decode("utf-8"))
-        )
+        )  # type: ignore
 
 
 SCHEMA_MESSAGE_REPLICA_ANNOUNCEMENT = marshmallow_dataclass.class_schema(

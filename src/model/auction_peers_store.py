@@ -59,13 +59,19 @@ class AuctionPeersStore:
                 raise ValueError(f"{address} already exists")
             self.add(address[0], address[1])
 
-    def replace(self, addresses: list[tuple[IPv4Address, int]]) -> None:
+    def replace(self, addresses: list[tuple[IPv4Address, int]]) -> bool:
         """Replaces the store with a new list of Addresses.
 
         Args:
             addresses (list[tuple[IPv4Address, int]]): The list of Addresses to replace the store with.
+
+        Returns:
+            bool: Whether changes were made to the store.
         """
+        if set(addresses) == set(self._peers):
+            return False
         self._peers = addresses
+        return True
 
     def len(self) -> int:
         """Returns the length of the store, i.e. the number of peers.

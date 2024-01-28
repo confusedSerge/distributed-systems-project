@@ -52,4 +52,4 @@ class MessageReelectionAnnouncement:
         """Decodes the bytes object into a message object."""
         return marshmallow_dataclass.class_schema(MessageReelectionAnnouncement)().load(
             loads(data.decode())
-        )
+        )  # type: ignore

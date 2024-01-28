@@ -8,6 +8,7 @@ from logging import Logger
 # === Custom Modules ===
 
 from communication import Multicast, MessageSchema, MessageFindReplicaRequest
+from util import create_logger
 
 from constant import (
     communication as com,
@@ -17,8 +18,6 @@ from constant import (
     MULTICAST_DISCOVERY_PORT,
     REPLICA_LOCAL_POOL_SIZE,
 )
-
-from util import create_logger
 
 # === Local Modules ===
 

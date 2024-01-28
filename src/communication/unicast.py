@@ -10,29 +10,26 @@ class Unicast:
     def __init__(
         self,
         timeout: Optional[int] = None,
-        no_bind: Optional[bool] = False,
+        no_bind: bool = False,
     ):
         """Initialize the unicast socket.
 
         As we are using UDP, we can reuse the same address and port for sending and receiving messages.
 
         Args:
-            host (IPv4Address): The host to send and receive messages. None will bind to all interfaces.
-            port (int): The port to send and receive messages.
             timeout (int, optional): The timeout for receiving messages. Defaults to None.
             sender (bool, optional): Whether the unicast object is used for sending or receiving. Defaults to False.
         """
-        self._socket: socket.socket = None
         self._no_bind: bool = no_bind
 
         # https://stackoverflow.com/questions/54192308/how-to-duplicate-udp-packets-to-two-or-more-sockets
         # https://stackoverflow.com/questions/21179042/linux-udp-socket-port-reuse
-        self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._socket: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         if not no_bind:
             self._socket.settimeout(timeout) if timeout else None
             self._socket.bind(("", 0))
 
-    def send(self, message: bytes, address: tuple[IPv4Address, int] = None) -> None:
+    def send(self, message: bytes, address: tuple[IPv4Address, int]) -> None:
         """Send a message to the unicast host.
 
         Args:
@@ -87,5 +84,5 @@ class Unicast:
             port (int): The port to send the message to.
         """
         uc = Unicast(no_bind=True)
-        uc.send(message, (str(host), port))
+        uc.send(message, (host, port))
         uc.close()

@@ -116,7 +116,7 @@ class AuctionData:
             item=auction.get_item(),
             price=auction.get_price(),
             time=auction.get_time(),
-            address=str(auction.get_address()),
+            address=str(auction.get_group()),
             state=auction.get_state()[0],
             bid_history=auction.get_bid_history(),
             winner=auction.get_winner(),
