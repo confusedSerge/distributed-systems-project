@@ -42,14 +42,11 @@ group_base = "224.2.0.0/16" # this is the base prefix for the multicast group
 port = 5008
 ttl = 32
 
-[communication.unicast]
-port = 5006
-
 [communication.header.replica]
 find-replica-req = "FIND_REPLICA_REQUEST"
 find-replica-res = "FIND_REPLICA_RESPONSE"
 find-replica-ack = "FIND_REPLICA_ACK"
-replica-announcement = "REPLICA_ANNOUNCEMENT"
+peers-announcement = "PEERS_ANNOUNCEMENT"
 
 [communication.header.auction]
 auction-announcement = "AUCTION_ANNOUNCEMENT"

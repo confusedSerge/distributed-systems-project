@@ -27,8 +27,6 @@ from .multicast import (
     AUCTION_TTL as MULTICAST_AUCTION_TTL,
 )
 
-from .unicast import PORT as UNICAST_PORT
-
 from .replica import (
     EMITTER_PERIOD as REPLICA_EMITTER_PERIOD,
     TIMEOUT_REPLICATION,
