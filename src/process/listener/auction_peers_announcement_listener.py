@@ -21,7 +21,7 @@ from constant import (
 )
 
 
-class AuctionPeersListener(Process):
+class AuctionPeersAnnouncementListener(Process):
     """Auction replica peers listener process.
 
     This process listens the peers announcement on the auction multicast group.
@@ -36,7 +36,7 @@ class AuctionPeersListener(Process):
             auction (Auction): The auction to listen to.
             auction_peers_store (AuctionPeersStore): The auction peers store, used to store the peers.
         """
-        super(AuctionPeersListener, self).__init__()
+        super(AuctionPeersAnnouncementListener, self).__init__()
         self._exit: Event = ProcessEvent()
 
         self._name: str = f"AuctionPeersListener::{auction.get_id()}::{os.getpid()}"

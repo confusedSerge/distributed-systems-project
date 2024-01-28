@@ -27,7 +27,7 @@ from communication import (
 from process import (
     Manager,
     AuctionBidListener,
-    AuctionPeersListener,
+    AuctionPeersAnnouncementListener,
     AuctionManager,
     ReplicaFinder,
 )
@@ -97,7 +97,7 @@ class Replica(Process):
         self.peer_change: Event = ProcessEvent()
 
         # Sub processes
-        self._auction_peers_listener: Optional[AuctionPeersListener] = None
+        self._auction_peers_listener: Optional[AuctionPeersAnnouncementListener] = None
         self._auction_bid_listener: Optional[AuctionBidListener] = None
         self._auction_manager: Optional[AuctionManager] = None
         self._replica_finder: Optional[ReplicaFinder] = None
@@ -600,8 +600,8 @@ class Replica(Process):
         self._logger.info(f"{self._name}: PRELUDE: Starting listeners")
 
         self._auction_peers_listener: Optional[
-            AuctionPeersListener
-        ] = AuctionPeersListener(self.auction, self.peers, self.peer_change)
+            AuctionPeersAnnouncementListener
+        ] = AuctionPeersAnnouncementListener(self.auction, self.peers, self.peer_change)
         self._auction_bid_listener: Optional[AuctionBidListener] = AuctionBidListener(
             self.auction
         )

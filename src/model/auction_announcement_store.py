@@ -25,7 +25,7 @@ class AuctionAnnouncementStore:
     def update(self, announcement: MessageAuctionAnnouncement) -> None:
         """Updates an auction announcement in the store.
 
-        Currently, this just replaces the old auction announcement with the new one.
+        Currently, this just replaces the old auction announcement with the new one, if it exists.
 
         Args:
             auction (MessageAuctionAnnouncement): The auction announcement to update.

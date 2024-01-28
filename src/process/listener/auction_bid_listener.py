@@ -8,9 +8,7 @@ from logging import Logger
 # === Custom Modules ===
 
 from communication import Multicast, MessageSchema, MessageAuctionBid
-
 from model import Auction
-
 from util import create_logger
 
 from constant import (
@@ -61,10 +59,10 @@ class AuctionBidListener(Process):
             except TimeoutError:
                 continue
 
-            if not MessageSchema.of(com.HEADER_AUCTION_BID, bid):
+            if not MessageSchema.of(com.HEADER_AUCTION_BID, message):
                 continue
 
-            bid: MessageAuctionBid = MessageAuctionBid.decode(bid)
+            bid: MessageAuctionBid = MessageAuctionBid.decode(message)
             if bid._id in self._seen_message_id:
                 self._logger.info(
                     f"{self._name}: Received duplicate bid {bid} from {address}"
@@ -74,7 +72,7 @@ class AuctionBidListener(Process):
             try:
                 if Auction.parse_id(bid._id) != self._auction.get_id():
                     self._logger.info(
-                        f"{self._name}: Received bid {bid} from {address} for auction {Auction.parse_id(bid.auction)}"
+                        f"{self._name}: Received bid {bid} from {address} for auction {Auction.parse_id(bid._id)} instead of {self._auction.get_id()}"
                     )
                     continue
             except ValueError:
