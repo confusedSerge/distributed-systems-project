@@ -583,6 +583,9 @@ class Replica(Process):
         self._logger.info(f"{self._name}: Started manager")
 
         self.peers: Optional[AuctionPeersStore] = self.manager.AuctionPeersStore()  # type: ignore
+        # Add self to peers or else the shared memory will be garbage collected, as the list is empty :(
+        # This has been my worst bug so far
+        self.peers.add(IPv4Address("0.0.0.0"), self._unicast.get_address()[1])
 
     def _start_listeners(self) -> None:
         """Starts the listeners after the auction information is received."""
