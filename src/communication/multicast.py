@@ -1,5 +1,8 @@
+from typing import Optional
+
 from ipaddress import IPv4Address
 import socket
+
 import struct
 import os
 
@@ -8,6 +11,8 @@ from communication.messages.message_schema import MessageSchema
 from constant.communication import(HEADER_AUCTION_BID)
 from messages import MessageIsis, MessageProposedSequence, MessageAgreedSequence
 from process.isis_process import ISISProcess
+# === Constants ===
+from constant import BUFFER_SIZE
 
 
 class Multicast:
@@ -41,10 +46,12 @@ class Multicast:
 
         assert isinstance(port, int), "The port must be an integer."
 
-        self._address: IPv4Address = group
+        # Address
+        self._group: IPv4Address = group
         self._port: int = port if isinstance(port, int) else int(port)
-        self._address_port: tuple[str, int] = (str(self._address), self._port)
+        self._address: tuple[str, int] = (str(self._group), self._port)
 
+        # Options
         self._sender: bool = sender
         self._socket: socket.socket = None
 
@@ -52,12 +59,12 @@ class Multicast:
 
         # Create the socket for multicast sender/receiver
         if sender:
-            self._socket = socket.socket(
+            self._socket: socket.socket = socket.socket(
                 socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP
             )
             self._socket.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, ttl)
         else:
-            self._socket = socket.socket(
+            self._socket: socket.socket = socket.socket(
                 socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP
             )
             self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -66,11 +73,11 @@ class Multicast:
                 socket.IPPROTO_IP,
                 socket.IP_ADD_MEMBERSHIP,
                 struct.pack(
-                    "4sl", socket.inet_aton(str(self._address)), socket.INADDR_ANY
+                    "4sl", socket.inet_aton(str(self._group)), socket.INADDR_ANY
                 ),
             )
             self._socket.settimeout(self._timeout) if self._timeout else None
-            self._socket.bind(self._address_port)
+            self._socket.bind(self._address)
 
     def getIpAddress(self) -> str:
         """Get IpAddr of own instance."""
@@ -129,11 +136,13 @@ class Multicast:
         msg_with_agreed_seq: MessageAgreedSequence = MessageAgreedSequence(_id = message_id, sender_id = sender_id,sequence_id = sequence_id, senderid_from_sequence_id = senderid_from_sequence_id )
         self._socket.sendto(msg_with_agreed_seq, self._address_port)    
 
-    def receive(self, buffer_size: int = 1024) -> (bytes, tuple[str, int]):
+    def receive(
+        self, buffer_size: int = BUFFER_SIZE
+    ) -> tuple[bytes, tuple[IPv4Address, int]]:
         """Receive a message from the multicast group.
 
         Args:
-            buffer_size (int): The buffer size for the received message. Defaults to 1024.
+            buffer_size (int): The buffer size for the received message. Defaults to BUFFER_SIZE.
 
         Returns:
             bytes: The received message.
@@ -143,7 +152,8 @@ class Multicast:
             socket.timeout: If the timeout is set and no message was received.
         """
         assert not self._sender, "The multicast object is not a receiver."
-        return self._socket.recvfrom(buffer_size)
+        message, address = self._socket.recvfrom(buffer_size)
+        return message, (IPv4Address(address[0]), address[1])
 
     def close(self) -> None:
         """Close the multicast socket."""

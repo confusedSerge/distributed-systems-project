@@ -1,7 +1,8 @@
 import tomllib
+from typing import Any
 
 
-def load_config(path: str = "./config/config.dev.toml") -> dict:
+def load_config(path: str = "./config/config.dev.toml") -> dict[str, Any]:
     """Loads the configuration from the config file.
 
     Args:

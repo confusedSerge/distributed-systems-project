@@ -31,6 +31,18 @@ class MessageSchema(Schema):
         return MessageSchema.decode(message)["header"] == header
 
     @staticmethod
+    def get_id(message: bytes) -> str:
+        """Return the message id.
+
+        Args:
+            message (bytes): The message to get the id from.
+
+        Returns:
+            str: The message id.
+        """
+        return MessageSchema.decode(message)["_id"]
+
+    @staticmethod
     def decode(message: bytes) -> dict:
         """Return the decoded message
 
@@ -40,4 +52,4 @@ class MessageSchema(Schema):
         Returns:
             dict: The decoded message containing the tag and id.
         """
-        return MessageSchema(partial=True).loads(message)
+        return MessageSchema(partial=True).loads(message.decode("utf-8"))  # type: ignore

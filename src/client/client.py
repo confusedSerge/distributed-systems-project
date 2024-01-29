@@ -1,13 +1,19 @@
-from time import sleep
-from multiprocessing import Process, Event, Value
+from multiprocessing import Event as ProcessEvent
+from multiprocessing.synchronize import Event
+
+from logging import Logger
 
 import inquirer
+
+# === Custom Modules ===
 
 from model import AuctionAnnouncementStore
 from process import Manager, AuctionAnnouncementListener
 
-from util import create_logger, logging, Timeout
-from constant import interaction as inter, SLEEP_TIME
+from util import create_logger
+from constant import interaction as inter
+
+# === Local Modules ===
 
 from .auctioneer import Auctioneer
 from .bidder import Bidder
@@ -16,7 +22,6 @@ from .bidder import Bidder
 class Client:
     """Client class for the client side of the peer-to-peer network.
 
-    The client class runs in a separate thread (process) from the server class (normally the main thread).
     It handles the two cases of client actions; auctioneering and bidding implemented in their respective classes.
 
     The client actions are given through an interactive command line interface, which will cause to run the respective methods.
@@ -25,20 +30,20 @@ class Client:
     def __init__(self) -> None:
         """Initializes the client class."""
         super(Client, self).__init__()
-        self._exit = Event()
+        self._exit: Event = ProcessEvent()
 
         self._name: str = "Client"
-        self._logger: logging.Logger = create_logger(self._name.lower())
+        self._logger: Logger = create_logger(self._name.lower())
 
         # Shared memory
         self.manager: Manager = Manager()
-        self.manager_running = Event()
+        self.manager_running: Event = ProcessEvent()
 
         self.manager.start()
         self.manager_running.set()
 
         self.auction_announcement_store: AuctionAnnouncementStore = (
-            self.manager.AuctionAnnouncementStore()
+            self.manager.AuctionAnnouncementStore()  # type: ignore
         )
 
         # Auctioneer and bidder
@@ -59,29 +64,12 @@ class Client:
         """Starts the client background tasks."""
         self._logger.info(f"{self._name}: Started")
 
-        # Start auction announcement listener
-        self._logger.info(f"{self._name}: Starting auction announcement listener")
-        self._auction_announcement_process: AuctionAnnouncementStore = (
-            AuctionAnnouncementListener(self.auction_announcement_store)
-        )
-        self._auction_announcement_process.start()
-        self._logger.info(f"{self._name}: Started auction announcement listener")
+        self._prelude()
 
-        # Interactive command line interface
         self._logger.info(f"{self._name}: Starting interactive command line interface")
         self.interact()
 
-        self._logger.info(f"{self._name}: Releasing resources")
-
-        self._auctioneer.stop()
-        self._bidder.stop()
-
-        self._auction_announcement_process.stop()
-
-        self.manager_running.clear()
-        self.manager.shutdown()
-
-        self._logger.info(f"{self._name}: Stopped")
+        self._shutdown()
 
     def stop(self) -> None:
         """Stops the client background tasks."""
@@ -112,13 +100,36 @@ class Client:
                 break
 
             match answer["action"]:
-                case "Auctioneer":
+                case inter.CLIENT_ACTION_AUCTIONEER:
                     self._auctioneer.interact()
-                case "Bidder":
+                case inter.CLIENT_ACTION_BIDDER:
                     self._bidder.interact()
-                case "Stop":
+                case inter.CLIENT_ACTION_STOP:
                     self.stop()
                 case _:
                     self._logger.error(
                         f"{self._name}: Invalid action {answer['action']}"
                     )
+
+    # === Helper Methods ===
+
+    def _prelude(self):
+        """Starts the client background tasks."""
+        self._logger.info(f"{self._name}: Starting listeners")
+        self._auction_announcement_process: AuctionAnnouncementListener = (
+            AuctionAnnouncementListener(self.auction_announcement_store)
+        )
+        self._auction_announcement_process.start()
+
+    def _shutdown(self):
+        """Stops the client background tasks and releases resources."""
+        self._logger.info(f"{self._name}: Stopping listeners and releasing resources")
+
+        self._auctioneer.stop()
+        self._bidder.stop()
+
+        self._auction_announcement_process.stop()
+
+        self.manager_running.clear()
+        self.manager.shutdown()
+        self._logger.info(f"{self._name}: Stopped and released resources")

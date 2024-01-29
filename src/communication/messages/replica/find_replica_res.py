@@ -1,4 +1,4 @@
-from typing import Self
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from marshmallow import validate
@@ -6,7 +6,7 @@ import marshmallow_dataclass
 
 from json import dumps, loads
 
-from constant import communication as com
+from constant import HEADER_FIND_REPLICA_RES
 
 
 @dataclass
@@ -18,28 +18,18 @@ class MessageFindReplicaResponse:
     Fields:
         _id: (str) Unique identifier of the message. Structure is "uname::aname::uuid". Corresponds to the request message ID.
         header: (str) Header of the message. Should be constant HEADER_FIND_REPLICA_RES.
-        port: (int) Port to send the response to. (Host is the sender of the request)
     """
 
     # Message ID
     _id: str = field(metadata={"validate": lambda x: len(x) > 0})
     header: str = field(
-        default=com.HEADER_FIND_REPLICA_RES,
-        metadata={"validate": validate.OneOf([com.HEADER_FIND_REPLICA_RES])},
-    )
-
-    # Acknowledgement UC port
-    port: int = field(
-        default=com.UNICAST_PORT,
-        metadata={
-            "validate": lambda x: isinstance(x, int)
-            and validate.Range(min=0, max=65535)
-        },
+        default=HEADER_FIND_REPLICA_RES,
+        metadata={"validate": validate.OneOf([HEADER_FIND_REPLICA_RES])},
     )
 
     def __str__(self) -> str:
         """Returns the string representation of the message."""
-        return f"{com.HEADER_FIND_REPLICA_RES}(id={self._id})"
+        return f"{HEADER_FIND_REPLICA_RES}(id={self._id})"
 
     def __repr__(self) -> str:
         """Returns the string representation of the message."""
@@ -56,9 +46,9 @@ class MessageFindReplicaResponse:
         return bytes(dumps(SCHEMA_MESSAGE_FIND_REPLICA_RESPONSE().dump(self)), "utf-8")
 
     @staticmethod
-    def decode(message: bytes) -> Self:
+    def decode(message: bytes) -> MessageFindReplicaResponse:
         """Return the decoded find new replica response."""
-        return SCHEMA_MESSAGE_FIND_REPLICA_RESPONSE().load(loads(message))
+        return SCHEMA_MESSAGE_FIND_REPLICA_RESPONSE().load(loads(message.decode("utf-8")))  # type: ignore
 
 
 SCHEMA_MESSAGE_FIND_REPLICA_RESPONSE = marshmallow_dataclass.class_schema(

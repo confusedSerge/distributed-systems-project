@@ -18,19 +18,19 @@ class Auction:
         item: str,
         price: float,
         time: int,
-        address: IPv4Address,
+        group: IPv4Address,
     ) -> None:
         """Initializes the auction class.
 
         Args:
-            name (str): The name of the auction. Refered as uname.
-            auctioneer (str): The auctioneer of the auction. Refered as aname.
+            name (str): The name of the auction. Referred as uname.
+            auctioneer (str): The auctioneer of the auction. Referred as aname.
 
             item (str): The item of the auction.
             price (float): The starting price of the auction.
             time (int): The time of the auction.
 
-            multicast_address (IPv4Address): The multicast address of the auction. (port are constant for all auctions)
+            group (IPv4Address): The multicast group of the auction. (port are same for all auctions)
         """
         # Identification
         self._name: str = name
@@ -43,7 +43,7 @@ class Auction:
         self._time: int = time
 
         # Multicast group and port are initially empty
-        self._multicast_address: IPv4Address = address
+        self._multicast_group: IPv4Address = group
 
         # Auction states
         self._auction_state: tuple[int, str] = state.AUCTION_PREPARATION
@@ -111,13 +111,13 @@ class Auction:
         return self._time
 
     # Multicast methods
-    def get_address(self) -> IPv4Address:
-        """Returns the multicast group and port of the auction.
+    def get_group(self) -> IPv4Address:
+        """Returns the multicast group of the auction.
 
         Returns:
-            IPv4Address: The multicast group and port of the auction.
+            IPv4Address: The multicast group of the auction.
         """
-        return self._multicast_address
+        return self._multicast_group
 
     # Auction state methods
     def get_state(self) -> tuple[int, str]:
@@ -291,7 +291,7 @@ class Auction:
         self._price = other.get_price()
         self._time = other.get_time()
 
-        self._multicast_address = other.get_address()
+        self._multicast_group = other.get_group()
 
         self._auction_state = other.get_state()
         self._bid_history = other.get_bid_history()
@@ -313,12 +313,13 @@ class Auction:
             item=other.get_item(),
             price=other.get_price(),
             time=other.get_time(),
-            address=other.get_address(),
+            group=other.get_group(),
         )
         auction._set_id(other.get_id())
         auction._set_state(other.get_state_id())
         auction._set_bid_history(other.get_bid_history())
         auction._set_winner(other.get_winner())
+        return auction
 
     @staticmethod
     def id(auctioneer: str, name: str) -> str:

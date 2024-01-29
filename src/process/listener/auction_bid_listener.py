@@ -1,9 +1,16 @@
 import os
-from multiprocessing import Process, Event
+
+from multiprocessing import Process, Event as ProcessEvent
+from multiprocessing.synchronize import Event
+
+from logging import Logger
+
+# === Custom Modules ===
 
 from communication import Multicast, MessageSchema, MessageAuctionBid
-
 from model import Auction
+from util import create_logger
+
 from constant import (
     communication as com,
     TIMEOUT_RECEIVE,
@@ -11,13 +18,11 @@ from constant import (
     MULTICAST_AUCTION_PORT,
 )
 
-from util import create_logger, logger
-
 
 class AuctionBidListener(Process):
     """Auction Bid listener process.
 
-    This process listens to an auction bids and updates the auction state accordingly.
+    This process listens to an auction bids and updates the auction bid history accordingly.
     """
 
     def __init__(self, auction: Auction):
@@ -27,13 +32,13 @@ class AuctionBidListener(Process):
             auction (Auction): The auction to listen to. Should be a shared memory object.
         """
         super(AuctionBidListener, self).__init__()
-        self._exit = Event()
+        self._exit: Event = ProcessEvent()
 
         self._name: str = f"AuctionBidListener::{auction.get_id()}::{os.getpid()}"
-        self._logger: logger.logging = create_logger(self._name.lower())
+        self._logger: Logger = create_logger(self._name.lower())
 
         self._auction: Auction = auction
-        self._seen_mid: list[str] = []
+        self._seen_message_id: list[str] = []
 
         self._logger.info(f"{self._name}: Initialized")
 
@@ -41,7 +46,7 @@ class AuctionBidListener(Process):
         """Runs the auction listener process."""
         self._logger.info(f"{self._name}: Started")
         mc: Multicast = Multicast(
-            group=self._auction.get_address(),
+            group=self._auction.get_group(),
             port=MULTICAST_AUCTION_PORT,
             timeout=TIMEOUT_RECEIVE,
         )
@@ -50,15 +55,15 @@ class AuctionBidListener(Process):
         while not self._exit.is_set():
             # Receive bid
             try:
-                bid, address = mc.receive(BUFFER_SIZE)
+                message, address = mc.receive(BUFFER_SIZE)
             except TimeoutError:
                 continue
 
-            if not MessageSchema.of(com.HEADER_AUCTION_BID, bid):
+            if not MessageSchema.of(com.HEADER_AUCTION_BID, message):
                 continue
 
-            bid: MessageAuctionBid = MessageAuctionBid.decode(bid)
-            if bid._id in self._seen_mid:
+            bid: MessageAuctionBid = MessageAuctionBid.decode(message)
+            if bid._id in self._seen_message_id:
                 self._logger.info(
                     f"{self._name}: Received duplicate bid {bid} from {address}"
                 )
@@ -67,7 +72,7 @@ class AuctionBidListener(Process):
             try:
                 if Auction.parse_id(bid._id) != self._auction.get_id():
                     self._logger.info(
-                        f"{self._name}: Received bid {bid} from {address} for auction {Auction.parse_id(bid.auction)}"
+                        f"{self._name}: Received bid {bid} from {address} for auction {Auction.parse_id(bid._id)} instead of {self._auction.get_id()}"
                     )
                     continue
             except ValueError:
@@ -81,7 +86,7 @@ class AuctionBidListener(Process):
             )
 
             self._auction.bid(bid.bidder, bid.bid)
-            self._seen_mid.append(bid._id)
+            self._seen_message_id.append(bid._id)
 
         self._logger.info(f"{self._name}: Releasing resources")
         mc.close()

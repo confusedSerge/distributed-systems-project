@@ -25,7 +25,7 @@ class AuctionAnnouncementStore:
     def update(self, announcement: MessageAuctionAnnouncement) -> None:
         """Updates an auction announcement in the store.
 
-        Currently, this just replaces the old auction announcement with the new one.
+        Currently, this just replaces the old auction announcement with the new one, if it exists.
 
         Args:
             auction (MessageAuctionAnnouncement): The auction announcement to update.
@@ -61,7 +61,7 @@ class AuctionAnnouncementStore:
         Returns:
             list[tuple[str, MessageAuctionAnnouncement]]: The items of the store.
         """
-        return self._announcements.items()
+        return list(self._announcements.items())
 
     def exists(self, auction: str) -> bool:
         """Returns whether an auction announcement exists in the store.
@@ -80,7 +80,7 @@ class AuctionAnnouncementStore:
         Returns:
             list[str]: The keys of the store.
         """
-        return self._announcements.keys()
+        return list(self._announcements.keys())
 
     def values(self) -> list[MessageAuctionAnnouncement]:
         """Returns the values of the store.
@@ -88,15 +88,15 @@ class AuctionAnnouncementStore:
         Returns:
             list[MessageAuctionAnnouncement]: The values of the store.
         """
-        return self._announcements.values()
+        return list(self._announcements.values())
 
-    def get_addresses(self) -> list[IPv4Address]:
-        """Returns the addresses of the auctions in the store.
+    def get_groups(self) -> list[IPv4Address]:
+        """Returns the address groups of the auctions in the store.
 
         Returns:
-            list[IPv4Address]: The addresses of the auctions in the store.
+            list[IPv4Address]: The address groups of the auctions in the store.
         """
         return [
-            announcement.auction.address
+            IPv4Address(announcement.auction.group)
             for announcement in self._announcements.values()
         ]

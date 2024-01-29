@@ -1,4 +1,4 @@
-from typing import Self
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from marshmallow import validate
@@ -6,7 +6,7 @@ import marshmallow_dataclass
 
 from json import dumps, loads
 
-from constant import communication as com
+from constant import HEADER_AUCTION_WIN
 
 
 @dataclass
@@ -25,8 +25,8 @@ class MessageAuctionWinner:
 
     _id: str = field(metadata={"validate": lambda x: len(x) > 0})
     header: str = field(
-        default=com.HEADER_AUCTION_WIN,
-        metadata={"validate": validate.OneOf([com.HEADER_AUCTION_WIN])},
+        default=HEADER_AUCTION_WIN,
+        metadata={"validate": validate.OneOf([HEADER_AUCTION_WIN])},
     )
 
     auction: str = field(default="", metadata={"validate": lambda x: not str(x)})
@@ -37,7 +37,7 @@ class MessageAuctionWinner:
 
     def __str__(self) -> str:
         """Returns the string representation of the message."""
-        return f"{com.HEADER_AUCTION_WIN}(id={self._id}, auction={self.auction}, winner={self.winner}, bid={self.bid})"
+        return f"{HEADER_AUCTION_WIN}(id={self._id}, auction={self.auction}, winner={self.winner}, bid={self.bid})"
 
     def __repr__(self) -> str:
         """Returns the string representation of the message."""
@@ -54,9 +54,9 @@ class MessageAuctionWinner:
         return bytes(dumps(SCHEMA_MESSAGE_AUCTION_WINNER().dump(self)), "utf-8")
 
     @staticmethod
-    def decode(message: bytes) -> Self:
+    def decode(message: bytes) -> MessageAuctionWinner:
         """Return the decoded auction winner."""
-        return SCHEMA_MESSAGE_AUCTION_WINNER().load(loads(message))
+        return SCHEMA_MESSAGE_AUCTION_WINNER().load(loads(message.decode("utf-8")))  # type: ignore
 
 
 SCHEMA_MESSAGE_AUCTION_WINNER = marshmallow_dataclass.class_schema(MessageAuctionWinner)

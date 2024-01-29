@@ -1,10 +1,15 @@
+from logging import Logger
 import os
 
-from multiprocessing import Process, Event
+from multiprocessing import Process, Event as ProcessEvent
+from multiprocessing.synchronize import Event
+
+# === Custom Modules ===
 
 from communication import Multicast, MessageSchema, MessageAuctionAnnouncement
-
 from model import AuctionAnnouncementStore
+from util import create_logger
+
 from constant import (
     communication as com,
     USERNAME,
@@ -13,8 +18,6 @@ from constant import (
     MULTICAST_DISCOVERY_GROUP,
     MULTICAST_DISCOVERY_PORT,
 )
-
-from util import create_logger, logger
 
 
 class AuctionAnnouncementListener(Process):
@@ -30,10 +33,10 @@ class AuctionAnnouncementListener(Process):
             auction_announcement_store (AuctionAnnouncementStore): The auction announcement store to listen to. Should be a shared memory object.
         """
         super(AuctionAnnouncementListener, self).__init__()
-        self._exit: Event = Event()
+        self._exit: Event = ProcessEvent()
 
         self._name: str = f"AuctionAnnouncementListener::{USERNAME}::{os.getpid()}"
-        self._logger: logger.logging = create_logger(self._name.lower())
+        self._logger: Logger = create_logger(self._name.lower())
 
         self._store: AuctionAnnouncementStore = auction_announcement_store
 
@@ -52,21 +55,20 @@ class AuctionAnnouncementListener(Process):
         while not self._exit.is_set():
             # Receive announcement
             try:
-                announcement, _ = mc.receive(BUFFER_SIZE)
+                message, _ = mc.receive(BUFFER_SIZE)
             except TimeoutError:
                 continue
 
-            if not MessageSchema.of(com.HEADER_AUCTION_ANNOUNCEMENT, announcement):
+            if not MessageSchema.of(com.HEADER_AUCTION_ANNOUNCEMENT, message):
                 continue
 
             announcement: MessageAuctionAnnouncement = (
-                MessageAuctionAnnouncement.decode(announcement)
+                MessageAuctionAnnouncement.decode(message)
             )
-            if not self._store.exists(announcement._id):
-                self._logger.info(
-                    f"{self._name}: Received announcement for auction {announcement._id}: {announcement}"
-                )
-                self._store.update(announcement)
+            self._logger.info(
+                f"{self._name}: Received announcement for auction {announcement._id}: {announcement}"
+            )
+            self._store.update(announcement)
 
         self._logger.info(f"{self._name}: Releasing resources")
 

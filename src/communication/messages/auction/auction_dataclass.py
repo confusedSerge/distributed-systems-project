@@ -38,11 +38,11 @@ class AuctionData:
 
     # Auction information
     item: str = field(metadata={"validate": lambda x: isinstance(x, str)})
-    price: int = field(metadata={"validate": lambda x: isinstance(x, int)})
+    price: float = field(metadata={"validate": lambda x: isinstance(x, float)})
     time: int = field(metadata={"validate": lambda x: isinstance(x, int)})
 
     # Multicast address for the auction
-    address: str = field(
+    group: str = field(
         metadata={
             "validate": lambda x: isinstance(x, str)
             and validate.Regexp(
@@ -53,14 +53,14 @@ class AuctionData:
 
     # Auction state
     state: int = field(metadata={"validate": lambda x: isinstance(x, int)})
-    bid_history: list[tuple[str, int]] = field(
+    bid_history: list[tuple[str, float]] = field(
         metadata={
             "validate": lambda x: isinstance(x, list)
             and all(
                 isinstance(y, tuple)
                 and len(y) == 2
                 and isinstance(y[0], str)
-                and isinstance(y[1], int)
+                and isinstance(y[1], float)
                 for y in x
             )
         }
@@ -69,7 +69,7 @@ class AuctionData:
 
     def __str__(self) -> str:
         """Return the string representation of the auction data."""
-        return f"AuctionData(id={self._id}, item={self.item}, price={self.price}, time={self.time}, address={self.address}, state={self.state}, bid_history={self.bid_history}, winner={self.winner})"
+        return f"AuctionData(id={self._id}, item={self.item}, price={self.price}, time={self.time}, address={self.group}, state={self.state}, bid_history={self.bid_history}, winner={self.winner})"
 
     def __repr__(self) -> str:
         """Return the string representation of the auction data."""
@@ -88,7 +88,7 @@ class AuctionData:
     @staticmethod
     def decode(message: bytes) -> AuctionData:
         """Return the decoded auction data."""
-        return AUCTION_DATA_SCHEMA().load(loads(message))
+        return AUCTION_DATA_SCHEMA().load(loads(message.decode("utf-8")))  # type: ignore
 
     def to_auction(self) -> Auction:
         """Return the auction from the auction data."""
@@ -98,7 +98,7 @@ class AuctionData:
             item=self.item,
             price=self.price,
             time=self.time,
-            address=IPv4Address(self.address),
+            group=IPv4Address(self.group),
         )
         auction._set_id(self._id)
         auction._set_state(self.state)
@@ -116,7 +116,7 @@ class AuctionData:
             item=auction.get_item(),
             price=auction.get_price(),
             time=auction.get_time(),
-            address=str(auction.get_address()),
+            group=str(auction.get_group()),
             state=auction.get_state()[0],
             bid_history=auction.get_bid_history(),
             winner=auction.get_winner(),

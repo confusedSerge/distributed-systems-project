@@ -6,7 +6,7 @@ import marshmallow_dataclass
 
 from json import dumps, loads
 
-from constant import communication as com
+from constant import HEADER_HEARTBEAT_REQ
 
 
 @dataclass
@@ -23,13 +23,13 @@ class MessageHeartbeatRequest:
     # Message ID
     _id: str = field(metadata={"validate": lambda x: len(x) > 0})
     header: str = field(
-        default=com.HEADER_HEARTBEAT_REQ,
-        metadata={"validate": validate.OneOf([com.HEADER_HEARTBEAT_REQ])},
+        default=HEADER_HEARTBEAT_REQ,
+        metadata={"validate": validate.OneOf([HEADER_HEARTBEAT_REQ])},
     )
 
     def __str__(self) -> str:
         """Returns the string representation of the message."""
-        return f"{com.HEADER_HEARTBEAT_REQ}(id={self._id})"
+        return f"{HEADER_HEARTBEAT_REQ}(id={self._id})"
 
     def __repr__(self) -> str:
         """Returns the string representation of the message."""
@@ -43,13 +43,14 @@ class MessageHeartbeatRequest:
 
     def encode(self) -> bytes:
         """Encodes the message into a bytes object."""
-        return dumps(
-            marshmallow_dataclass.class_schema(MessageHeartbeatRequest)().dump(self)
-        ).encode()
+        return bytes(dumps(SCHEMA_MESSAGE_HEARTBEAT_REQUEST().dump(self)), "utf-8")
 
     @staticmethod
-    def decode(data: bytes) -> MessageHeartbeatRequest:
+    def decode(message: bytes) -> MessageHeartbeatRequest:
         """Decodes the bytes object into a message object."""
-        return marshmallow_dataclass.class_schema(MessageHeartbeatRequest)().load(
-            loads(data.decode())
-        )
+        return SCHEMA_MESSAGE_HEARTBEAT_REQUEST().load(loads(message.decode("utf-8")))  # type: ignore
+
+
+SCHEMA_MESSAGE_HEARTBEAT_REQUEST = marshmallow_dataclass.class_schema(
+    MessageHeartbeatRequest
+)

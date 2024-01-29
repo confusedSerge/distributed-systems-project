@@ -1,7 +1,11 @@
 import os
 
-from ipaddress import IPv4Address
-from multiprocessing import Process, Event
+from multiprocessing import Process, Event as ProcessEvent
+from multiprocessing.synchronize import Event
+
+from logging import Logger
+
+# === Custom Modules ===
 
 from communication import (
     Multicast,
@@ -11,8 +15,9 @@ from communication import (
     MessageAuctionInformationRequest,
     MessageAuctionInformationResponse,
 )
-
 from model import Auction
+from util import create_logger
+
 from constant import (
     communication as com,
     TIMEOUT_RECEIVE,
@@ -21,14 +26,12 @@ from constant import (
     MULTICAST_DISCOVERY_PORT,
 )
 
-from util import create_logger, logger
-
 
 class AuctionManager(Process):
-    """Auction manager process.
+    """Auction manager process for the leader replica.
 
     The auction manager is responsible for answering the following questions:
-    - Auction Information Request: The auction manager answers to auction information requests, where the requested id corresponds to an auction managed by this auction manager.
+        - Auction Information Request: The auction manager answers to auction information requests.
     """
 
     def __init__(self, auction: Auction):
@@ -38,15 +41,13 @@ class AuctionManager(Process):
             auction (Auction): The auction to manage. Should be a shared memory object.
         """
         super(AuctionManager, self).__init__()
-        self._exit: Event = Event()
+        self._exit: Event = ProcessEvent()
 
         self._name: str = f"AuctionManager::{auction.get_id()}::{os.getpid()}"
-        self._logger: logger = create_logger(self._name.lower())
+        self._logger: Logger = create_logger(self._name.lower())
 
         self._auction: Auction = auction
-        self._seen_mid: list[
-            str
-        ] = []  # List of seen message ids, to prevent duplicate responses
+        self._seen_message_id: list[str] = []
 
         self._logger.info(f"{self._name}: Initialized")
 
@@ -63,23 +64,20 @@ class AuctionManager(Process):
         while not self._exit.is_set():
             # Receive request
             try:
-                request, address = mc.receive(BUFFER_SIZE)
+                message, address = mc.receive(BUFFER_SIZE)
             except TimeoutError:
                 continue
 
-            if not MessageSchema.of(com.HEADER_AUCTION_INFORMATION_REQ, request):
+            if (
+                not MessageSchema.of(com.HEADER_AUCTION_INFORMATION_REQ, message)
+                or MessageSchema.get_id(message) in self._seen_message_id
+            ):
                 continue
 
             request: MessageAuctionInformationRequest = (
-                MessageAuctionInformationRequest.decode(request)
+                MessageAuctionInformationRequest.decode(message)
             )
-
-            if request._id in self._seen_mid:
-                self._logger.info(
-                    f"{self._name}: Received duplicate request {request} from {address}"
-                )
-                continue
-            self._seen_mid.append(request._id)
+            self._seen_message_id.append(request._id)
 
             if not request.auction and self._auction.get_id() == request.auction:
                 self._logger.info(
@@ -98,7 +96,7 @@ class AuctionManager(Process):
             )
             Unicast.qsend(
                 message=response.encode(),
-                host=IPv4Address(address[0]),
+                host=address[0],
                 port=request.port,
             )
             self._logger.info(
