@@ -6,7 +6,7 @@ import marshmallow_dataclass
 
 from json import dumps, loads
 
-from constant import communication as com
+from constant import HEADER_ELECTION_WIN
 
 
 @dataclass
@@ -25,13 +25,13 @@ class MessageElectionWin:
         }
     )
     header: str = field(
-        default=com.HEADER_ELECTION_WIN,
-        metadata={"validate": validate.OneOf([com.HEADER_ELECTION_WIN])},
+        default=HEADER_ELECTION_WIN,
+        metadata={"validate": validate.OneOf([HEADER_ELECTION_WIN])},
     )
 
     def __str__(self) -> str:
         """Returns the string representation of the message."""
-        return f"{com.HEADER_ELECTION_WIN}(id={self._id})"
+        return f"{HEADER_ELECTION_WIN}(id={self._id})"
 
     def __repr__(self) -> str:
         """Returns the string representation of the message."""

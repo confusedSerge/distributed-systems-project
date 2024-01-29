@@ -14,7 +14,7 @@ class MessageAgreedSequence:
     """the sender uses the proposed numbers to generate an agreed number
 
     Fields:
-        _id: (str) Unique identifier of the message. Structure is "uname::aname::uuid".
+        message_id: (int) Unique identifier of the message.
         header: (str) Header of the message. Should be constant HEADER_AGREED_SEQ.
         sender_id: (int) sender id of the proposed sequence number , 
         sequence_id: (int) id of max sugessted sequence number, 
@@ -22,20 +22,36 @@ class MessageAgreedSequence:
     """
 
     # Message ID
-    _id: str = field(metadata={"validate": lambda x: len(x) > 0})
+    message_id: int = field(
+        metadata={
+            "validate": lambda x: isinstance(x, int) and x > 0
+        }
+    )
     header: str = field(
         default=HEADER_AGREED_SEQ,
         metadata={"validate": validate.OneOf([HEADER_AGREED_SEQ])},
     )
 
     # Data
-    sender_id : int = field(default=0), 
-    sequence_id : int = field(default=0), 
-    senderid_from_sequence_id : int = field(default=0),
+    sender_id : int = field(
+        metadata={
+            "validate": lambda x: isinstance(x, int) and x > 0
+        }
+    ) 
+    sequence_id : int = field(
+        metadata={
+            "validate": lambda x: isinstance(x, int) and x > 0
+        }
+    )
+    sender_id_from_sequence_id : int = field(
+        metadata={
+            "validate": lambda x: isinstance(x, int) and x > 0
+        }
+    )
 
     def __str__(self) -> str:
         """Returns the string representation of the message."""
-        return f"{HEADER_AGREED_SEQ}(id={self._id})"
+        return f"{HEADER_AGREED_SEQ}(message_id={self.message_id}, sender_id={self.sender_id}, sequence_id={self.sequence_id}, sender_id_from_seuquence_id={self.sender_id_from_sequence_id})"
 
     def __repr__(self) -> str:
         """Returns the string representation of the message."""

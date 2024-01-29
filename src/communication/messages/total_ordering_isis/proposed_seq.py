@@ -14,12 +14,11 @@ class MessageProposedSequence:
     """the receiving processes propose numbers and return them to the sender
 
     Fields:
-        _id: (str) Unique identifier of the message. Structure is "uname::aname::uuid".
         header: (str) Header of the message. Should be constant HEADER_PROPOSED_SEQ.
+        proposed_sequence: (int) The proposed sequence_id of the sender.
     """
 
     # Message ID
-    _id: str = field(metadata={"validate": lambda x: len(x) > 0})
     header: str = field(
         default=HEADER_PROPOSED_SEQ,
         metadata={"validate": validate.OneOf([HEADER_PROPOSED_SEQ])},
@@ -30,7 +29,7 @@ class MessageProposedSequence:
 
     def __str__(self) -> str:
         """Returns the string representation of the message."""
-        return f"{HEADER_PROPOSED_SEQ}(id={self._id})"
+        return f"{HEADER_PROPOSED_SEQ}(proposed_sequence={self.proposed_sequence})"
 
     def __repr__(self) -> str:
         """Returns the string representation of the message."""

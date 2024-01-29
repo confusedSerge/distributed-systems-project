@@ -340,18 +340,6 @@ class Replica(Process):
 
         self._logger.info(f"{self._name}: PRELUDE: Prelude finalized")
 
-    # === ELECTION ===
-
-    def _election(self) -> None:
-        """Handles the election of the replica.
-
-        # TODO: Implement actual election, this is just a placeholder
-        """
-        self._logger.info(f"{self._name}: ELECTION: Started")
-        self._is_leader = True
-        self._leader = self._unicast.get_address()
-        self._logger.info(f"{self._name}: ELECTION: Stopped")
-
     # === HEARTBEAT ===
 
     def _heartbeat(self) -> None:
