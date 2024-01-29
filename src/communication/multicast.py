@@ -9,8 +9,9 @@ import os
 from typing import Optional
 from communication.messages.message_schema import MessageSchema
 from constant.communication import(HEADER_AUCTION_BID)
-from messages import MessageIsis, MessageProposedSequence, MessageAgreedSequence
-from process.isis_process import ISISProcess
+from communication.messages.total_ordering_isis import MessageIsis, MessageProposedSequence, MessageAgreedSequence
+# TODO: Following import which is commented out leads to circular import, since in ISISProcess this class is imported!!!
+#from process.isis_process import ISISProcess
 # === Constants ===
 from constant import BUFFER_SIZE
 
@@ -94,12 +95,13 @@ class Multicast:
         """
         assert self._sender, "The multicast object is not a sender."
 
-        if MessageSchema.of(HEADER_AUCTION_BID, message):
+        # TODO: Following commented out code leads to circular import error. Has to be done in different way!!!
+        #if MessageSchema.of(HEADER_AUCTION_BID, message):
             #start the isis algo
-            isis_process = ISISProcess(self)
-            isis_process.run() #TODO
-        else:
-            self._socket.sendto(message, self._address_port)
+            #isis_process = ISISProcess(self)
+            #isis_process.run() #TODO
+        #else:
+            #self._socket.sendto(message, self._address_port)
 
     def send_message_with_counter(self, message: bytes, counter: int, sender_id: int) -> None:
         """Send a message tuple to the multicast group.

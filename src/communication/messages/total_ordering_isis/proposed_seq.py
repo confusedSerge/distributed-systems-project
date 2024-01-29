@@ -6,7 +6,7 @@ import marshmallow_dataclass
 
 from json import dumps, loads
 
-from constant import communication as com
+from constant import HEADER_PROPOSED_SEQ
 
 
 @dataclass
@@ -21,8 +21,8 @@ class MessageProposedSequence:
     # Message ID
     _id: str = field(metadata={"validate": lambda x: len(x) > 0})
     header: str = field(
-        default=com.HEADER_PROPOSED_SEQ,
-        metadata={"validate": validate.OneOf([com.HEADER_PROPOSED_SEQ])},
+        default=HEADER_PROPOSED_SEQ,
+        metadata={"validate": validate.OneOf([HEADER_PROPOSED_SEQ])},
     )
 
     # Data
@@ -30,7 +30,7 @@ class MessageProposedSequence:
 
     def __str__(self) -> str:
         """Returns the string representation of the message."""
-        return f"{com.HEADER_PROPOSED_SEQ}(id={self._id})"
+        return f"{HEADER_PROPOSED_SEQ}(id={self._id})"
 
     def __repr__(self) -> str:
         """Returns the string representation of the message."""

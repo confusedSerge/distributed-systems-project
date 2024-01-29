@@ -6,7 +6,7 @@ import marshmallow_dataclass
 
 from json import dumps, loads
 
-from constant import communication as com
+from constant import HEADER_ISIS_MESSAGE
 
 
 @dataclass
@@ -24,8 +24,8 @@ class MessageIsis:
     # Message ID
     _id: str = field(metadata={"validate": lambda x: len(x) > 0})
     header: str = field(
-        default=com.HEADER_ISIS_MESSAGE,
-        metadata={"validate": validate.OneOf([com.HEADER_ISIS_MESSAGE])},
+        default=HEADER_ISIS_MESSAGE,
+        metadata={"validate": validate.OneOf([HEADER_ISIS_MESSAGE])},
     )
 
     # Data
@@ -34,7 +34,7 @@ class MessageIsis:
 
     def __str__(self) -> str:
         """Returns the string representation of the message."""
-        return f"{com.HEADER_ISIS_MESSAGE}(id={self._id})"
+        return f"{HEADER_ISIS_MESSAGE}(id={self._id})"
 
     def __repr__(self) -> str:
         """Returns the string representation of the message."""
