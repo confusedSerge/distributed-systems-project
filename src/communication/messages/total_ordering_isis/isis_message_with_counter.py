@@ -21,17 +21,16 @@ class MessageIsisWithCounter:
         
     """
 
-    header: str = field(
-        default=HEADER_ISIS_MESSAGE_WITH_COUNTER,
-        metadata={"validate": validate.OneOf([HEADER_ISIS_MESSAGE_WITH_COUNTER])},
-    )
-
     # Data
-    message: bytes
     counter: int = field(
         metadata={
             "validate": lambda x: isinstance(x, int) and x > 0
         }
+    )
+    message: bytes
+    header: str = field(
+        default=HEADER_ISIS_MESSAGE_WITH_COUNTER,
+        metadata={"validate": validate.OneOf([HEADER_ISIS_MESSAGE_WITH_COUNTER])},
     )
 
     def __str__(self) -> str:

@@ -14,22 +14,18 @@ class MessageAgreedSequence:
     """the sender uses the proposed numbers to generate an agreed number
 
     Fields:
-        message_id: (int) Unique identifier of the message.
         header: (str) Header of the message. Should be constant HEADER_AGREED_SEQ.
+        message_id: (int) Unique identifier of the message.
         sender_id: (int) sender id of the proposed sequence number , 
         sequence_id: (int) id of max sugessted sequence number, 
         senderid_from_sequence_id: (int) the sender id how sugessted the max sequence number
     """
 
-    # Message ID
+     # Message ID
     message_id: int = field(
         metadata={
             "validate": lambda x: isinstance(x, int) and x > 0
         }
-    )
-    header: str = field(
-        default=HEADER_AGREED_SEQ,
-        metadata={"validate": validate.OneOf([HEADER_AGREED_SEQ])},
     )
 
     # Data
@@ -47,6 +43,11 @@ class MessageAgreedSequence:
         metadata={
             "validate": lambda x: isinstance(x, int) and x > 0
         }
+    )
+
+    header: str = field(
+        default=HEADER_AGREED_SEQ,
+        metadata={"validate": validate.OneOf([HEADER_AGREED_SEQ])},
     )
 
     def __str__(self) -> str:

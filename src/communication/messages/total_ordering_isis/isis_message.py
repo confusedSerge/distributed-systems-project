@@ -20,17 +20,21 @@ class MessageIsis:
         sender_ip: (int) the sender ip as id.
         
     """
+    sendeissr_ip: int = field(
+        metadata={
+            "validate": lambda x: isinstance(x, int) and x > 0
+        }
+    )
 
     # Message ID
     _id: str = field(metadata={"validate": lambda x: len(x) > 0})
+    
+    # Data
+    message_content: str = field(default="")
     header: str = field(
         default=HEADER_ISIS_MESSAGE,
         metadata={"validate": validate.OneOf([HEADER_ISIS_MESSAGE])},
     )
-
-    # Data
-    message_content: str = field(default="")
-    sendeissr_ip: int = field(default=0)
 
     def __str__(self) -> str:
         """Returns the string representation of the message."""

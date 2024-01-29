@@ -23,11 +23,6 @@ class Unicast:
             timeout (int, optional): The timeout for receiving messages. Defaults to None.
             sender (bool, optional): Whether the unicast object is used for sending or receiving. Defaults to False.
         """
-        self._host: str = "" if not host else str(host)
-        self._port: int = 0 if not port else port
-        self._address_port: tuple[str, int] = (self._host, self._port)
-
-        self._socket: socket.socket = None
         self._no_bind: bool = no_bind
 
         # https://stackoverflow.com/questions/54192308/how-to-duplicate-udp-packets-to-two-or-more-sockets
@@ -44,15 +39,6 @@ class Unicast:
             message (str): The message to send.
         """
         self._socket.sendto(message, (str(address[0]), address[1]))
-
-    def send_message_id_with_seq_id(self, message_id: int, sequence_id: int) -> None:
-        """Send a message tuple to the multicast group.
-
-        Args:
-            message_id:
-            sender_ip:
-        """
-        self._socket.sendto((message_id, sequence_id), self._address_port)
 
     def receive(
         self, buffer_size: int = BUFFER_SIZE
