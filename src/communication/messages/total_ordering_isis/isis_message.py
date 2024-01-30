@@ -17,10 +17,10 @@ class MessageIsis:
         _id: (str) Unique identifier of the message. Structure is "uname::aname::uuid".
         header: (str) Header of the message. Should be constant HEADER_ISIS_MESSAGE.
         message_content: (str) content of the message.
-        sender_ip: (int) the sender ip as id.
+        sender_id: (int) the sender id.
         
     """
-    sendeissr_ip: int = field(
+    sender_id: int = field(
         metadata={
             "validate": lambda x: isinstance(x, int) and x > 0
         }

@@ -205,7 +205,7 @@ class ISISProcess:
             # TODO: deliver the message at the head of the queue
             self.holdback_queue.pop(0)
 
-    def multicast_message_to_all(self, message: bytes, group: IPv4Address, port: int):
+    def multicast_message_to_all(self, message_content: str, group: IPv4Address, port: int):
         """multicast_message_to_all should be called when a message is multicasted (in our case, when a bid is done).
 
         Args:
@@ -216,18 +216,23 @@ class ISISProcess:
         # Counter represents the message_id
         self.counter += 1
         # Define message with header and multicast it
-        isis_message_with_counter = MessageIsisWithCounter(message=message, counter=self.counter)
-        Multicast.qsend(message=isis_message_with_counter, group=group, port=port)
-
+        isis_message_with_counter = MessageIsisWithCounter(message_content=message_content, counter=self.counter)
+        Multicast.qsend(message=isis_message_with_counter.encode(), 
+                        group=group, 
+                        port=port
+                        )
 
     def on_receive_message_send_sequence_id_save_message_to_holdback_queue(self, message_content: str, message_id: int, received_sender_id: int, host: IPv4Address, port: int):
         """on_receive_message_send_sequence_id_save_message_to_holdback_queue should be called when MessageIsisWithCounter is received.
 
-        TODO: This function should inside an if cause which checks for incoming bid. 
+        TODO: This function should inside an if cause which checks for incoming message with header HEADER_ISIS_MESSAGE_WITH_COUNTER. 
         """
         self.sequence_id += 1
         sequence_id_message = MessageProposedSequence(proposed_sequence=self.sequence_id)
-        Unicast.qsend(message=sequence_id_message, host=host, port=port)
+        Unicast.qsend(message=sequence_id_message.encode(), 
+                      host=host, 
+                      port=port
+                      )
         self.holdback_queue.append({
             'message': message_content,
             'message_id': message_id,
@@ -241,7 +246,7 @@ class ISISProcess:
     def send_final_priority(self, message_id: int, sender_id: int, multicast_group: IPv4Address, port: int):
         """send_proposed_priority should be called when a MessageProposedSequence is received.
 
-        TODO: This function should inside an if cause which checks if proposed sequence should be send.
+        TODO: This function should inside an if cause which checks for incoming message with header HEADER_PROPOSED_SEQ.
         """
         #message, address = self.receiver.receive()
         # message[1] is sequence_id of sender and address[0] is sender_id
@@ -263,7 +268,10 @@ class ISISProcess:
                                                                         sequence_id=max_sequence_number[0], 
                                                                         sender_id_from_sequence_id=max_sequence_number[1]
                                                                         )
-        Multicast.qsend(message_id=message_message_id_with_s_id_and_seq_id, group=multicast_group, port=port)
+        Multicast.qsend(message_id=message_message_id_with_s_id_and_seq_id.encode(), 
+                        group=multicast_group, 
+                        port=port
+                        )
         # TODO: end if
 
     def put_final_sequence(self, message: bytes):

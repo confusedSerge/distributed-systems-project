@@ -27,7 +27,7 @@ class MessageIsisWithCounter:
             "validate": lambda x: isinstance(x, int) and x > 0
         }
     )
-    message: bytes
+    message_content: str
     header: str = field(
         default=HEADER_ISIS_MESSAGE_WITH_COUNTER,
         metadata={"validate": validate.OneOf([HEADER_ISIS_MESSAGE_WITH_COUNTER])},
@@ -35,7 +35,7 @@ class MessageIsisWithCounter:
 
     def __str__(self) -> str:
         """Returns the string representation of the message."""
-        return f"{HEADER_ISIS_MESSAGE_WITH_COUNTER}(id={self.message}, counter={self.counter})"
+        return f"{HEADER_ISIS_MESSAGE_WITH_COUNTER}(id={self.message_content}, counter={self.counter})"
 
     def __repr__(self) -> str:
         """Returns the string representation of the message."""
