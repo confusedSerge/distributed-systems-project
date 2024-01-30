@@ -22,6 +22,9 @@ class Multicast:
 
     This class implements a reliable, totally ordered multicast protocol.
     It is based on the ISIS algorithm.
+
+    TODO: Implement the ISIS algorithm. Currently, this class has basic UDP Multicast functionality.
+    
     """
 
     def __init__(
@@ -130,8 +133,6 @@ class Multicast:
             ttl (int, optional): The time to live for the multicast messages. Defaults to 32.
         """
         mc = Multicast(group, port, sender=True, ttl=ttl)
-        #TODO: The following send should only happen after the message went throuth the ISISProcess.
-        #      So the task is to implement the process here and then send the message away with the follwing mc.send.
         mc.send(message)
         mc.close()
 
@@ -199,9 +200,9 @@ class ISISProcess:
             if message_with_smallest_suggesting_process:
                 self.shift_to_head(self.holdback_queue, message_with_smallest_suggesting_process)
 
-        # TODO: While message at head of queue has status deliverable do deliver the message at the head of the queue remove this message from the queueend while
+        # TODO: While message at head of queue has status deliverable do deliver the message at the head of the queue and remove this message from the head
         while self.holdback_queue[0]['status'] == 'deliverable':
-            # TODO: deliver (execute action of) the message at the head of the queue
+            # TODO: deliver the message at the head of the queue
             self.holdback_queue.pop(0)
 
     def multicast_message_to_all(self, message: bytes, group: IPv4Address, port: int):
