@@ -59,15 +59,13 @@ class AuctionBidListener(Process):
             except TimeoutError:
                 continue
 
-            if not MessageSchema.of(com.HEADER_AUCTION_BID, message):
+            if (
+                not MessageSchema.of(com.HEADER_AUCTION_BID, message)
+                or MessageSchema.get_id(message) in self._seen_message_id
+            ):
                 continue
 
             bid: MessageAuctionBid = MessageAuctionBid.decode(message)
-            if bid._id in self._seen_message_id:
-                self._logger.info(
-                    f"{self._name}: Received duplicate bid {bid} from {address}"
-                )
-                continue
 
             try:
                 if Auction.parse_id(bid._id) != self._auction.get_id():

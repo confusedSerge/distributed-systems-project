@@ -30,6 +30,7 @@ from process import (
     AuctionPeersAnnouncementListener,
     AuctionManager,
     ReplicaFinder,
+    AuctionStateAnnouncementListener,
 )
 from util import create_logger, generate_message_id, Timeout
 
@@ -84,13 +85,14 @@ class Replica(Process):
         # Sub processes
         self._auction_peers_listener: Optional[AuctionPeersAnnouncementListener] = None
         self._auction_bid_listener: Optional[AuctionBidListener] = None
+        self._auction_state_listener: Optional[AuctionStateAnnouncementListener] = None
         self._auction_manager: Optional[AuctionManager] = None
         self._replica_finder: Optional[ReplicaFinder] = None
         self._reelection_listener: Optional[Process] = None
 
         # Leader
         self._leader: tuple[IPv4Address, int] = self._unicast.get_address()
-        self._is_leader: bool = False
+        self._is_leader: bool = True
 
         self.reelection: Event = ProcessEvent()
 
@@ -140,12 +142,6 @@ class Replica(Process):
         self.peer_change.clear()
         self._logger.info(f"{self._name}: Initial peers received")
 
-        # Check if replica is one of the initial peers and move auction to running state
-        if self.auction.is_preparation():
-            self._logger.info(f"{self._name}: Auction is in preparation state")
-            self.auction.next_state()
-            self._logger.info(f"{self._name}: Auction set to running state")
-
         # Start replica leader/follower tasks (heartbeat, election, etc.)
         self._logger.info(
             f"{self._name}: Starting leader/follower tasks with auction {self.auction} and {self.peers.len()} peers"
@@ -174,7 +170,7 @@ class Replica(Process):
         """Handles the main auction tasks of the replica."""
         assert self.auction is not None
 
-        while not self._exit.is_set():
+        while not self._exit.is_set() or self.auction.is_running():
             # Start Leader tasks
             if self._is_leader:
                 self._logger.info(f"{self._name}: LEADER: Starting auction manager")
@@ -182,7 +178,17 @@ class Replica(Process):
                 self._auction_manager.start()
 
             # Start Heartbeat
+            # Note, this will fail, if these are initial peers, as no leader has been elected yet
+            #   If there are already peers, new peers will just join to the heartbeat
+            #   as they only reach this point after getting the peers from the peers listener
+            #   hence, the leader has also received the new peers
             self._heartbeat()
+
+            # Stop Leader tasks
+            if self._is_leader and self._auction_manager is not None:
+                self._logger.info(f"{self._name}: LEADER: Stopping auction manager")
+                self._auction_manager.stop()
+                self._auction_manager.join()
 
             # TODO: Implement actual election
             if self.reelection.is_set():
@@ -190,12 +196,6 @@ class Replica(Process):
                 self._election()
                 self.reelection.clear()
                 self._logger.info(f"{self._name}: REELECTION: Stopped")
-
-        # Stop Leader tasks
-        if self._is_leader and self._auction_manager is not None:
-            self._logger.info(f"{self._name}: LEADER: Stopping auction manager")
-            self._auction_manager.stop()
-            self._auction_manager.join()
 
     # === PRELUDE ===
 
@@ -556,7 +556,7 @@ class Replica(Process):
             rcv_auction.get_auctioneer(),
             rcv_auction.get_item(),
             rcv_auction.get_price(),
-            rcv_auction.get_time(),
+            rcv_auction.get_end_time(),
             rcv_auction.get_group(),
         )
 
@@ -585,6 +585,9 @@ class Replica(Process):
         self.peers: Optional[AuctionPeersStore] = self.manager.AuctionPeersStore()  # type: ignore
         # Add self to peers or else the shared memory will be garbage collected, as the list is empty :(
         # This has been my worst bug so far
+        assert (
+            self.peers is not None
+        ), "Peers is None after init from memory manager. This case should not be possible"
         self.peers.add(IPv4Address("0.0.0.0"), self._unicast.get_address()[1])
 
     def _start_listeners(self) -> None:
@@ -596,6 +599,9 @@ class Replica(Process):
         # Start listeners
         self._logger.info(f"{self._name}: PRELUDE: Starting listeners")
 
+        self._auction_state_listener: Optional[
+            AuctionStateAnnouncementListener
+        ] = AuctionStateAnnouncementListener(self.auction)
         self._auction_peers_listener: Optional[
             AuctionPeersAnnouncementListener
         ] = AuctionPeersAnnouncementListener(self.auction, self.peers, self.peer_change)
@@ -603,6 +609,7 @@ class Replica(Process):
             self.auction
         )
 
+        self._auction_state_listener.start()
         self._auction_peers_listener.start()
         self._auction_bid_listener.start()
 
@@ -612,6 +619,13 @@ class Replica(Process):
         """Stops the listeners."""
 
         self._logger.info(f"{self._name}: Stopping listeners")
+
+        if (
+            self._auction_state_listener is not None
+            and self._auction_state_listener.is_alive()
+        ):
+            self._auction_state_listener.stop()
+            self._auction_state_listener.join()
 
         if (
             self._auction_peers_listener is not None

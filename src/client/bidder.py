@@ -1,6 +1,7 @@
 from multiprocessing.synchronize import Event
 
 from logging import Logger
+from time import localtime, strftime
 from typing import Optional
 
 import re
@@ -25,6 +26,7 @@ from util import create_logger, Timeout, generate_message_id
 from constant import (
     interaction as inter,
     communication as com,
+    stateid2stateobj,
     USERNAME,
     BUFFER_SIZE,
     TIMEOUT_RESPONSE,
@@ -139,7 +141,7 @@ class Bidder:
         print("Auctions available to join:")
         for _, auction in self.auction_announcement_store.items():
             print(
-                f"* {auction.auction._id}: Auction {auction.auction.name} with item {auction.auction.item} by {auction.auction.auctioneer} starting at {auction.auction.price} with {auction.auction.time} seconds"
+                f"Auction {auction.auction._id} with ({auction.auction.item}, {auction.auction.price}, {strftime('%a, %d %b %Y %H:%M:%S +0000', localtime(auction.auction.time))}) currently in state {stateid2stateobj[auction.auction.state][1]}"
             )
 
     def _list_auction_info(self) -> None:
@@ -154,7 +156,7 @@ class Bidder:
         print(f"* Joined auction {auction_id}: {auction}")
         print(f"* Highest bid: {auction.get_highest_bid()}")
         print(
-            f"* Winner: {auction.get_winner() if auction.is_winner_declared() else 'No winner yet'}"
+            f"* Winner: {auction.get_winner() if auction.is_ended() else 'No winner yet'}"
         )
 
     def _join_auction(self) -> None:
@@ -304,7 +306,7 @@ class Bidder:
             rec.get_auctioneer(),
             rec.get_item(),
             rec.get_price(),
-            rec.get_time(),
+            rec.get_end_time(),
             rec.get_group(),
         )
         auction.from_other(rec)

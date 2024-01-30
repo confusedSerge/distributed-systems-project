@@ -22,13 +22,12 @@ class AuctionData:
 
         item: (str) Item being auctioned.
         price: (int) Starting price of the auction.
-        time: (int) Time for the auction.
+        time: (float) Time for the auction.
 
         multicast_address: (str) Multicast address for the auction.
 
         state: (int) State of the auction.
         bid_history: (list[tuple[str, int]]) Bid history of the auction.
-        winner: (str) Winner of the auction.
     """
 
     # Auction ID, name and auctioneer
@@ -39,7 +38,7 @@ class AuctionData:
     # Auction information
     item: str = field(metadata={"validate": lambda x: isinstance(x, str)})
     price: float = field(metadata={"validate": lambda x: isinstance(x, float)})
-    time: int = field(metadata={"validate": lambda x: isinstance(x, int)})
+    time: float = field(metadata={"validate": lambda x: isinstance(x, float)})
 
     # Multicast address for the auction
     group: str = field(
@@ -65,11 +64,10 @@ class AuctionData:
             )
         }
     )
-    winner: str = field(metadata={"validate": lambda x: isinstance(x, str)})
 
     def __str__(self) -> str:
         """Return the string representation of the auction data."""
-        return f"AuctionData(id={self._id}, item={self.item}, price={self.price}, time={self.time}, address={self.group}, state={self.state}, bid_history={self.bid_history}, winner={self.winner})"
+        return f"AuctionData(id={self._id}, item={self.item}, price={self.price}, time={self.time}, address={self.group}, state={self.state}, bid_history={self.bid_history})"
 
     def __repr__(self) -> str:
         """Return the string representation of the auction data."""
@@ -101,9 +99,8 @@ class AuctionData:
             group=IPv4Address(self.group),
         )
         auction._set_id(self._id)
-        auction._set_state(self.state)
+        auction.set_state(self.state)
         auction._set_bid_history(self.bid_history)
-        auction._set_winner(self.winner)
         return auction
 
     @staticmethod
@@ -115,11 +112,10 @@ class AuctionData:
             auctioneer=auction.get_auctioneer(),
             item=auction.get_item(),
             price=auction.get_price(),
-            time=auction.get_time(),
+            time=auction.get_end_time(),
             group=str(auction.get_group()),
             state=auction.get_state()[0],
             bid_history=auction.get_bid_history(),
-            winner=auction.get_winner(),
         )
 
 

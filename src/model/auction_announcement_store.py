@@ -1,6 +1,7 @@
 from ipaddress import IPv4Address
 
 from communication import MessageAuctionAnnouncement
+from model import Auction
 
 
 class AuctionAnnouncementStore:
@@ -18,9 +19,12 @@ class AuctionAnnouncementStore:
         Args:
             auction (MessageAuctionAnnouncement): The auction announcement to add.
         """
-        if self.exists(announcement._id):
-            raise ValueError(f"Auction with id {announcement._id} already exists")
-        self._announcements[announcement._id] = announcement
+        if self.exists(Auction.parse_id(announcement._id)):
+            raise ValueError(
+                f"Auction with id {Auction.parse_id(announcement._id)} already exists"
+            )
+
+        self._announcements[Auction.parse_id(announcement._id)] = announcement
 
     def update(self, announcement: MessageAuctionAnnouncement) -> None:
         """Updates an auction announcement in the store.
@@ -30,7 +34,7 @@ class AuctionAnnouncementStore:
         Args:
             auction (MessageAuctionAnnouncement): The auction announcement to update.
         """
-        self._announcements[announcement._id] = announcement
+        self._announcements[Auction.parse_id(announcement._id)] = announcement
 
     def get(self, auction: str) -> MessageAuctionAnnouncement:
         """Returns an auction announcement from the store.

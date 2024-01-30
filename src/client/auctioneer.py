@@ -4,7 +4,7 @@ from ipaddress import IPv4Address
 
 from multiprocessing import Process, Event as ProcessEvent
 from multiprocessing.synchronize import Event
-from time import sleep
+from time import sleep, time
 
 from logging import Logger
 
@@ -31,9 +31,6 @@ from constant import (
     SLEEP_TIME,
     REPLICA_EMITTER_PERIOD,
     REPLICA_AUCTION_POOL_SIZE,
-    MULTICAST_DISCOVERY_GROUP,
-    MULTICAST_DISCOVERY_PORT,
-    MULTICAST_DISCOVERY_TTL,
 )
 
 
@@ -141,16 +138,19 @@ class Auctioneer:
 
         # Prompt user for auction information
         self._logger.info(f"{self._name}: Creating auction")
-        aname, item, price, time = self._define_auction()
-        if aname is None or item is None or price is None or time is None:
+        aname, item, price, running_time = self._define_auction()
+        if aname is None or item is None or price is None or running_time is None:
             return
+
+        # calculate end time
+        end_time = time() + running_time
 
         # Create auction
         address: IPv4Address = generate_mc_group(
             self.auction_announcement_store.get_groups()
         )
         _auction: Auction = self.manager.Auction(  # type: ignore
-            aname, USERNAME, item, price, time, address
+            aname, USERNAME, item, price, end_time, address
         )
         self._logger.info(f"{self._name}: Created auction {_auction}")
 
@@ -260,16 +260,6 @@ class _SubAuctioneer(Process):
             self._logger.info(f"{self._name}: Exiting as process received stop signal")
             return
 
-        # Move auction to running state
-        self._auction.next_state()
-
-        # Announce auction
-        self._announce()
-
-        if self._exit.is_set():
-            self._logger.info(f"{self._name}: Exiting as process received stop signal")
-            return
-
         # Create multicast listener to receive bids and update auction state
         self._listen()
 
@@ -300,6 +290,7 @@ class _SubAuctioneer(Process):
         replica_finder.start()
         replica_finder.join()
 
+        # TODO: Holds?
         # Check if enough replicas were found
         if replica_list.len() < REPLICA_AUCTION_POOL_SIZE:
             self._logger.info(
@@ -312,21 +303,6 @@ class _SubAuctioneer(Process):
         self._logger.info(
             f"{self._name}: Replicated auction {self._auction.get_id()} to replicas {replica_list.str()}"
         )
-
-    def _announce(self):
-        """Announces the auction to the Discovery Multicast Group."""
-        self._logger.info(f"{self._name}: Announcing auction {self._auction}")
-        announcement: MessageAuctionAnnouncement = MessageAuctionAnnouncement(
-            _id=generate_message_id(self._auction.get_id()),
-            auction=AuctionMessageData.from_auction(self._auction),
-        )
-        Multicast.qsend(
-            message=announcement.encode(),
-            group=MULTICAST_DISCOVERY_GROUP,
-            port=MULTICAST_DISCOVERY_PORT,
-            ttl=MULTICAST_DISCOVERY_TTL,
-        )
-        self._logger.info(f"{self._name}: Announced auction {self._auction.get_id()}")
 
     def _listen(self):
         """Starts the auction bid listener to listen to bids for the auction."""

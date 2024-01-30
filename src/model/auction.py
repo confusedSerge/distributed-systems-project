@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from ipaddress import IPv4Address
+from time import localtime, strftime
 
 from constant import auction as state
 
@@ -17,7 +18,7 @@ class Auction:
         auctioneer: str,
         item: str,
         price: float,
-        time: int,
+        time: float,
         group: IPv4Address,
     ) -> None:
         """Initializes the auction class.
@@ -28,7 +29,7 @@ class Auction:
 
             item (str): The item of the auction.
             price (float): The starting price of the auction.
-            time (int): The time of the auction.
+            time (float): The time of the auction.
 
             group (IPv4Address): The multicast group of the auction. (port are same for all auctions)
         """
@@ -40,7 +41,7 @@ class Auction:
         # Auction information
         self._item: str = item
         self._price: float = price
-        self._time: int = time
+        self._time: float = time
 
         # Multicast group and port are initially empty
         self._multicast_group: IPv4Address = group
@@ -48,7 +49,6 @@ class Auction:
         # Auction states
         self._auction_state: tuple[int, str] = state.AUCTION_PREPARATION
         self._bid_history: list[tuple[str, float]] = []
-        self._winner: str = ""
 
     # Identification methods
     def get_name(self) -> str:
@@ -102,11 +102,11 @@ class Auction:
         """
         return self._price
 
-    def get_time(self) -> int:
-        """Returns the time of the auction.
+    def get_end_time(self) -> float:
+        """Returns the end time of the auction.
 
         Returns:
-            int: The time of the auction.
+            float: The time of the auction.
         """
         return self._time
 
@@ -152,7 +152,7 @@ class Auction:
             case state.AUCTION_RUNNING:
                 self._auction_state = state.AUCTION_ENDED
             case state.AUCTION_ENDED:
-                self._auction_state = state.AUCTION_WINNER_DECLARED
+                self._auction_state = state.AUCTION_ENDED
             case _:
                 self._auction_state = state.AUCTION_CANCELLED
 
@@ -192,15 +192,7 @@ class Auction:
         """
         return self._auction_state == state.AUCTION_ENDED
 
-    def is_winner_declared(self) -> bool:
-        """Returns whether the auction winner has been declared.
-
-        Returns:
-            bool: Whether the auction winner has been declared.
-        """
-        return self._auction_state == state.AUCTION_WINNER_DECLARED
-
-    def _set_state(self, state_id: int) -> None:
+    def set_state(self, state_id: int) -> None:
         """Sets the state of the auction.
 
         This method should only be used when deserializing an auction.
@@ -257,22 +249,12 @@ class Auction:
         Returns:
             str: The winner of the auction.
         """
-        if self._auction_state == state.AUCTION_WINNER_DECLARED:
-            return self._winner
+        if self._auction_state == state.AUCTION_ENDED:
+            return self.get_highest_bid()[0]
         return ""
 
-    def _set_winner(self, winner: str) -> None:
-        """Sets the winner of the auction.
-
-        This method should only be used when deserializing an auction.
-
-        Args:
-            winner (str): The winner of the auction.
-        """
-        self._winner = winner
-
     def __str__(self) -> str:
-        return f"Auction {self._id} with ({self._item}, {self._price}, {self._time}) currently in state {self._auction_state[1]}"
+        return f"Auction {self._id} with ({self._item}, {self._price}, {strftime('%a, %d %b %Y %H:%M:%S +0000', localtime(self._time))}) currently in state {self._auction_state[1]}"
 
     def __repr__(self) -> str:
         return str(self)
@@ -289,13 +271,12 @@ class Auction:
 
         self._item = other.get_item()
         self._price = other.get_price()
-        self._time = other.get_time()
+        self._time = other.get_end_time()
 
         self._multicast_group = other.get_group()
 
         self._auction_state = other.get_state()
         self._bid_history = other.get_bid_history()
-        self._winner = other.get_winner()
 
     @staticmethod
     def copy(other: Auction) -> Auction:
@@ -312,13 +293,12 @@ class Auction:
             auctioneer=other.get_auctioneer(),
             item=other.get_item(),
             price=other.get_price(),
-            time=other.get_time(),
+            time=other.get_end_time(),
             group=other.get_group(),
         )
         auction._set_id(other.get_id())
-        auction._set_state(other.get_state_id())
+        auction.set_state(other.get_state_id())
         auction._set_bid_history(other.get_bid_history())
-        auction._set_winner(other.get_winner())
         return auction
 
     @staticmethod

@@ -10,6 +10,7 @@ from .replica import (
 
 from .auction import (
     MessageAuctionAnnouncement,
+    MessageAuctionStateAnnouncement,
     MessageAuctionInformationRequest,
     MessageAuctionInformationResponse,
     MessageAuctionInformationAcknowledgement,

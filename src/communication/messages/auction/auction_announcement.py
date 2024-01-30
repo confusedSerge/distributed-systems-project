@@ -12,9 +12,10 @@ from constant import HEADER_AUCTION_ANNOUNCEMENT
 
 @dataclass
 class MessageAuctionAnnouncement:
-    """Announcement message for new auction.
+    """Announcement message for auctions.
 
-    This message is sent by the auctioneer to the discovery multicast group to announce a new auction.
+    This message is sent by the auctioneer to the discovery multicast group to announce an auction.
+    This message is also used to update the auctions message in the auction store, reflecting changes in the auction.
 
     Fields:
         _id: (str) Unique identifier of the message. Structure is "uname::aname::uuid".
