@@ -1,3 +1,4 @@
+from audioop import add
 from typing import Optional
 
 import os
@@ -9,6 +10,7 @@ from multiprocessing.synchronize import Event
 from time import sleep
 
 from logging import Logger
+from communication.multicast import Multicast
 
 # === Custom Modules ===
 
@@ -23,6 +25,13 @@ from communication import (
     MessageAuctionInformationAcknowledgement,
     MessageHeartbeatRequest,
     MessageHeartbeatResponse,
+    MessageReelectionAnnouncement,
+    MessageElectionRequest,
+    MessageElectionWin,
+    MessageElectionImAlive,
+    MessageIsis,
+    MessageProposedSequence,
+    MessageAgreedSequence,
 )
 from process import (
     Manager,
@@ -40,9 +49,13 @@ from constant import (
     REPLICA_EMITTER_PERIOD,
     TIMEOUT_REPLICATION,
     TIMEOUT_RECEIVE,
+    TIMEOUT_ELECTION,
     REPLICA_AUCTION_POOL_SIZE,
     BUFFER_SIZE,
     SLEEP_TIME,
+    MULTICAST_AUCTION_GROUP_BASE,
+    MULTICAST_AUCTION_PORT,
+    MULTICAST_AUCTION_TTL,
 )
 
 
@@ -326,18 +339,6 @@ class Replica(Process):
         )
 
         self._logger.info(f"{self._name}: PRELUDE: Prelude finalized")
-
-    # === ELECTION ===
-
-    def _election(self) -> None:
-        """Handles the election of the replica.
-
-        # TODO: Implement actual election, this is just a placeholder
-        """
-        self._logger.info(f"{self._name}: ELECTION: Started")
-        self._is_leader = True
-        self._leader = self._unicast.get_address()
-        self._logger.info(f"{self._name}: ELECTION: Stopped")
 
     # === HEARTBEAT ===
 
@@ -642,3 +643,171 @@ class Replica(Process):
             self._auction_bid_listener.join()
 
         self._logger.info(f"{self._name}: Listeners stopped")
+
+    def _election(self) -> None:
+        """Handles the election of the replica via bully algorithm."""
+        # TODO: Implement this logic in code and implement
+        # listener somewhere else which starts this function if request from lower id comes.
+
+        self._logger.info(f"{self._name}: ELECTION: Started")
+
+        # Get the id of this replica
+        my_priority = int(self.get_id().split('.')[3].split(':')[0])
+
+        # Check if there's any replica with higher priority
+        higher_priority_replicas = [
+            replica for replica in self.peers.iter() if str(replica[0]).split('.')[3] > my_priority
+        ]
+
+        # If there are replicas with higher priority, start election
+        if higher_priority_replicas:
+            self._logger.info(f"{self._name}: ELECTION: Detected higher priority replicas, initiating election")
+            for replica in higher_priority_replicas:
+                # Send election message to higher priority replicas
+                election_message = MessageElectionRequest(_id=my_priority)
+                Unicast.qsend(
+                    message=election_message.encode(),
+                    host=replica[0],
+                    port=replica[1],
+                )
+            
+            # Wait for responses
+            responded_replicas = set()
+            with Timeout(TIMEOUT_ELECTION, throw_exception=False):
+                while not self._exit.is_set():
+                    try:
+                        response, address = self._unicast.receive(BUFFER_SIZE)
+                        if MessageSchema.of(com.HEADER_ELECTION_RES, response):
+                            responded_replicas.add(address)
+                        elif MessageSchema.of(com.HEADER_ELECTION_REQ, response):
+                            # Received election request from a lower-priority replica
+                            self._logger.info(f"{self._name}: ELECTION: Received election request from lower-priority replica")
+                            # Send "I am alive" message back
+                            alive_message = MessageElectionImAlive(_id=my_priority)
+                            Unicast.qsend(
+                                message=alive_message.encode(),
+                                host=address[0],
+                                port=address[1],
+                            )
+                    except TimeoutError:
+                        self._logger.info(f"{self._name}: ELECTION: Timeout waiting for responses")
+                        break
+
+            # If no response from higher priority replicas, win the election and broadcast victory
+            if not responded_replicas:
+                self._logger.info(f"{self._name}: ELECTION: Won the election, broadcasting victory")
+                # Broadcast victory message
+                victory_message = MessageElectionWin(_id=my_priority)
+                for replica in self.peers.iter():
+                    Multicast.qsend(
+                        message=victory_message.encode(),
+                        group=MULTICAST_AUCTION_GROUP_BASE,
+                        port=MULTICAST_AUCTION_PORT
+                    )
+                self._is_leader = True
+
+            # If received response from higher priority replica, wait for its victory message
+            else:
+                # Wait for victory message from higher priority replica
+                with Timeout(TIMEOUT_ELECTION, throw_exception=False):
+                    while not self._exit.is_set():
+                        try:
+                            response, address = self._unicast.receive(BUFFER_SIZE)
+                            if MessageSchema.of(com.HEADER_ELECTION_WIN, response):
+                                # Received victory message, stop election
+                                self._logger.info(f"{self._name}: ELECTION: Received victory message, stopping election")
+                                self._is_leader = False
+                                self._leader = address
+                                break
+                        except TimeoutError:
+                            self._logger.info(f"{self._name}: ELECTION: Timeout waiting for victory message")
+                            break
+
+                # If no victory message received, re-broadcast election message
+                if self._leader is None:
+                    self._logger.info(f"{self._name}: ELECTION: No victory message received, re-broadcasting election")
+                    for replica in self.peers.iter():
+                        if str(replica[0]).split('.')[3] > my_priority:
+                            # Send election message to higher priority replicas
+                            election_message = MessageElectionRequest(_id=my_priority)
+                            Unicast.qsend(
+                                message=election_message.encode(),
+                                host=replica[0],
+                                port=replica[1],
+                            )
+        # If there are no higher priority replicas, become the leader
+        else:
+            election_message = MessageElectionWin(_id=my_priority)
+            Multicast.qsend(
+                message=election_message.encode(),
+                group=MULTICAST_AUCTION_GROUP_BASE,
+                port=MULTICAST_AUCTION_PORT
+            )
+            self._logger.info(f"{self._name}: ELECTION: No higher priority replicas, becoming the leader")
+            self._leader = True
+            self._leader_address = (self._unicast.get_host(), self._unicast.get_port())
+
+        self._logger.info(
+            f"{self._name}: ELECTION: Is leader: {self._leader} at {self._leader_address}"
+        )
+
+        self._logger.info(f"{self._name}: ELECTION: Stopped")
+
+    def _reelection_listener(self) -> None:
+        # TODO: Implement correct reelection_listener
+        mc: Multicast = Multicast(
+            group=self.auction.get_address(),
+            port=MULTICAST_AUCTION_PORT,
+            ttl=MULTICAST_AUCTION_TTL,
+        )
+
+        self._logger.info(f"{self._name}: REELECTION LISTENER: Started")
+        while not self._reelection.is_set() and not self._exit.is_set():
+            try:
+                response, address = mc.receive(BUFFER_SIZE)
+            except TimeoutError:
+                continue
+
+            if not MessageSchema.of(com.HEADER_REELECTION_ANNOUNCEMENT, response):
+                continue
+
+            announcement: MessageReelectionAnnouncement = (
+                MessageReelectionAnnouncement.decode(response)
+            )
+
+            if Auction.parse_id(announcement._id) != self.auction.get_id():
+                self._logger.info(
+                    f"{self._name}: REELECTION LISTENER: Received reelection announcement {announcement._id} for another auction {Auction.parse_id(announcement._id)}"
+                )
+                continue
+
+            self._logger.info(
+                f"{self._name}: REELECTION LISTENER: Received reelection announcement {announcement._id} from {address}"
+            )
+
+            self._reelection.set()
+            break
+
+        self._logger.info(f"{self._name}: REELECTION LISTENER: Stopped")
+    
+    def isis(self) -> None:
+
+        if MessageSchema.of(com.HEADER_AUCTION_BID, response):
+            #start the isis algo
+            return
+
+        mc: Multicast = Multicast(
+            group=self.auction.get_address(),
+            port=MULTICAST_AUCTION_PORT,
+            ttl=MULTICAST_AUCTION_TTL,
+        )
+    
+        response, address = mc.receive(BUFFER_SIZE)
+
+        if MessageSchema.of(com.HEADER_ISIS_MESSAGE, response):
+            return
+        elif MessageSchema.of(com.HEADER_PROPOSED_SEQ):
+            return
+        elif MessageSchema.of(com.HEADER_AGREED_SEQ):  
+            return
+        

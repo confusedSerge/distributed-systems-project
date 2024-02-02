@@ -11,7 +11,7 @@ from process.memory_manager import Manager
 from server import Server
 
 
-if __name__ == "__main__":
+if __name__ == "__main__": 
     client = Client()
     server = Server()
 

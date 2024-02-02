@@ -23,3 +23,16 @@ from .heartbeat import (
     MessageHeartbeatRequest,
     MessageHeartbeatResponse,
 )
+
+from .election import (
+    MessageReelectionAnnouncement,
+    MessageElectionRequest,
+    MessageElectionResponse,
+    MessageElectionWin,
+    MessageElectionImAlive
+)
+from .total_ordering_isis import (
+    MessageIsis,
+    MessageProposedSequence,
+    MessageAgreedSequence,
+)    
