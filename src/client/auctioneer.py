@@ -16,14 +16,7 @@ import inquirer
 from model import Auction, AuctionAnnouncementStore, AuctionPeersStore
 from process import Manager, ReplicaFinder, AuctionBidListener
 
-from communication import (
-    Multicast,
-    AuctionMessageData,
-    MessageAuctionAnnouncement,
-)
-
-
-from util import create_logger, generate_mc_group, generate_message_id
+from util import create_logger, generate_mc_group
 
 from constant import (
     interaction as inter,

@@ -25,15 +25,15 @@ HEARTBEAT_REQ: str = _config["heartbeat"]["heartbeat-req"]
 HEARTBEAT_RES: str = _config["heartbeat"]["heartbeat-res"]
 
 # Election Header
-REELECTION_ANNOUNCEMENT: str = _config["election"]["reelection-announcement"]
-ELECTION_WIN: str = _config["election"]["election-win"]
 ELECTION_REQ: str = _config["election"]["election-req"]
-ELECTION_RES: str = _config["election"]["election-res"]
-ELECTION_ALIVE: str = _config["election"]["election-alive"]
+ELECTION_ANS: str = _config["election"]["election-ans"]
+ELECTION_COORDINATOR: str = _config["election"]["election-coordinator"]
+
 
 # Total Ordering Header
-ISIS_MESSAGE_WITH_COUNTER : str = _config["total_ordering_isis"]["isis-message-with-counter"]
-ISIS_MESSAGE : str = _config["total_ordering_isis"]["isis-message"]
+ISIS_MESSAGE_WITH_COUNTER: str = _config["total_ordering_isis"][
+    "isis-message-with-counter"
+]
+ISIS_MESSAGE: str = _config["total_ordering_isis"]["isis-message"]
 PROPOSED_SEQ: str = _config["total_ordering_isis"]["proposed-seq"]
 AGREED_SEQ: str = _config["total_ordering_isis"]["agreed-seq"]
-

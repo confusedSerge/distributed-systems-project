@@ -219,7 +219,6 @@ class Bidder:
             return
 
         # Place bid
-        auction.bid(USERNAME, bid_amount)
         bid: MessageAuctionBid = MessageAuctionBid(
             _id=generate_message_id(auction.get_id()),
             bidder=USERNAME,

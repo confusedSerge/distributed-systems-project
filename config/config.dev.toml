@@ -31,6 +31,7 @@ timeout = 5
 
 [communication.election]
 timeout = 5
+port = 5555
 
 [communication.total_ordering_isis]
 timeout = 5
@@ -66,11 +67,9 @@ heartbeat-req = "HEARTBEAT_REQUEST"
 heartbeat-res = "HEARTBEAT_RESPONSE"
 
 [communication.header.election]
-reelection-announcement = "REELECTION_ANNOUNCEMENT"
 election-req = "ELECTION_REQUEST"
-election-res = "ELECTION_RESPONSE"
-election-win = "ELECTION_WIN"
-election-alive = "ELECTION_ALIVE"
+election-ans = "ELECTION_ANSWER"
+election-coordinator = "ELECTION_COORDINATOR"
 
 [communication.header.total_ordering_isis]
 isis-message-with-counter = "ISIS_MESSAGE_WITH_COUNTER"

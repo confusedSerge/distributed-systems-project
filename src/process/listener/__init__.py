@@ -2,3 +2,4 @@ from .auction_peers_announcement_listener import AuctionPeersAnnouncementListene
 from .auction_bid_listener import AuctionBidListener
 from .auction_announcement_listener import AuctionAnnouncementListener
 from .auction_state_listener import AuctionStateAnnouncementListener
+from .auction_reelection_listener import AuctionReelectionListener

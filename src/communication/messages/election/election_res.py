@@ -1,55 +1,61 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-import socket
 from marshmallow import validate
 import marshmallow_dataclass
 
 from json import dumps, loads
 
-from constant import HEADER_ELECTION_RES
+from constant import HEADER_ELECTION_ANS
+
 
 @dataclass
-class MessageElectionResponse:
-    """Election response message.
+class MessageElectionAnswer:
+    """Election answer message (bully algorithm).
 
-    This message is used to respond to an election request.
+    This message is used to answer the election request during the bully algorithm for leader election.
 
     Fields:
-        _id: (int) Unique identifier of the replicant. Should match the ID of the election request.
-        header: (str) Header of the message. Should be constant HEADER_ELECTION_RES.
+        _id: (str) Message ID.
+        header: (str) Header of the message. Should be constant HEADER_ELECTION_ANS.
+        req_id: (tuple[str, int]) The ID of the replica answering the election request.
     """
 
-    _id: int = field(
-        metadata={
-            "validate": lambda x: isinstance(x, int) and x > 0
-        }
+    # request ID
+    req_id: tuple[str, int] = field(
+        metadata={"validate": lambda x: isinstance(x, tuple) and len(x) == 2}
     )
+
+    _id: str = field(metadata={"validate": lambda x: len(x) > 0})
     header: str = field(
-        default=HEADER_ELECTION_RES,
-        metadata={"validate": validate.OneOf([HEADER_ELECTION_RES])},
+        default=HEADER_ELECTION_ANS,
+        metadata={"validate": validate.OneOf([HEADER_ELECTION_ANS])},
     )
 
     def __str__(self) -> str:
         """Returns the string representation of the message."""
-        return f"{HEADER_ELECTION_RES}(id={self._id}"
+        return f"{HEADER_ELECTION_ANS}(id={self._id})"
 
     def __repr__(self) -> str:
         """Returns the string representation of the message."""
         return self.__str__()
 
+    def __eq__(self, o: object) -> bool:
+        """Returns whether the value is equal to the message."""
+        if not isinstance(o, MessageElectionAnswer):
+            return False
+        return self._id == o._id
+
     def encode(self) -> bytes:
-        """Returns the encoded message."""
-        return bytes(
-            dumps(SCHEMA_MESSAGE_ELECTION_RES().dump(self)), "utf-8"
-        )
+        """Encodes the message into a bytes object."""
+        return bytes(dumps(SCHEMA_MESSAGE_ELECTION_ANSWER().dump(self)), "utf-8")
 
     @staticmethod
-    def decode(message: bytes) -> 'MessageElectionResponse':
-        """Return the decoded election response."""
-        return SCHEMA_MESSAGE_ELECTION_RES().load(loads(message))
+    def decode(data: bytes) -> MessageElectionAnswer:
+        """Decodes the bytes object into a message object."""
+        return SCHEMA_MESSAGE_ELECTION_ANSWER().load(loads(data.decode("utf-8")))  # type: ignore
 
 
-SCHEMA_MESSAGE_ELECTION_RES = marshmallow_dataclass.class_schema(
-    MessageElectionResponse
+SCHEMA_MESSAGE_ELECTION_ANSWER = marshmallow_dataclass.class_schema(
+    MessageElectionAnswer
 )

@@ -25,14 +25,12 @@ from .heartbeat import (
 )
 
 from .election import (
-    MessageReelectionAnnouncement,
     MessageElectionRequest,
-    MessageElectionResponse,
-    MessageElectionWin,
-    MessageElectionImAlive
+    MessageElectionAnswer,
+    MessageElectionCoordinator,
 )
 from .total_ordering_isis import (
     MessageIsis,
     MessageProposedSequence,
     MessageAgreedSequence,
-)    
+)

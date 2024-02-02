@@ -14,6 +14,7 @@ class Unicast:
         self,
         timeout: Optional[int] = None,
         no_bind: bool = False,
+        port: int = 0,
     ):
         """Initialize the unicast socket.
 
@@ -30,7 +31,7 @@ class Unicast:
         self._socket: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         if not no_bind:
             self._socket.settimeout(timeout) if timeout else None
-            self._socket.bind(("", 0))
+            self._socket.bind(("", port))
 
     def send(self, message: bytes, address: tuple[IPv4Address, int]) -> None:
         """Send a message to the unicast host.

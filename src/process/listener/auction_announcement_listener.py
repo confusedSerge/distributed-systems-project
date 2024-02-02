@@ -1,8 +1,9 @@
-from logging import Logger
 import os
 
 from multiprocessing import Process, Event as ProcessEvent
 from multiprocessing.synchronize import Event
+
+from logging import Logger
 
 # === Custom Modules ===
 

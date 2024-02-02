@@ -23,6 +23,8 @@ class AuctionBidListener(Process):
     """Auction Bid listener process.
 
     This process listens to an auction bids and updates the auction bid history accordingly.
+
+    # TODO: USE ISIS ALGORITHM TO ORDER THE BIDS FOR REPLICAS, no need when it is a bidder listening to the auction.
     """
 
     def __init__(self, auction: Auction):

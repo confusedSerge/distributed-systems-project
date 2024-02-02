@@ -11,17 +11,27 @@ from process.memory_manager import Manager
 from server import Server
 
 
-if __name__ == "__main__": 
-    client = Client()
-    server = Server()
+if __name__ == "__main__":
 
-    # Start background processes
-    server.start()
-    client.run()
+    new_peers = [
+        (IPv4Address("192.168.0.100"), 5555),
+        (IPv4Address("192.168.0.102"), 6666),
+        (IPv4Address("192.168.0.100"), 7777),
+    ]
 
-    # Terminate client and server processes when client interaction is done
-    server.stop()
-    server.join()
+    sorted_peers = sorted(new_peers)
+    print(sorted_peers)
+
+    # client = Client()
+    # server = Server()
+
+    # # Start background processes
+    # server.start()
+    # client.run()
+
+    # # Terminate client and server processes when client interaction is done
+    # server.stop()
+    # server.join()
 
     # new_peers = [("0.0.0.0", 5555), ("0.0.0.0", 6666), ("0.0.0.0", 7777)]
 
