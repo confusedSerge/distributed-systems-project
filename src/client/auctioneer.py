@@ -10,13 +10,17 @@ from logging import Logger
 
 import re
 import inquirer
+from communication.messages.auction.auction_announcement import (
+    MessageAuctionAnnouncement,
+)
 
 # === Custom Modules ===
 
 from model import Auction, AuctionAnnouncementStore, AuctionPeersStore
 from process import Manager, ReplicationManager, AuctionBidListener
+from communication import Multicast, AuctionMessageData
 
-from util import create_logger, generate_mc_group
+from util import create_logger, generate_mc_group, generate_message_id
 
 from constant import (
     interaction as inter,
@@ -24,6 +28,8 @@ from constant import (
     SLEEP_TIME,
     REPLICA_EMITTER_PERIOD,
     REPLICA_AUCTION_POOL_SIZE,
+    MULTICAST_DISCOVERY_GROUP,
+    MULTICAST_DISCOVERY_PORT,
 )
 
 
@@ -230,8 +236,9 @@ class _SubAuctioneer(Process):
         super(_SubAuctioneer, self).__init__()
         self._exit: Event = ProcessEvent()
 
-        self._name = f"SubAuctioneer::{auction.get_id()}::{os.getpid()}"
-        self._logger: Logger = create_logger(self._name.lower())
+        self._name: str = self.__class__.__name__.lower()
+        self._prefix: str = f"{self._name}::{auction.get_id()}"
+        self._logger: Logger = create_logger(self._name, with_pid=True)
 
         # Shared memory
         self._auction: Auction = auction
@@ -266,6 +273,22 @@ class _SubAuctioneer(Process):
 
     # === Helper methods ===
 
+    def _auction_preparation(self) -> None:
+        """Announces that an auction is about to start.
+
+        This is used to reserve the auction group and announce the auction to others.
+        """
+        self._logger.info(f"{self._prefix}: Preparing running auction to discovery")
+        Multicast.qsend(
+            message=MessageAuctionAnnouncement(
+                _id=generate_message_id(self._auction.get_id()),
+                auction=AuctionMessageData.from_auction(self._auction),
+            ).encode(),
+            group=MULTICAST_DISCOVERY_GROUP,
+            port=MULTICAST_DISCOVERY_PORT,
+        )
+        self._logger.info(f"{self._prefix}: Announced auction {self._auction.get_id()}")
+
     def _replicate(self) -> None:
         """Starts the replica finder to replicate the auction to other replicas that will run the auction.
 
@@ -284,7 +307,6 @@ class _SubAuctioneer(Process):
         replica_finder.start()
         replica_finder.join()
 
-        # TODO: Holds?
         # Check if enough replicas were found
         if replica_list.len() < REPLICA_AUCTION_POOL_SIZE:
             self._logger.info(

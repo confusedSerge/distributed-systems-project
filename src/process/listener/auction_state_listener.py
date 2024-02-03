@@ -56,7 +56,7 @@ class AuctionStateAnnouncementListener(Process):
         while not self._exit.is_set():
             # Receive state announcement
             try:
-                message, _ = mc.receive(BUFFER_SIZE)
+                message, address = mc.receive(BUFFER_SIZE)
             except TimeoutError:
                 continue
 
@@ -64,13 +64,26 @@ class AuctionStateAnnouncementListener(Process):
             if (
                 not MessageSchema.of(com.HEADER_AUCTION_STATE_ANNOUNCEMENT, message)
                 or MessageSchema.get_id(message) in self._seen_message_id
-                # no need to check if different auction, since we are listening to a specific auction
             ):
                 continue
 
             state_announcement: MessageAuctionStateAnnouncement = (
                 MessageAuctionStateAnnouncement.decode(message)
             )
+
+            try:
+                parsed_id = Auction.parse_id(state_announcement._id)
+            except ValueError:
+                self._logger.info(
+                    f"{self._name}: Received auction state announcement {state_announcement} with invalid auction id {state_announcement._id}"
+                )
+                continue
+
+            if parsed_id != self._auction.get_id():
+                self._logger.info(
+                    f"{self._name}: Ignoring received auction state announcement from {address} for different auction {parsed_id}"
+                )
+                continue
 
             self._seen_message_id.append(state_announcement._id)
 

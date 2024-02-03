@@ -71,19 +71,21 @@ class AuctionBidListener(Process):
             bid: MessageAuctionBid = MessageAuctionBid.decode(message)
 
             try:
-                if Auction.parse_id(bid._id) != self._auction.get_id():
-                    self._logger.info(
-                        f"{self._name}: Received bid {bid} from {address} for auction {Auction.parse_id(bid._id)} instead of {self._auction.get_id()}"
-                    )
-                    continue
+                parsed_id = Auction.parse_id(bid._id)
             except ValueError:
                 self._logger.info(
                     f"{self._name}: Received bid {bid} with invalid auction id {bid._id}"
                 )
                 continue
 
+            if parsed_id != self._auction.get_id():
+                self._logger.info(
+                    f"{self._name}: Ignoring received bid from {address} for different auction {parsed_id}"
+                )
+                continue
+
             self._logger.info(
-                f"{self._name}: Received bid {bid} from {address} for auction {self._auction.get_id()}"
+                f"{self._name}: Received bid {bid} from {address} for corresponding auction"
             )
 
             self._auction.bid(bid.bidder, bid.bid)

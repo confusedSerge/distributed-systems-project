@@ -70,7 +70,7 @@ class AuctionPeersAnnouncementListener(Process):
         while not self._exit.is_set():
             # Receive announcement or timeout to check exit condition
             try:
-                message, _ = mc.receive(BUFFER_SIZE)
+                message, address = mc.receive(BUFFER_SIZE)
             except TimeoutError:
                 continue
 
@@ -85,6 +85,21 @@ class AuctionPeersAnnouncementListener(Process):
             peers_announcement: MessagePeersAnnouncement = (
                 MessagePeersAnnouncement.decode(message)
             )
+
+            try:
+                parsed_id = Auction.parse_id(peers_announcement._id)
+            except ValueError:
+                self._logger.info(
+                    f"{self._name}: Received peer list {peers_announcement} with invalid auction id {peers_announcement._id}"
+                )
+                continue
+
+            if parsed_id != self._auction.get_id():
+                self._logger.info(
+                    f"{self._name}: Ignoring received peer list from {address} for different auction {parsed_id}"
+                )
+                continue
+
             peers: list[tuple[IPv4Address, int]] = [
                 (IPv4Address(peer[0]), peer[1]) for peer in peers_announcement.peers
             ]

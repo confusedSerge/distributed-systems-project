@@ -85,13 +85,6 @@ class Multicast:
             self._socket.settimeout(self._timeout) if self._timeout else None
             self._socket.bind(self._address)
 
-    def getIpAddress(self) -> str:
-        """Get IpAddr of own instance."""
-        gw = os.popen("ip -4 route show default").read().split()
-        self._socket.connect((gw[2], 0))
-
-        return self._socket.getsockname()[0]
-
     def send(self, message: bytes) -> None:
         """Send a message to the multicast group.
 

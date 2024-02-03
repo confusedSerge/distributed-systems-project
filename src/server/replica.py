@@ -147,6 +147,13 @@ class Replica(Process):
         while not self._exit.is_set() and self.peer_change.is_set():
             sleep(SLEEP_TIME)
 
+        if self._exit.is_set():
+            self._logger.info(
+                f"{self._name}: Replica received stop signal during peer wait"
+            )
+            self._handle_stop()
+            return
+
         assert self.peers.len() > 0, "No peers received, yet process event was set"
         self.peer_change.clear()
         self._logger.info(f"{self._name}: Initial peers received")
@@ -156,6 +163,11 @@ class Replica(Process):
             f"{self._name}: Starting leader/follower tasks with auction {self.auction} and {self.peers.len()} peers"
         )
 
+        self._logger.info(f"{self._name}: Holding initial election")
+        self.reelection.set()
+        self._election()
+
+        self._logger.info(f"{self._name}: Starting main auction loop")
         self._main_auction_loop()
 
         self._logger.info(f"{self._name}: Releasing resources")
@@ -186,11 +198,6 @@ class Replica(Process):
                 self._auction_manager = AuctionManager(self.auction)
                 self._auction_manager.start()
 
-            # Start Heartbeat
-            # Note, this will fail, if these are initial peers, as no leader has been elected yet
-            #   If there are already peers, new peers will just join to the heartbeat
-            #   as they only reach this point after getting the peers from the peers listener
-            #   hence, the leader has also received the new peers
             self._heartbeat()
 
             # Stop Leader tasks
@@ -585,7 +592,6 @@ class Replica(Process):
         self.peers: Optional[AuctionPeersStore] = self.manager.AuctionPeersStore()  # type: ignore
         # Add self to peers or else the shared memory will be garbage collected, as the list is empty :(
         # This has been my worst bug so far
-        # TODO: Fix this by adding a dummy field to the shared memory to keep it alive?
         assert (
             self.peers is not None
         ), "Peers is None after init from memory manager. This case should not be possible"
