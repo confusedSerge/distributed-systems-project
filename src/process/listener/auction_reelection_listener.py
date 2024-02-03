@@ -51,6 +51,7 @@ class AuctionReelectionListener(Process):
         leader: Leader,
         reelect: Event,
         coordinator: Event,
+        auction_id: str,
     ):
         """Initializes the auction reelection listener process.
 
@@ -64,8 +65,9 @@ class AuctionReelectionListener(Process):
         super(AuctionReelectionListener, self).__init__()
         self._exit: Event = ProcessEvent()
 
-        self._name: str = f"AuctionReelectionListener::{os.getpid()}"
-        self._logger: Logger = create_logger(self._name.lower())
+        self._name: str = self.__class__.__name__.lower()
+        self._prefix: str = f"{self._name}::{auction_id}"
+        self._logger: Logger = create_logger(self._name, with_pid=True)
 
         self._own_id: tuple[str, int] = own_id
         self._leader: Leader = leader

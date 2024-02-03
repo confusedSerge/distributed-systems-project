@@ -34,7 +34,7 @@ from constant import (
 )
 
 
-class ReplicaFinder(Process):
+class ReplicationManager(Process):
     """Handles the finding of replicas for an auction.
 
     The replica finder process is responsible for finding replicas for an auction and adding them to the list of known replicas.
@@ -53,11 +53,12 @@ class ReplicaFinder(Process):
             auction_peers_store (list): The list to add the replicas to. Should be a shared memory object. Can be non-empty, representing already found replicas.
             emitter_period (int, optional): The period of the replica request emitter. Defaults to 60 seconds.
         """
-        super(ReplicaFinder, self).__init__()
+        super(ReplicationManager, self).__init__()
         self._exit: Event = ProcessEvent()
 
-        self._name: str = f"ReplicaFinder::{auction.get_id()}"
-        self._logger: Logger = create_logger(self._name.lower())
+        self._name: str = self.__class__.__name__.lower()
+        self._prefix: str = f"{self._name}::{auction.get_id()}"
+        self._logger: Logger = create_logger(self._name, with_pid=True)
 
         # Shared memory objects
         self._auction: Auction = auction

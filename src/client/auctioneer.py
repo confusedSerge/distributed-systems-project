@@ -14,7 +14,7 @@ import inquirer
 # === Custom Modules ===
 
 from model import Auction, AuctionAnnouncementStore, AuctionPeersStore
-from process import Manager, ReplicaFinder, AuctionBidListener
+from process import Manager, ReplicationManager, AuctionBidListener
 
 from util import create_logger, generate_mc_group
 
@@ -51,7 +51,8 @@ class Auctioneer:
             manager_running (Event): The event to use to check if the manager is running.
             auction_announcement_store (AuctionAnnouncementStore): The auction announcement store to store the auction announcements in. Should be a shared memory object.
         """
-        self._name: str = "Auctioneer"
+        self._name: str = self.__class__.__name__.lower()
+        self._prefix: str = f"{self._name}"
         self._logger: Logger = create_logger(self._name.lower())
 
         # Shared memory
@@ -277,7 +278,7 @@ class _SubAuctioneer(Process):
 
         # Start replica finder process to find replicas
         replica_list: AuctionPeersStore = self._manager.AuctionPeersStore()  # type: ignore
-        replica_finder: ReplicaFinder = ReplicaFinder(
+        replica_finder: ReplicationManager = ReplicationManager(
             self._auction, replica_list, REPLICA_EMITTER_PERIOD
         )
         replica_finder.start()

@@ -27,10 +27,10 @@ from communication import (
 )
 from process import (
     Manager,
+    AuctionManager,
+    ReplicationManager,
     AuctionBidListener,
     AuctionPeersAnnouncementListener,
-    AuctionManager,
-    ReplicaFinder,
     AuctionStateAnnouncementListener,
     AuctionReelectionListener,
 )
@@ -68,8 +68,9 @@ class Replica(Process):
         super(Replica, self).__init__()
         self._exit: Event = ProcessEvent()
 
-        self._name: str = f"Replica::{request._id}"
-        self._logger: Logger = create_logger(self._name.lower())
+        self._name: str = self.__class__.__name__.lower()
+        self._prefix: str = f"{self._name}::{request._id}"
+        self._logger: Logger = create_logger(self._name, with_pid=True)
 
         # Initial request and sender information from replica-searcher
         # This is used to send the response and receive the state of the auction in the prelude
@@ -96,7 +97,7 @@ class Replica(Process):
 
         ## Auction Peers Listener and Manager
         self._auction_peers_listener: Optional[AuctionPeersAnnouncementListener] = None
-        self._replica_finder: Optional[ReplicaFinder] = None
+        self._replica_finder: Optional[ReplicationManager] = None
         self.peer_change: Event = ProcessEvent()
 
         ## Election
@@ -104,7 +105,7 @@ class Replica(Process):
         self.reelection: Event = ProcessEvent()
         self.coordinator: Event = ProcessEvent()
 
-        self._logger.info(f"{self._name}: Initialized")
+        self._logger.info(f"{self._name}: Initialized with id {self.get_id()}")
 
     def run(self) -> None:
         """Runs the replica process.
@@ -526,7 +527,7 @@ class Replica(Process):
                 self._logger.info(
                     f"{self._name}: HEARTBEAT SENDER: Starting replica finder"
                 )
-                self._replica_finder = ReplicaFinder(
+                self._replica_finder = ReplicationManager(
                     self.auction, self.peers, REPLICA_EMITTER_PERIOD
                 )
             else:
@@ -613,7 +614,11 @@ class Replica(Process):
 
         # Election Listener
         self._reelection_listener: Optional[Process] = AuctionReelectionListener(
-            self.get_id(), self.leader, self.reelection, self.coordinator
+            self.get_id(),
+            self.leader,
+            self.reelection,
+            self.coordinator,
+            self.auction.get_id(),
         )
 
         # Start listeners

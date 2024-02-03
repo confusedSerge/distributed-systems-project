@@ -38,26 +38,27 @@ class Server(Process):
         super(Server, self).__init__()
         self._exit: Event = ProcessEvent()
 
-        self._name: str = "Server"
+        self._name: str = self.__class__.__name__.lower()
+        self._prefix: str = f"{self._name}"
         self._logger: Logger = create_logger(self._name.lower())
 
         self._replica_pool: list[Replica] = []
         self._seen_message_ids: list[str] = []
 
-        self._logger.info(f"{self._name}: Initialized")
+        self._logger.info(f"{self._prefix}: Initialized")
 
     def run(self) -> None:
         """
         Starts the server.
         """
-        self._logger.info(f"{self._name}: Started")
+        self._logger.info(f"{self._prefix}: Started")
         mc: Multicast = Multicast(
             group=MULTICAST_DISCOVERY_GROUP,
             port=MULTICAST_DISCOVERY_PORT,
             timeout=TIMEOUT_RECEIVE,
         )
 
-        self._logger.info(f"{self._name}: Listening for replica requests")
+        self._logger.info(f"{self._prefix}: Listening for replica requests")
         while not self._exit.is_set():
             try:
                 message, address = mc.receive(BUFFER_SIZE)
@@ -89,11 +90,11 @@ class Server(Process):
             self._seen_message_ids.append(find_req._id)
 
             self._logger.info(
-                f"{self._name}: Replica created and added to pool: {replica.get_id()}"
+                f"{self._prefix}: Replica created and added to pool: {replica.get_id()}"
             )
 
         # Stop listening for replica requests
-        self._logger.info(f"{self._name}: Releasing resources")
+        self._logger.info(f"{self._prefix}: Releasing resources")
         mc.close()
 
         # Release all replicas
@@ -103,9 +104,9 @@ class Server(Process):
         for replica in self._replica_pool:
             replica.join()
 
-        self._logger.info(f"{self._name}: Stopped")
+        self._logger.info(f"{self._prefix}: Stopped")
 
     def stop(self) -> None:
         """Stops the server."""
         self._exit.set()
-        self._logger.info(f"{self._name}: Stop signal received")
+        self._logger.info(f"{self._prefix}: Stop signal received")

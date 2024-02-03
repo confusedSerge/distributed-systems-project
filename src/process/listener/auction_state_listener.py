@@ -34,10 +34,9 @@ class AuctionStateAnnouncementListener(Process):
         super(AuctionStateAnnouncementListener, self).__init__()
         self._exit: Event = ProcessEvent()
 
-        self._name: str = (
-            f"AuctionStateAnnouncementListener::{auction.get_id()}::{os.getpid()}"
-        )
-        self._logger: Logger = create_logger(self._name.lower())
+        self._name: str = self.__class__.__name__.lower()
+        self._prefix: str = f"{self._name}::{auction.get_id()}"
+        self._logger: Logger = create_logger(self._name, with_pid=True)
 
         self._auction: Auction = auction
         self._seen_message_id: list[str] = []

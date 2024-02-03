@@ -39,10 +39,9 @@ class AuctionPeersAnnouncementListener(Process):
         super(AuctionPeersAnnouncementListener, self).__init__()
         self._exit: Event = ProcessEvent()
 
-        self._name: str = (
-            f"AuctionPeersAnnouncementListener::{auction.get_id()}::{os.getpid()}"
-        )
-        self._logger: Logger = create_logger(self._name.lower())
+        self._name: str = self.__class__.__name__.lower()
+        self._prefix: str = f"{self._name}::{auction.get_id()}"
+        self._logger: Logger = create_logger(self._name, with_pid=True)
 
         self._auction: Auction = auction
         self._store: AuctionPeersStore = auction_peers_store

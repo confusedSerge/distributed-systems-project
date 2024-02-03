@@ -53,8 +53,9 @@ class AuctionManager(Process):
         super(AuctionManager, self).__init__()
         self._exit: Event = ProcessEvent()
 
-        self._name: str = f"AuctionManager::{auction.get_id()}::{os.getpid()}"
-        self._logger: Logger = create_logger(self._name.lower())
+        self._name: str = self.__class__.__name__.lower()
+        self._prefix: str = f"{self._name}::{auction.get_id()}"
+        self._logger: Logger = create_logger(self._name, with_pid=True)
 
         self._auction: Auction = auction
         self._last_auction_state: tuple[int, str] = self._auction.get_state()
@@ -62,7 +63,7 @@ class AuctionManager(Process):
 
         self._seen_message_id: list[str] = []
 
-        self._logger.info(f"{self._name}: Initialized")
+        self._logger.info(f"{self._prefix}: Initialized")
 
     def run(self) -> None:
         """Runs the auction manager process."""
@@ -87,23 +88,23 @@ class AuctionManager(Process):
         if self._auction.is_preparation():
             self._initial_auction_prep(mc_discovery_sender)
 
-        self._logger.info(f"{self._name}: Started")
-        self._logger.info(f"{self._name}: Listening for auction information requests")
+        self._logger.info(f"{self._prefix}: Started")
+        self._logger.info(f"{self._prefix}: Listening for auction information requests")
         while not self._exit.is_set():
             self._auction_state_changes()
             self._auction_announcement(mc_discovery_sender)
             self._auction_state_announcement(mc_auction_sender)
             self._auction_information_request(mc_discovery_receiver)
 
-        self._logger.info(f"{self._name} received stop signal; releasing resources")
+        self._logger.info(f"{self._prefix} received stop signal; releasing resources")
         mc_discovery_sender.close()
 
-        self._logger.info(f"{self._name} stopped managing auction")
+        self._logger.info(f"{self._prefix} stopped managing auction")
 
     def stop(self) -> None:
         """Stops the auction manager process."""
         self._exit.set()
-        self._logger.info(f"{self._name}: Stop signal received")
+        self._logger.info(f"{self._prefix}: Stop signal received")
 
     # === Helper ===
 
@@ -118,18 +119,18 @@ class AuctionManager(Process):
         """
         assert self._auction.is_preparation(), "Auction is not in preparation state"
         self._logger.info(
-            f"{self._name}: Auction is in preparation state; moving to running state"
+            f"{self._prefix}: Auction is in preparation state; moving to running state"
         )
         self._auction.next_state()
 
-        self._logger.info(f"{self._name}: Announcing running auction to discovery")
+        self._logger.info(f"{self._prefix}: Announcing running auction to discovery")
         mc_discovery.send(
             message=MessageAuctionAnnouncement(
                 _id=generate_message_id(self._auction.get_id()),
                 auction=AuctionMessageData.from_auction(self._auction),
             ).encode()
         )
-        self._logger.info(f"{self._name}: Announced auction {self._auction.get_id()}")
+        self._logger.info(f"{self._prefix}: Announced auction {self._auction.get_id()}")
 
     def _auction_state_changes(self) -> None:
         """Handles auction state changes.
@@ -139,7 +140,7 @@ class AuctionManager(Process):
         if not self._auction.is_running() or time() < self._auction.get_end_time():
             return
 
-        self._logger.info(f"{self._name}: Auction time is up; moving to final state")
+        self._logger.info(f"{self._prefix}: Auction time is up; moving to final state")
         self._auction.next_state()
 
     def _auction_announcement(self, mc_discovery: Multicast) -> None:
@@ -169,7 +170,7 @@ class AuctionManager(Process):
             mc_discovery.send(message=message.encode())
 
             self._last_auction_announcement = self._auction.get_end_time()
-            self._logger.info(f"{self._name}: Sent announcement {message}")
+            self._logger.info(f"{self._prefix}: Sent announcement {message}")
 
     def _auction_state_announcement(self, mc_auction: Multicast) -> None:
         """Handles auction state changes.
@@ -193,7 +194,7 @@ class AuctionManager(Process):
         mc_auction.send(message=message.encode())
 
         self._last_auction_state = self._auction.get_state()
-        self._logger.info(f"{self._name}: Sent state announcement {message}")
+        self._logger.info(f"{self._prefix}: Sent state announcement {message}")
 
     def _auction_information_request(self, mc_receiver: Multicast) -> None:
         """Handles auction information requests.
@@ -222,12 +223,12 @@ class AuctionManager(Process):
 
         if not request.auction and self._auction.get_id() == request.auction:
             self._logger.info(
-                f"{self._name}: Received request {request} from {address} for another auction"
+                f"{self._prefix}: Received request {request} from {address} for another auction"
             )
             return
 
         self._logger.info(
-            f"{self._name}: Received request {request} from {address} for {'all' if request.auction else 'auction ' + request.auction}"
+            f"{self._prefix}: Received request {request} from {address} for {'all' if request.auction else 'auction ' + request.auction}"
         )
         response: MessageAuctionInformationResponse = MessageAuctionInformationResponse(
             _id=request._id,
@@ -239,5 +240,5 @@ class AuctionManager(Process):
             port=request.port,
         )
         self._logger.info(
-            f"{self._name}: Sent response {response} to {address} for auction {self._auction.get_id()}"
+            f"{self._prefix}: Sent response {response} to {address} for auction {self._auction.get_id()}"
         )

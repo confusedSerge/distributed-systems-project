@@ -61,8 +61,6 @@ class Multicast:
 
         # Options
         self._sender: bool = sender
-        self._socket: socket.socket = None
-
         self._timeout: Optional[int] = timeout
 
         # Create the socket for multicast sender/receiver

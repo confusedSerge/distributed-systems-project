@@ -9,6 +9,7 @@ username = "test"
 path = "log/"
 level = "DEBUG"
 format = "[%(levelname)s] - %(asctime)s: %(message)s"
+format_pid = "[%(levelname)s] - %(asctime)s - %(process)d: %(message)s"
 
 [general]
 sleep_time = 0.5

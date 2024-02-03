@@ -32,7 +32,8 @@ class Client:
         super(Client, self).__init__()
         self._exit: Event = ProcessEvent()
 
-        self._name: str = "Client"
+        self._name: str = self.__class__.__name__.lower()
+        self._prefix: str = f"{self._name}"
         self._logger: Logger = create_logger(self._name.lower())
 
         # Shared memory

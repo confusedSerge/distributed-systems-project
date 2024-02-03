@@ -6,7 +6,8 @@ _config = load_config()["logger"]
 
 # Logger
 LOGGING_PATH: str = _config["path"]
-LOGGING_FORMAT: str = _config["format"]
+LOGGING_FORMAT_NORMAL: str = _config["format"]
+LOGGING_FORMAT_PID: str = _config["format_pid"]
 
 # Calculate the logging level from the string
 LOGGING_LEVEL: int = logging.INFO

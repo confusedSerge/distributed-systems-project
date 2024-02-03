@@ -62,7 +62,8 @@ class Bidder:
             manager_running (Event): The event to use to check if the manager is running.
             auction_announcement_store (AuctionAnnouncementStore): The auction announcement store to store the auction announcements in. Should be a shared memory object.
         """
-        self._name: str = "Bidder"
+        self._name: str = self.__class__.__name__.lower()
+        self._prefix: str = f"{self._name}"
         self._logger: Logger = create_logger(self._name.lower())
 
         # Shared memory
