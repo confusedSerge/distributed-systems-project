@@ -180,6 +180,11 @@ class Replica(Process):
     def get_id(self) -> str:
         """Returns the id of the replica consisting of the ip address and port of the replica."""
         return f"{self._unicast.get_address()[0]}:{self._unicast.get_address()[1]}"
+    
+    def get_id_as_tuple(self) -> tuple[IPv4Address, int]:
+        """Returns the id of the replica consisting of the ip address and port of the replica."""
+        return self._unicast.get_address()[0], {self._unicast.get_address()[1]}
+
 
     # === MAIN AUCTION LOOP ===
 
@@ -601,7 +606,7 @@ class Replica(Process):
             AuctionPeersAnnouncementListener
         ] = AuctionPeersAnnouncementListener(self.auction, self.peers, self.peer_change)
         self._auction_bid_listener: Optional[AuctionBidListener] = AuctionBidListener(
-            self.auction
+            auction=self.auction, auction_peer_store_len=self.peers, priority=self.get_id, is_replica=True, peers=self.peers
         )
 
         self._auction_peers_listener.start()

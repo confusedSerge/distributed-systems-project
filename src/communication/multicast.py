@@ -3,10 +3,10 @@ from typing import Optional
 
 from ipaddress import IPv4Address
 import socket
-
+from logging import Logger
 import struct
 import os
-
+from util import create_logger
 from typing import Optional
 from communication.messages.total_ordering_isis.agreed_seq import MessageAgreedSequence
 from communication.messages.total_ordering_isis.isis_message_with_counter import MessageIsisWithCounter
@@ -145,11 +145,13 @@ class ISISProcess:
     """
 
     def __init__(self):
-        self.sequence_id = 0
-        self.counter = 0
-        self.holdback_queue = []
-        self.suggested_sequence_list = []
+        self.sequence_id: int = 0
+        self.counter: int = 0
+        self.holdback_queue: list = []
+        self.suggested_sequence_list: list = []
         self.sender_id = int(str(Multicast.getIpAddress()).split(".")[3])
+        self._name: str = f"ISISProcess::{os.getpid()}"
+        self._logger: Logger = create_logger(self._name.lower())
     
     def get_sequence_number(self, holdback_message: dict) -> int:
         """get_sequence_number returns the 'proposed_sequence_number' value
@@ -205,7 +207,7 @@ class ISISProcess:
             # TODO: deliver the message at the head of the queue
             self.holdback_queue.pop(0)
 
-    def multicast_message_to_all(self, message_content: float, group: IPv4Address, port: int):
+    def multicast_message_to_all(self, message_content: float, group: IPv4Address, port: int, own_id: tuple[IPv4Address, int]):
         """multicast_message_to_all should be called when a message is multicasted (in our case, when a bid is done).
 
         Args:
@@ -216,19 +218,19 @@ class ISISProcess:
         # Counter represents the message_id
         self.counter += 1
         # Define message with header and multicast it
-        isis_message_with_counter = MessageIsisWithCounter(message_content=message_content, counter=self.counter)
+        isis_message_with_counter = MessageIsisWithCounter(message_content=message_content, counter=self.counter, sender_id=own_id)
         Multicast.qsend(message=isis_message_with_counter.encode(), 
                         group=group, 
                         port=port
                         )
 
-    def on_receive_message_send_sequence_id_save_message_to_holdback_queue(self, message_content: float, message_id: int, received_sender_id: int, host: IPv4Address, port: int):
+    def on_receive_message_send_sequence_id_save_message_to_holdback_queue(self, message_content: float, message_id: int, received_sender_id: tuple[IPv4Address, int], host: IPv4Address, port: int):
         """on_receive_message_send_sequence_id_save_message_to_holdback_queue should be called when MessageIsisWithCounter is received.
 
         TODO: This function should inside an if cause which checks for incoming message with header HEADER_ISIS_MESSAGE_WITH_COUNTER. 
         """
         self.sequence_id += 1
-        sequence_id_message = MessageProposedSequence(proposed_sequence=self.sequence_id)
+        sequence_id_message = MessageProposedSequence(message_id=message_id, proposed_sequence=self.sequence_id, sender_id=self.sender_id)
         Unicast.qsend(message=sequence_id_message.encode(), 
                       host=host, 
                       port=port
@@ -243,38 +245,38 @@ class ISISProcess:
         })
         self.organize_holdback_queue()
 
-    def send_final_priority(self, message_id: int, sender_id: int, multicast_group: IPv4Address, port: int):
+    def send_final_priority(self, message_id: int, sender_id: tuple[IPv4Address, int], sequence_id: int, multicast_group: IPv4Address, port: int, peers_len: int):
         """send_proposed_priority should be called when a MessageProposedSequence is received.
 
         TODO: This function should inside an if cause which checks for incoming message with header HEADER_PROPOSED_SEQ.
         """
-        #message, address = self.receiver.receive()
-        # message[1] is sequence_id of sender and address[0] is sender_id
-        self.suggested_sequence_list.append((message_id, int(str(sender_id).split('.')[3])))
+        self.suggested_sequence_list.append((sequence_id, sender_id))
         
-        # TODO: Count members of multicast group and check if we have received sequence number from all processes.
+        Logger.info("Checking if all peers answered.")
+        if len(self.suggested_sequence_list) == peers_len:
+            Logger.info("All peers answered.")
+            # Then extract highest squence number with received_sender_id from suggested_sequence_list. 
+            # choose smallest possible value for suggested_node if there are multiple suggesting this sequence
+            max_sequence_number = max(self.suggested_sequence_list, key=itemgetter(0))[0]
+            max_sequence_tuple = max(self.suggested_sequence_list)
+            for sequence_tuple in self.suggested_sequence_list:
+                if sequence_tuple[0] == max_sequence_number:
+                    if sequence_tuple < max_sequence_tuple:
+                        max_sequence_tuple = sequence_tuple
+            # messagge[0] is the actual message id in this following line
+            message_message_id_with_s_id_and_seq_id = MessageAgreedSequence(message_id=message_id, 
+                                                                            sender_id=sender_id, 
+                                                                            sequence_id=max_sequence_number[0], 
+                                                                            sender_id_from_sequence_id=max_sequence_number[1]
+                                                                            )
+            Multicast.qsend(message_id=message_message_id_with_s_id_and_seq_id.encode(), 
+                            group=multicast_group, 
+                            port=port
+                            )
+        else:
+            Logger.warning("Not all peers have answered!!!")
 
-        # Then extract highest squence number with received_sender_id from suggested_sequence_list. 
-        # choose smallest possible value for suggested_node if there are multiple suggesting this sequence
-        max_sequence_number = max(self.suggested_sequence_list, key=itemgetter(0))[0]
-        max_sequence_tuple = max(self.suggested_sequence_list)
-        for sequence_tuple in self.suggested_sequence_list:
-            if sequence_tuple[0] == max_sequence_number:
-                if sequence_tuple < max_sequence_tuple:
-                    max_sequence_tuple = sequence_tuple
-        # messagge[0] is the actual message id in this following line
-        message_message_id_with_s_id_and_seq_id = MessageAgreedSequence(message_id=message_id, 
-                                                                        sender_id=sender_id, 
-                                                                        sequence_id=max_sequence_number[0], 
-                                                                        sender_id_from_sequence_id=max_sequence_number[1]
-                                                                        )
-        Multicast.qsend(message_id=message_message_id_with_s_id_and_seq_id.encode(), 
-                        group=multicast_group, 
-                        port=port
-                        )
-        # TODO: end if
-
-    def put_final_sequence(self, message: bytes):
+    def put_final_sequence(self, message: MessageAgreedSequence):
         """put_final_sequence should be called when the final proposed sequence should be put into the hold_back_queue.
 
         TODO: This function should inside an if cause which checks for incoming messages in this format.
@@ -282,14 +284,14 @@ class ISISProcess:
 
         #message, address = self.receiver.receive()
         # message[2] is the received sender_sequence
-        self.sequence_id = max(self.sequence_id, message[2])
+        self.sequence_id = max(self.sequence_id, message.sequence_id)
         for message_in_dict in self.holdback_queue:
             #message[0] is the received message_id and message[0] is the received sender_id
-            if (message_in_dict['message_id'] == message[0]) and (message_in_dict['received_sender_IP'] == message[1]):
+            if (message_in_dict['message_id'] == message.message_id) and (message_in_dict['received_sender_IP'] == message.sender_id):
                 # message[2] is the received sequence_id
-                message_in_dict['proposed_sequence_number'] = message[2]
+                message_in_dict['proposed_sequence_number'] = message.sequence_id
                 # message[3] is the received sequence_id
-                message_in_dict['process_suggesting_sequence_id'] = message[3]
+                message_in_dict['process_suggesting_sequence_id'] = message.sender_id_from_sequence_id
                 message_in_dict['status'] = 'deliverable'
 
         self.organize_holdback_queue()

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from ipaddress import IPv4Network
+from ipaddress import IPv4Address
 from marshmallow import validate
 import marshmallow_dataclass
 
@@ -27,6 +27,7 @@ class MessageIsisWithCounter:
             "validate": lambda x: isinstance(x, int) and x > 0
         }
     )
+    sender_id: tuple[IPv4Address, int]
     message_content: float
     header: str = field(
         default=HEADER_ISIS_MESSAGE_WITH_COUNTER,
@@ -35,7 +36,7 @@ class MessageIsisWithCounter:
 
     def __str__(self) -> str:
         """Returns the string representation of the message."""
-        return f"{HEADER_ISIS_MESSAGE_WITH_COUNTER}(id={self.message_content}, counter={self.counter})"
+        return f"{HEADER_ISIS_MESSAGE_WITH_COUNTER}(id={self.message_content}, counter={self.counter}, sender_id={self.sender_id})"
 
     def __repr__(self) -> str:
         """Returns the string representation of the message."""

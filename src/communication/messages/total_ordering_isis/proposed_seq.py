@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from ipaddress import IPv4Address
 from marshmallow import validate
 import marshmallow_dataclass
 
@@ -16,20 +17,23 @@ class MessageProposedSequence:
     Fields:
         header: (str) Header of the message. Should be constant HEADER_PROPOSED_SEQ.
         proposed_sequence: (int) The proposed sequence_id of the sender.
+        sender_id: (int) The own_id.
     """
 
     # Message ID
+    message_id: int = field(metadata={"validate": lambda x: len(x) > 0})
+    sender_id: tuple[IPv4Address, int]
+    # Data
+    proposed_sequence: int = field(default=0)
+
     header: str = field(
         default=HEADER_PROPOSED_SEQ,
         metadata={"validate": validate.OneOf([HEADER_PROPOSED_SEQ])},
     )
 
-    # Data
-    proposed_sequence: int = field(default=0)
-
     def __str__(self) -> str:
         """Returns the string representation of the message."""
-        return f"{HEADER_PROPOSED_SEQ}(proposed_sequence={self.proposed_sequence})"
+        return f"{HEADER_PROPOSED_SEQ}(message_id={self.message_id}, proposed_sequence={self.proposed_sequence})"
 
     def __repr__(self) -> str:
         """Returns the string representation of the message."""

@@ -12,6 +12,9 @@ from server import Server
 
 
 if __name__ == "__main__": 
+    #new_peers: list[tuple[IPv4Address, int]] = [("126.192.0.1", 5555), ("126.192.0.2", 5555), ("126.192.0.3", 5555)]
+    #print(max(new_peers))
+    
     client = Client()
     server = Server()
 
