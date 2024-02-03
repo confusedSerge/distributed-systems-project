@@ -7,7 +7,7 @@ from logging import Logger
 
 # === Custom Modules ===
 
-from communication import Multicast, MessageSchema, MessageAuctionBid
+from communication import Multicast, MessageSchema, MessageAuctionBid, ISISProcess
 from model import Auction
 from util import create_logger
 
@@ -59,35 +59,50 @@ class AuctionBidListener(Process):
             except TimeoutError:
                 continue
 
-            if not MessageSchema.of(com.HEADER_AUCTION_BID, message):
-                continue
+            if MessageSchema.of(com.HEADER_AUCTION_BID, message):
+                # create an instance of the ISISProcess class
+                isis_process: ISISProcess = ISISProcess(sequence_id = 0,
+                                            counter = 0,
+                                            holdback_queue = [],
+                                            suggested_sequence_list = [],
+                                            sender_id ="")
 
-            bid: MessageAuctionBid = MessageAuctionBid.decode(message)
-            if bid._id in self._seen_message_id:
-                self._logger.info(
-                    f"{self._name}: Received duplicate bid {bid} from {address}"
-                )
-                continue
-
-            try:
-                if Auction.parse_id(bid._id) != self._auction.get_id():
+                bid: MessageAuctionBid = MessageAuctionBid.decode(message)
+                if bid._id in self._seen_message_id:
                     self._logger.info(
-                        f"{self._name}: Received bid {bid} from {address} for auction {Auction.parse_id(bid._id)} instead of {self._auction.get_id()}"
+                        f"{self._name}: Received duplicate bid {bid} from {address}"
                     )
                     continue
-            except ValueError:
+
+                try:
+                    if Auction.parse_id(bid._id) != self._auction.get_id():
+                        self._logger.info(
+                            f"{self._name}: Received bid {bid} from {address} for auction {Auction.parse_id(bid._id)} instead of {self._auction.get_id()}"
+                        )
+                        continue
+                except ValueError:
+                    self._logger.info(
+                        f"{self._name}: Received bid {bid} with invalid auction id {bid._id}"
+                    )
+                    continue
+
                 self._logger.info(
-                    f"{self._name}: Received bid {bid} with invalid auction id {bid._id}"
+                    f"{self._name}: Received bid {bid} from {address} for auction {self._auction.get_id()}"
                 )
-                continue
 
-            self._logger.info(
-                f"{self._name}: Received bid {bid} from {address} for auction {self._auction.get_id()}"
-            )
+                self._auction.bid(bid.bidder, bid.bid)
+                self._seen_message_id.append(bid._id)
 
-            self._auction.bid(bid.bidder, bid.bid)
-            self._seen_message_id.append(bid._id)
-
+                isis_process.multicast_message_to_all(message_content = bid, group = address[0], port = address[1])
+                
+            if MessageSchema.of(com.HEADER_ISIS_MESSAGE_WITH_COUNTER, message):
+                isis_process.on_receive_message_send_sequence_id_save_message_to_holdback_queue()
+            if MessageSchema.of(com.HEADER_PROPOSED_SEQ, message):
+                isis_process.send_final_priority()
+            if MessageSchema.of(com.HEADER_AGREED_SEQ, message):
+                isis_process.put_final_sequence()
+            
+                
         self._logger.info(f"{self._name}: Releasing resources")
         mc.close()
 

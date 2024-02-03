@@ -205,11 +205,11 @@ class ISISProcess:
             # TODO: deliver the message at the head of the queue
             self.holdback_queue.pop(0)
 
-    def multicast_message_to_all(self, message_content: str, group: IPv4Address, port: int):
+    def multicast_message_to_all(self, message_content: float, group: IPv4Address, port: int):
         """multicast_message_to_all should be called when a message is multicasted (in our case, when a bid is done).
 
         Args:
-            message_content (str): The message_content to multicast.
+            message_content (float): The message_content (Bid amount) to multicast.
             groupt (IPv4Address): The multicast group which should receive the message.
             port (port): The port of the multicast group.
         """
@@ -222,7 +222,7 @@ class ISISProcess:
                         port=port
                         )
 
-    def on_receive_message_send_sequence_id_save_message_to_holdback_queue(self, message_content: str, message_id: int, received_sender_id: int, host: IPv4Address, port: int):
+    def on_receive_message_send_sequence_id_save_message_to_holdback_queue(self, message_content: float, message_id: int, received_sender_id: int, host: IPv4Address, port: int):
         """on_receive_message_send_sequence_id_save_message_to_holdback_queue should be called when MessageIsisWithCounter is received.
 
         TODO: This function should inside an if cause which checks for incoming message with header HEADER_ISIS_MESSAGE_WITH_COUNTER. 

@@ -27,7 +27,7 @@ class MessageIsisWithCounter:
             "validate": lambda x: isinstance(x, int) and x > 0
         }
     )
-    message_content: str
+    message_content: float
     header: str = field(
         default=HEADER_ISIS_MESSAGE_WITH_COUNTER,
         metadata={"validate": validate.OneOf([HEADER_ISIS_MESSAGE_WITH_COUNTER])},
