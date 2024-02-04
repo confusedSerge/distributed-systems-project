@@ -1,9 +1,19 @@
-import multiprocessing
+from multiprocessing import Event as ProcessEvent
+from multiprocessing.synchronize import Event
+
+from logging import Logger
 
 import inquirer
 
-from util.helper import create_logger, logging
+# === Custom Modules ===
+
+from model import AuctionAnnouncementStore
+from process import Manager, AuctionAnnouncementListener
+
+from util import create_logger
 from constant import interaction as inter
+
+# === Local Modules ===
 
 from .auctioneer import Auctioneer
 from .bidder import Bidder
@@ -12,61 +22,67 @@ from .bidder import Bidder
 class Client:
     """Client class for the client side of the peer-to-peer network.
 
-    The client class runs in a separate thread (process) from the server class (normally the main thread).
     It handles the two cases of client actions; auctioneering and bidding implemented in their respective classes.
 
     The client actions are given through an interactive command line interface, which will cause to run the respective methods.
     """
 
-    def __init__(self, config: dict) -> None:
-        """Initializes the client class.
+    def __init__(self) -> None:
+        """Initializes the client class."""
+        super(Client, self).__init__()
+        self._exit: Event = ProcessEvent()
 
-        Args:
-            config (dict): The configuration of the client.
+        self._name: str = self.__class__.__name__.lower()
+        self._prefix: str = f"{self._name}"
+        self._logger: Logger = create_logger(self._name.lower())
 
-        """
-        self.name: str = "Client"
+        # Shared memory
+        self.manager: Manager = Manager()
+        self.manager_running: Event = ProcessEvent()
 
-        self.logger: logging.Logger = create_logger(self.name.lower())
-        self.config: dict = config
+        self.manager.start()
+        self.manager_running.set()
 
-        self.background: multiprocessing.Process = None
-        self.auctioneer: Auctioneer = Auctioneer(config=config)
-        self.bidder: Bidder = Bidder(config=config)
+        self.auction_announcement_store: AuctionAnnouncementStore = (
+            self.manager.AuctionAnnouncementStore()  # type: ignore
+        )
 
-    def start(self) -> None:
+        # Auctioneer and bidder
+        self._auctioneer: Auctioneer = Auctioneer(
+            manager=self.manager,
+            manager_running=self.manager_running,
+            auction_announcement_store=self.auction_announcement_store,
+        )
+        self._bidder: Bidder = Bidder(
+            manager=self.manager,
+            manager_running=self.manager_running,
+            auction_announcement_store=self.auction_announcement_store,
+        )
+
+        self._logger.info(f"{self._name}: Initialized")
+
+    def run(self) -> None:
         """Starts the client background tasks."""
-        self.logger.info(f"{self.name} is starting background tasks")
+        self._logger.info(f"{self._name}: Started")
 
-        self.auctioneer.start()
-        self.bidder.start()
+        self._prelude()
 
-        self.background = multiprocessing.Process(target=self._background)
+        self._logger.info(f"{self._name}: Starting interactive command line interface")
+        self.interact()
 
-        self.logger.info(f"{self.name} started background tasks")
-
-    def _background(self) -> None:
-        """Handles the client background tasks."""
-        pass
+        self._shutdown()
 
     def stop(self) -> None:
         """Stops the client background tasks."""
-        self.logger.info(f"{self.name} is stopping background tasks")
-
-        self.auctioneer.stop()
-        self.bidder.stop()
-
-        if self.background is not None and self.background.is_alive():
-            self.background.terminate()
-
-        self.logger.info(f"{self.name} stopped background tasks")
+        self._exit.set()
+        self._logger.info(f"{self._name}: Stopping")
 
     def interact(self) -> None:
         """Handles the interactive command line interface for the client.
 
         This should be run in the main thread (process), handling user input.
         """
-        while True:
+        while not self._exit.is_set():
             answer = inquirer.prompt(
                 [
                     inquirer.List(
@@ -81,12 +97,40 @@ class Client:
                 ]
             )
 
+            if answer is None:
+                break
+
             match answer["action"]:
-                case "Auctioneer":
-                    self.auctioneer.interact()
-                case "Bidder":
-                    self.bidder.interact()
-                case "Stop":
-                    break
+                case inter.CLIENT_ACTION_AUCTIONEER:
+                    self._auctioneer.interact()
+                case inter.CLIENT_ACTION_BIDDER:
+                    self._bidder.interact()
+                case inter.CLIENT_ACTION_STOP:
+                    self.stop()
                 case _:
-                    self.logger.error(f"Invalid action {answer['action']}")
+                    self._logger.error(
+                        f"{self._name}: Invalid action {answer['action']}"
+                    )
+
+    # === Helper Methods ===
+
+    def _prelude(self):
+        """Starts the client background tasks."""
+        self._logger.info(f"{self._name}: Starting listeners")
+        self._auction_announcement_process: AuctionAnnouncementListener = (
+            AuctionAnnouncementListener(self.auction_announcement_store)
+        )
+        self._auction_announcement_process.start()
+
+    def _shutdown(self):
+        """Stops the client background tasks and releases resources."""
+        self._logger.info(f"{self._name}: Stopping listeners and releasing resources")
+
+        self._auctioneer.stop()
+        self._bidder.stop()
+
+        self._auction_announcement_process.stop()
+
+        self.manager_running.clear()
+        self.manager.shutdown()
+        self._logger.info(f"{self._name}: Stopped and released resources")

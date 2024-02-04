@@ -1,77 +1,91 @@
-import multiprocessing
-from multiprocessing.managers import BaseManager
-import uuid
+import os
+
+from ipaddress import IPv4Address
+
+from multiprocessing import Process, Event as ProcessEvent
+from multiprocessing.synchronize import Event
+from time import sleep, time
+
+from logging import Logger
 
 import re
 import inquirer
+from communication.messages.auction.auction_announcement import (
+    MessageAuctionAnnouncement,
+)
 
-from model import Auction
+# === Custom Modules ===
 
-from util.helper import create_logger, logging
-from util import Multicast, Unicast, find_replicas, listen_auction, message as msgs
-from constant import interaction as inter, addresses as addr, auction as auction_state
+from model import Auction, AuctionAnnouncementStore, AuctionPeersStore
+from process import Manager, ReplicationManager, AuctionBidListener
+from communication import Multicast, AuctionMessageData
+
+from util import create_logger, generate_mc_group, generate_message_id
+
+from constant import (
+    interaction as inter,
+    USERNAME,
+    SLEEP_TIME,
+    REPLICA_EMITTER_PERIOD,
+    REPLICA_AUCTION_POOL_SIZE,
+    MULTICAST_DISCOVERY_GROUP,
+    MULTICAST_DISCOVERY_PORT,
+)
 
 
 class Auctioneer:
     """Auctioneer class handles the auctioning of items, keeping track of the highest bid and announcing the winner.
 
-    Auctioneer is run in main thread (process) of the client and delegates its background tasks (listeners) to other processes, sharing the same memory.
+    Auctioneer is run in client thread delegates its background tasks (listeners) to other processes, sharing the same memory.
 
     The auctioneer class is responsible for the following:
     - Creating an auction: The auctioneer creates an auction by defining the item, price and time and starting the auction (delegating to sub-auctioneer).
-    - List all auctions: The auctioneer lists all auctions currently running.
+    - List all auctions: The auctioneer lists all auctions currently running by the auctioneer.
     - Information about an auction: The auctioneer lists information about a specific auction.
     """
 
-    def __init__(self, config: dict) -> None:
+    def __init__(
+        self,
+        manager: Manager,
+        manager_running: Event,
+        auction_announcement_store: AuctionAnnouncementStore,
+    ) -> None:
         """Initializes the auctioneer class.
 
         Args:
-            config (dict): The configuration of the auctioneer.
+            manager (Manager): The manager to use for shared memory.
+            manager_running (Event): The event to use to check if the manager is running.
+            auction_announcement_store (AuctionAnnouncementStore): The auction announcement store to store the auction announcements in. Should be a shared memory object.
         """
-        self.name = "Auctioneer"
-
-        self.logger: logging.Logger = create_logger(self.name.lower())
-        self.config: dict = config
-
-        self.background: multiprocessing.Process = None
+        self._name: str = self.__class__.__name__.lower()
+        self._prefix: str = f"{self._name}"
+        self._logger: Logger = create_logger(self._name.lower())
 
         # Shared memory
-        _AuctionManager.register("Auction", Auction)
+        self.manager: Manager = manager
+        self.manager_running: Event = manager_running
 
-        self.manager_running = multiprocessing.Event()
-        self.manager: _AuctionManager = _AuctionManager()
+        self.auction_announcement_store: AuctionAnnouncementStore = (
+            auction_announcement_store
+        )
 
-        self.auctions: dict[str, Auction] = {}
-        self.sub_auctioneers: dict[str, multiprocessing.Process] = {}
+        # Keep track of created auctions and corresponding sub-auctioneers
+        self._created_auctions: dict[str, Auction] = {}
+        self._sub_auctioneers: dict[str, _SubAuctioneer] = {}
 
-    def start(self) -> None:
-        """Starts the auctioneer background tasks."""
-        self.logger.info(f"{self.name} is starting background tasks")
-
-        self.background = multiprocessing.Process(target=self._background)
-        self.manager.start()
-        self.manager_running.set()
-
-        self.logger.info(f"{self.name} started background tasks")
-
-    def _background(self) -> None:
-        """Runs the auctioneer background tasks."""
-        pass
+        self._logger.info(f"{self._name}: Initialized")
 
     def stop(self) -> None:
         """Stops the auctioneer background tasks."""
-        self.logger.info(f"{self.name} is stopping background tasks")
+        self._logger.info(f"{self._name}: Releasing resources")
 
-        if self.background is not None and self.background.is_alive():
-            self.background.terminate()
+        for sub_auctioneer in self._sub_auctioneers.values():
+            sub_auctioneer.stop()
 
-        for sub_auctioneer in self.sub_auctioneers.values():
-            sub_auctioneer.terminate()
+        for sub_auctioneer in self._sub_auctioneers.values():
+            sub_auctioneer.join()
 
-        self.manager_running.clear()
-
-        self.logger.info(f"{self.name} stopped background tasks")
+        self._logger.info(f"{self._name}: Stopped")
 
     def interact(self) -> None:
         """Handles the interactive command line interface for the auctioneer.
@@ -93,6 +107,9 @@ class Auctioneer:
                 ]
             )
 
+            if answer is None:
+                break
+
             match answer["action"]:
                 case inter.AUCTIONEER_ACTION_START:
                     self._create_auction()
@@ -101,12 +118,14 @@ class Auctioneer:
                 case inter.AUCTIONEER_ACTION_GO_BACK:
                     break
                 case _:
-                    self.logger.error(f"Invalid action {answer['action']}")
+                    self._logger.error(f"Invalid action {answer['action']}")
+
+    # === Interaction methods ===
 
     def _list_auctions(self) -> None:
         """Lists all auctions."""
         print("Your auctions:")
-        for auction in self.auctions.values():
+        for auction in self._created_auctions.values():
             print(f"* {auction}")
         print()
 
@@ -115,30 +134,57 @@ class Auctioneer:
 
         This reads in the item, price and time from the user and instantiates a sub-auctioneer.
         """
-        item, price, time = self._define_auction_item()
-        _uuid: str = str(uuid.uuid4())  # TODO: Generate a global unique id
+        assert self.manager_running.is_set()
 
-        if not self.manager_running.is_set():
-            self.logger.error(
-                "Manager is not running, cannot create auction. This should not happen."
-            )
-        self.auctions[_uuid] = self.manager.Auction(item, price, time, _uuid)
+        # Prompt user for auction information
+        self._logger.info(f"{self._name}: Creating auction")
+        aname, item, price, running_time = self._define_auction()
+        if aname is None or item is None or price is None or running_time is None:
+            return
 
-        sub_auctioneer = _SubAuctioneer(self.auctions[_uuid], self.config)
+        # calculate end time
+        end_time = time() + running_time
+
+        # Create auction
+        address: IPv4Address = generate_mc_group(
+            self.auction_announcement_store.get_groups()
+        )
+        _auction: Auction = self.manager.Auction(  # type: ignore
+            aname, USERNAME, item, price, end_time, address
+        )
+        self._logger.info(f"{self._name}: Created auction {_auction}")
+
+        # Start sub-auctioneer
+        sub_auctioneer = _SubAuctioneer(_auction, self.manager)
         sub_auctioneer.start()
+        self._logger.info(
+            f"{self._name}: Started sub-auctioneer for auction {_auction}"
+        )
 
-        # Store sub-auctioneer in dictionary corresponding to auction id
-        self.sub_auctioneers[_uuid] = sub_auctioneer
+        self._created_auctions[_auction.get_id()] = _auction
+        self._sub_auctioneers[_auction.get_id()] = sub_auctioneer
 
-    def _define_auction_item(self) -> tuple[str, float, int]:
+    # === Prompt Methods ===
+
+    def _define_auction(
+        self,
+    ) -> tuple[str | None, str | None, float | None, int | None]:
         """Defines the item of the auction.
 
         Returns:
-            tuple[str, float, int]: The item, price and time of the auction.
+            tuple[str, str, float, int]: The name, item, price and time of the auction.
         """
-        answer: dict = inquirer.prompt(
+        answer = inquirer.prompt(
             [
-                inquirer.Text("item", message="What's the item"),
+                inquirer.Text(
+                    "name",
+                    message="What's the name of the auction",
+                    validate=lambda _, x: len(x) > 0
+                    and Auction.id(USERNAME, x) not in self._created_auctions.keys(),
+                ),
+                inquirer.Text(
+                    "item", message="What's the item", validate=lambda _, x: len(x) > 0
+                ),
                 inquirer.Text(
                     "price",
                     message="What's the starting price",
@@ -153,26 +199,54 @@ class Auctioneer:
                 ),
             ]
         )
-        return answer["item"], float(answer["price"]), int(answer["time"])
+
+        if (
+            answer is None
+            or not all(map(lambda x: x is not None, answer.values()))
+            or not [x in answer.keys() for x in ["name", "item", "price", "time"]]
+        ):
+            print("Invalid Auction definition")
+            return (None, None, None, None)
+
+        return (
+            answer["name"] if "name" in answer else None,
+            answer["item"] if "item" in answer else None,
+            float(answer["price"]) if "price" in answer else None,
+            int(answer["time"]) if "time" in answer else None,
+        )
 
 
-class _SubAuctioneer(multiprocessing.Process):
-    """Sub-Auctioneer class handles the auctioning of items, keeping track of the highest bid and announcing the winner."""
+class _SubAuctioneer(Process):
+    """Sub-Auctioneer class handles the creation of auctions, replicating the auction to other auctioneers and listening to bids.
 
-    def __init__(self, auction: Auction, config: dict) -> None:
+    The sub-auctioneer does not handle the auctioning of items, keeping track of the highest bid and announcing the winner.
+    This is handled by the replicas of the auction. The sub-auctioneer is responsible for the following:
+    - Replicating the auction: The sub-auctioneer replicates the auction to replicas that will run the auction.
+    - Announcing the auction: The sub-auctioneer announces the auction to others.
+    - Listening to bids: The sub-auctioneer listens to bids for the auction and updates the local auction state.
+    """
+
+    def __init__(self, auction: Auction, manager: Manager) -> None:
         """Initializes the sub-auctioneer class.
 
         Args:
-            config (dict): The configuration of the sub-auctioneer.
+            auction (Auction): The auction to run. Should be a shared memory object.
+            manager (Manager): The manager to use for shared memory.
         """
-        super().__init__()
+        super(_SubAuctioneer, self).__init__()
+        self._exit: Event = ProcessEvent()
 
-        self.name = f"Sub-Auctioneer-{auction.get_id()}"
+        self._name: str = self.__class__.__name__.lower()
+        self._prefix: str = f"{self._name}::{auction.get_id()}"
+        self._logger: Logger = create_logger(self._name, with_pid=True)
 
-        self.logger: logging.Logger = create_logger(self.name.lower())
-        self.config: dict = config
-
+        # Shared memory
         self._auction: Auction = auction
+        self._manager: Manager = manager
+
+        self._logger.info(
+            f"{self._name}: Initialized for auction {auction} on {auction.get_group()}"
+        )
 
     def run(self) -> None:
         """Runs the sub-auctioneer.
@@ -180,45 +254,87 @@ class _SubAuctioneer(multiprocessing.Process):
         Args:
             auction (Auction): The auction to run.
         """
-        replica_list = []
+        self._logger.info(f"{self._name}: Started")
+        self._replicate()
 
-        self.logger.info(f"{self.name} for auction {self._auction} is finding replicas")
-        find_replicas(self._auction, replica_list, 3)
-        self.logger.info(
-            f"{self.name} for auction {self._auction} found replicas, releasing replica list"
-        )
-
-        # create multicast sender to send replica list
-        auction_group, auction_port = self._auction.get_multicast_group_port()
-        mc_sender = Multicast(auction_group, auction_port)
-        replica_list_message = msgs.AuctionReplicaPeers(
-            _id=self._auction.get_id(), replicas=replica_list
-        )
-        mc_sender.send(replica_list_message.encode())
-
-        # Announce auction
-        self.logger.info(
-            f"{self.name} for auction {self._auction} is announcing auction"
-        )
-        mc_sender = Multicast(addr.MULTICAST_GROUP, addr.MULTICAST_PORT)
-        announcement = msgs.AuctionAnnouncement(
-            _id=self._auction.get_id(),
-            item=self._auction.get_item(),
-            price=self._auction.get_price(),
-            time=self._auction.get_time(),
-            multicast_group=auction_group,
-            multicast_port=auction_port,
-        )
-        mc_sender.send(announcement.encode())
-        self._auction.next_state()
+        if self._exit.is_set():
+            self._logger.info(f"{self._name}: Exiting as process received stop signal")
+            return
 
         # Create multicast listener to receive bids and update auction state
-        listen_auction(self._auction)
+        self._listen()
+
+        self._logger.info(f"{self._name}: Finished")
 
     def stop(self) -> None:
         """Stops the sub-auctioneer."""
-        pass
+        self._logger.info(f"{self._name}: Stop signal received")
+        self._exit.set()
 
+    # === Helper methods ===
 
-class _AuctionManager(BaseManager):
-    pass
+    def _auction_preparation(self) -> None:
+        """Announces that an auction is about to start.
+
+        This is used to reserve the auction group and announce the auction to others.
+        """
+        self._logger.info(f"{self._prefix}: Preparing running auction to discovery")
+        Multicast.qsend(
+            message=MessageAuctionAnnouncement(
+                _id=generate_message_id(self._auction.get_id()),
+                auction=AuctionMessageData.from_auction(self._auction),
+            ).encode(),
+            group=MULTICAST_DISCOVERY_GROUP,
+            port=MULTICAST_DISCOVERY_PORT,
+        )
+        self._logger.info(f"{self._prefix}: Announced auction {self._auction.get_id()}")
+
+    def _replicate(self) -> None:
+        """Starts the replica finder to replicate the auction to other replicas that will run the auction.
+
+        If not enough replicas are found, the auction is cancelled.
+        """
+
+        self._logger.info(
+            f"{self._name}: Replicating auction {self._auction.get_id()} to replicas"
+        )
+
+        # Start replica finder process to find replicas
+        replica_list: AuctionPeersStore = self._manager.AuctionPeersStore()  # type: ignore
+        replica_finder: ReplicationManager = ReplicationManager(
+            self._auction, replica_list, REPLICA_EMITTER_PERIOD
+        )
+        replica_finder.start()
+        replica_finder.join()
+
+        # Check if enough replicas were found
+        if replica_list.len() < REPLICA_AUCTION_POOL_SIZE:
+            self._logger.info(
+                f"{self._name}: Not enough replicas found, cancelling auction {self._auction.get_id()}"
+            )
+            self._auction.cancel()
+            self._exit.set()
+            return
+
+        self._logger.info(
+            f"{self._name}: Replicated auction {self._auction.get_id()} to replicas {replica_list.str()}"
+        )
+
+    def _listen(self):
+        """Starts the auction bid listener to listen to bids for the auction."""
+        self._logger.info(
+            f"{self._name}: Listening to bids for auction {self._auction.get_id()}"
+        )
+        auction_bid_listener: AuctionBidListener = AuctionBidListener(self._auction)
+        auction_bid_listener.start()
+
+        # Wait for auction to end or if stop signal is received propagate stop signal and return
+        while not self._exit.is_set() and auction_bid_listener.is_alive():
+            sleep(SLEEP_TIME)
+
+        if self._exit.is_set():
+            auction_bid_listener.stop()
+            self._logger.info(
+                f"{self._name}: Stop signal received, stopping auction bid listener"
+            )
+            auction_bid_listener.join()
