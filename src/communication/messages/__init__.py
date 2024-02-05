@@ -8,7 +8,6 @@ from .wrapper import (
 from .replica import (
     MessageFindReplicaRequest,
     MessageFindReplicaResponse,
-    MessageFindReplicaAcknowledgement,
     MessagePeersAnnouncement,
 )
 
@@ -17,7 +16,6 @@ from .auction import (
     MessageAuctionStateAnnouncement,
     MessageAuctionInformationRequest,
     MessageAuctionInformationResponse,
-    MessageAuctionInformationAcknowledgement,
     MessageAuctionWinner,
     MessageAuctionBid,
     AuctionMessageData,
