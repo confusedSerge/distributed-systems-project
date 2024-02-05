@@ -1,5 +1,9 @@
 from .message_schema import MessageSchema
 
+from .wrapper import (
+    MessageReliableRequest,
+    MessageReliableResponse,
+)
 
 from .replica import (
     MessageFindReplicaRequest,
