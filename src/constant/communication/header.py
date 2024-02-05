@@ -2,6 +2,10 @@ from util.config import load_config
 
 _config = load_config()["communication"]["header"]
 
+# Wrapper Header
+RELIABLE_REQ: str = _config["reliable-req"]
+RELIABLE_RES: str = _config["reliable-res"]
+
 # Message Header
 FIND_REPLICA_REQ: str = _config["replica"]["find-replica-req"]
 FIND_REPLICA_RES: str = _config["replica"]["find-replica-res"]

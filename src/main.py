@@ -10,17 +10,53 @@ from process.listener.auction_peers_announcement_listener import (
 from process.memory_manager import Manager
 from server import Server
 
+from communication import ReliableUnicast, MessageElectionRequest
+from multiprocessing import Process
+from util import generate_message_id
+
+
+def send_election_request(address: tuple[IPv4Address, int]) -> None:
+    election_request = MessageElectionRequest(
+        _id=generate_message_id(),
+        req_id=(str(IPv4Address("192.168.0.100")), 5555),
+    )
+    unicast = ReliableUnicast()
+    try:
+        unicast.send(election_request.encode(), address)
+    except TimeoutError:
+        print("Election request not sent reliably")
+        return
+    print("Election request sent reliably")
+
 
 if __name__ == "__main__":
 
-    new_peers = [
-        (IPv4Address("192.168.0.100"), 5555),
-        (IPv4Address("192.168.0.102"), 6666),
-        (IPv4Address("192.168.0.100"), 7777),
-    ]
+    unicast = ReliableUnicast()
+    address = unicast.get_address()
 
-    sorted_peers = sorted(new_peers)
-    print(sorted_peers)
+    # Start sending election request
+    sender = Process(target=send_election_request, args=(address,))
+    # sender.start()
+
+    # Start listening for election request
+    try:
+        message, from_address = unicast.receive()
+        print(
+            f"Election request {MessageElectionRequest.decode(message)} received from {from_address}"
+        )
+    except TimeoutError:
+        print("Election request not received")
+
+    # sender.join()
+
+    # new_peers = [
+    #     (IPv4Address("192.168.0.100"), 5555),
+    #     (IPv4Address("192.168.0.102"), 6666),
+    #     (IPv4Address("192.168.0.100"), 7777),
+    # ]
+
+    # sorted_peers = sorted(new_peers)
+    # print(sorted_peers)
 
     # client = Client()
     # server = Server()

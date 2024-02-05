@@ -48,6 +48,10 @@ port = 5008
 ttl = 32
 announcement_period = 5.0
 
+[communication.header]
+reliable-req = "RELIABLE_REQUEST"
+reliable-res = "RELIABLE_RESPONSE"
+
 [communication.header.replica]
 find-replica-req = "FIND_REPLICA_REQUEST"
 find-replica-res = "FIND_REPLICA_RESPONSE"
