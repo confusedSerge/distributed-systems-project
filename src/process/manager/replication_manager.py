@@ -10,11 +10,10 @@ from logging import Logger
 
 from communication import (
     Multicast,
-    Unicast,
+    ReliableUnicast,
     MessageSchema,
     MessageFindReplicaRequest,
     MessageFindReplicaResponse,
-    MessageFindReplicaAcknowledgement,
     MessagePeersAnnouncement,
     AuctionMessageData,
     MessageAuctionInformationResponse,
@@ -26,7 +25,8 @@ from constant import (
     communication as com,
     BUFFER_SIZE,
     TIMEOUT_REPLICATION,
-    TIMEOUT_RESPONSE,
+    RELIABLE_TIMEOUT,
+    RELIABLE_ATTEMPTS,
     MULTICAST_DISCOVERY_GROUP,
     MULTICAST_DISCOVERY_PORT,
     MULTICAST_AUCTION_PORT,
@@ -73,7 +73,7 @@ class ReplicationManager(Process):
         """Runs the replica finder process.
 
         This is done through the following steps:
-            - Start replica request emitter with a new message id and corresponding unicast port for responses
+            - Start replica request emitter with a new message id and corresponding ReliableUnicast port for responses
             - Find replica candidates for the auction
             - Stop replica request emitter
             - Send auction information to replica candidates and keep track of which replicas acknowledge the auction information
@@ -83,8 +83,10 @@ class ReplicationManager(Process):
 
         self._logger.info(f"{self._name}: Started")
 
-        # Initialize unicast socket for communication with replicas
-        uc: Unicast = Unicast()
+        # Initialize ReliableUnicast socket for communication with replicas
+        uc: ReliableUnicast = ReliableUnicast(
+            timeout=RELIABLE_TIMEOUT, retry=RELIABLE_ATTEMPTS
+        )
 
         # Start replica request emitter
         message_id, emitter = self._start_emitter(uc)
@@ -123,7 +125,7 @@ class ReplicationManager(Process):
             self._logger.info(f"{self._name}: Duplicate replica found; Exiting")
             return
 
-        sleep(5)
+        sleep(0.01)  # Sleep to allow for shared memory update
         self._announce_peers(message_id)
 
         self._logger.info(f"{self._name}: Releasing resources")
@@ -138,7 +140,7 @@ class ReplicationManager(Process):
     def _find_replicas(
         self,
         message_id: str,
-        uc: Unicast,
+        uc: ReliableUnicast,
     ) -> list[tuple[IPv4Address, int]]:
         """Finds replicas for the auction.
 
@@ -149,7 +151,7 @@ class ReplicationManager(Process):
             - Repeat until enough replicas are found or timeout is reached
 
         Args:
-            uc (Unicast): The unicast socket.
+            uc (ReliableUnicast): The ReliableUnicast socket.
             message_id (str): The message id to use for the find replica request.
 
         Returns:
@@ -161,12 +163,6 @@ class ReplicationManager(Process):
         ]
         new_replicas: list[tuple[IPv4Address, int]] = []
 
-        # Prepare find replica acknowledgement message
-        acknowledgement: bytes = MessageFindReplicaAcknowledgement(
-            _id=message_id
-        ).encode()
-
-        #
         self._logger.info(f"{self._name}: Finding replicas")
         with Timeout(TIMEOUT_REPLICATION, throw_exception=True):
             while (
@@ -174,12 +170,16 @@ class ReplicationManager(Process):
                 and not self._exit.is_set()
             ):
                 # Receive find replica response
-                message, address = uc.receive(BUFFER_SIZE)
+                try:
+                    message, address = uc.receive(BUFFER_SIZE)
+                except TimeoutError:
+                    continue
 
                 # Ignore if message is not a find replica response or if the message is not for this replica finder
                 if (
                     not MessageSchema.of(com.HEADER_FIND_REPLICA_RES, message)
                     or MessageSchema.get_id(message) != message_id
+                    or address in seen_addresses
                 ):
                     continue
 
@@ -187,17 +187,10 @@ class ReplicationManager(Process):
                     MessageFindReplicaResponse.decode(message)
                 )
 
-                if address in seen_addresses:
-                    self._logger.info(
-                        f"{self._name}: Received duplicate find replica response {response} from {address}"
-                    )
-                    continue
-
                 # Send find replica acknowledgement and add replica to list
                 self._logger.info(
-                    f"{self._name}: Received find replica response {response} from {address}. Adding to list of new replicas and sending acknowledgement"
+                    f"{self._name}: Received find replica response {response} from {address}. Adding to list of new replicas."
                 )
-                uc.send(acknowledgement, address)
                 new_replicas.append(address)
                 seen_addresses.append(address)
 
@@ -206,7 +199,7 @@ class ReplicationManager(Process):
     def _send_information(
         self,
         message_id: str,
-        uc: Unicast,
+        uc: ReliableUnicast,
         new_peer_candidates: list[tuple[IPv4Address, int]],
     ) -> list[tuple[IPv4Address, int]]:
         """Sends auction information to new replicas and replica announcement to all replicas.
@@ -218,7 +211,7 @@ class ReplicationManager(Process):
 
         Args:
             message_id (str): The message id to use for the messages.
-            uc (Unicast): The unicast socket.
+            uc (ReliableUnicast): The ReliableUnicast socket.
             new_replicas (list[tuple[IPv4Address, int]]): A list of new replicas candidates.
 
         Returns:
@@ -228,50 +221,31 @@ class ReplicationManager(Process):
         response = MessageAuctionInformationResponse(
             _id=message_id,
             auction=AuctionMessageData.from_auction(self._auction),
-        )
-        response_received: dict[tuple[IPv4Address, int], bool] = {
-            replica: False for replica in new_peer_candidates
-        }
+        ).encode()
 
         self._logger.info(
             f"{self._name}: Sending auction information to all new replicas"
         )
+
+        unresponsive_replicas = []
         for replica in new_peer_candidates:
-            uc.send(response.encode(), replica)
+            try:
+                uc.send(response, replica)
+            except TimeoutError:
+                unresponsive_replicas.append(replica)
+                self._logger.info(f"{self._name}: Replica {replica} is unresponsive")
+                continue
 
-        try:
-            with Timeout(TIMEOUT_RESPONSE, throw_exception=True):
-                while not self._exit.is_set() and not all(response_received.values()):
-                    message, address = uc.receive(BUFFER_SIZE)
-
-                    if (
-                        MessageSchema.get_id(message) != message_id
-                        or not MessageSchema.of(
-                            com.HEADER_AUCTION_INFORMATION_ACK, message
-                        )
-                        or address not in new_peer_candidates
-                        or response_received[address]
-                    ):
-                        continue
-
-                    response_received[address] = True
-                    self._logger.info(
-                        f"{self._name}: Received auction information acknowledgement from {address}"
-                    )
-
-                    break
-        except TimeoutError:
-            self._logger.info(
-                f"{self._name}: Did not receive auction information acknowledgement from all new replicas"
-            )
-            return [
-                replica for replica, received in response_received.items() if received
-            ]
+        cleaned_new_replicas = [
+            replica
+            for replica in new_peer_candidates
+            if replica not in unresponsive_replicas
+        ]
 
         self._logger.info(
             f"{self._name}: Received auction information acknowledgement from all replicas"
         )
-        return list(response_received.keys())
+        return cleaned_new_replicas
 
     def _announce_peers(self, message_id: str) -> None:
         """Announces the peers to all replicas on the auction multicast group.
@@ -294,11 +268,11 @@ class ReplicationManager(Process):
 
     # === Emitter ===
 
-    def _start_emitter(self, uc: Unicast):
+    def _start_emitter(self, uc: ReliableUnicast):
         """Starts the replica request emitter.
 
         Args:
-            uc (Unicast): The unicast socket.
+            uc (ReliableUnicast): The ReliableUnicast socket.
 
         Returns:
             (str, Process): The message id used for the replica request and the replica request emitter process.
@@ -320,7 +294,7 @@ class ReplicationManager(Process):
 
         Args:
             message_id (str): The message id to use for the find replica request.
-            response_port (int): The port to send the find replica response to on unicast.
+            response_port (int): The port to send the find replica response to on ReliableUnicast.
         """
         mc: Multicast = Multicast(
             group=MULTICAST_DISCOVERY_GROUP, port=MULTICAST_DISCOVERY_PORT, sender=True

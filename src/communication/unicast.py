@@ -120,7 +120,7 @@ class ReliableUnicast:
         """
         self._timeout: int = timeout
         self._retry: int = retry
-        self._unicast: Unicast = Unicast()
+        self._unicast: Unicast = Unicast(timeout=timeout)
 
         # Duplicate protection
         self._acknowledged: set[str] = set()
@@ -134,6 +134,7 @@ class ReliableUnicast:
 
         Args:
             message (str): The message to send.
+            address (tuple[str, int]): The address to send the message to.
 
         Raises:
             TimeoutError: If the message is not sent on time.
@@ -148,7 +149,7 @@ class ReliableUnicast:
         for _ in range(self._retry):
             try:
                 self._unicast.send(wrapped_message, address)
-                with Timeout(self._timeout):
+                with Timeout(self._timeout, throw_exception=True):
                     message, from_address = self._unicast.receive()
 
                     if (
@@ -162,11 +163,25 @@ class ReliableUnicast:
 
         raise TimeoutError
 
-    def receive(self) -> tuple[bytes, tuple[IPv4Address, int]]:
+    def usend(self, message: bytes, address: tuple[IPv4Address, int]) -> None:
+        """Send a message to the unicast host without any reliability guarantees.
+
+        Args:
+            message (bytes): The message to send.
+            address (tuple[str, int]): The address to send the message to.
+        """
+        self._unicast.send(message, address)
+
+    def receive(
+        self, buffer_size: int = BUFFER_SIZE
+    ) -> tuple[bytes, tuple[IPv4Address, int]]:
         """Receive a message from the unicast host.
 
         If the message is not received on time, a TimeoutError will be raised.
         The upper bound for receiving a message is timeout times retries.
+
+        Args:
+            buffer_size (int): The buffer size for the received message. Defaults to BUFFER_SIZE.
 
         Returns:
             bytes: The received message.
@@ -175,36 +190,51 @@ class ReliableUnicast:
         Raises:
             TimeoutError: If no message is received on time.
         """
-        try:
-            with Timeout(self._timeout * self._retry):
-                while True:
-                    message, address = self._unicast.receive()
+        tries = 0
+        while tries < self._retry:
+            try:
+                message, address = self._unicast.receive(buffer_size=buffer_size)
+            except TimeoutError:
+                tries += 1
+                continue
 
-                    if not MessageSchema.of(HEADER_RELIABLE_REQ, message=message):
-                        continue
+            if not MessageSchema.of(HEADER_RELIABLE_REQ, message=message):
+                continue
 
-                    reliable_req = MessageReliableRequest.decode(message)
+            reliable_req = MessageReliableRequest.decode(message)
 
-                    if (
-                        sha256(reliable_req.payload.encode()).hexdigest()
-                        != reliable_req.checksum
-                    ):
-                        continue
+            if (
+                sha256(reliable_req.payload.encode()).hexdigest()
+                != reliable_req.checksum
+            ):
+                continue
 
-                    response = MessageReliableResponse(
-                        _id=reliable_req._id,
-                    ).encode()
-                    self._unicast.send(response, address)
+            response = MessageReliableResponse(
+                _id=reliable_req._id,
+            ).encode()
+            self._unicast.send(response, address)
 
-                    if reliable_req._id in self._acknowledged:
-                        continue
+            if reliable_req._id in self._acknowledged:
+                continue
 
-                    self._acknowledged.add(reliable_req._id)
-                    return reliable_req.payload.encode(), address
-        except TimeoutError:
-            pass
+            self._acknowledged.add(reliable_req._id)
+            return reliable_req.payload.encode(), address
 
         raise TimeoutError
+
+    def ureceive(
+        self, buffer_size: int = BUFFER_SIZE
+    ) -> tuple[bytes, tuple[IPv4Address, int]]:
+        """Receive a message from the unicast host without any reliability guarantees.
+
+        Args:
+            buffer_size (int): The buffer size for the received message. Defaults to BUFFER_SIZE.
+
+        Returns:
+            bytes: The received message.
+            tuple[str, int]: The address of the sender.
+        """
+        return self._unicast.receive(buffer_size=buffer_size)
 
     def close(self) -> None:
         """Close the unicast socket."""
@@ -219,6 +249,10 @@ class ReliableUnicast:
         return self._unicast.get_address()
 
     @staticmethod
-    def qsend(message: bytes, host: IPv4Address, port: int) -> None:
-        """For reliable unicast, quick send is not supported."""
-        raise NotImplementedError
+    def get_host() -> str:
+        """Returns the host of the unicast socket.
+
+        Returns:
+            str: The host of the unicast socket.
+        """
+        return Unicast.get_host()

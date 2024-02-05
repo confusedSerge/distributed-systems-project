@@ -9,7 +9,6 @@ RELIABLE_RES: str = _config["reliable-res"]
 # Message Header
 FIND_REPLICA_REQ: str = _config["replica"]["find-replica-req"]
 FIND_REPLICA_RES: str = _config["replica"]["find-replica-res"]
-FIND_REPLICA_ACK: str = _config["replica"]["find-replica-ack"]
 
 PEERS_ANNOUNCEMENT: str = _config["replica"]["peers-announcement"]
 
@@ -19,7 +18,6 @@ AUCTION_STATE_ANNOUNCEMENT: str = _config["auction"]["auction-state-announcement
 
 AUCTION_INFORMATION_REQ: str = _config["auction"]["auction-information-req"]
 AUCTION_INFORMATION_RES: str = _config["auction"]["auction-information-res"]
-AUCTION_INFORMATION_ACK: str = _config["auction"]["auction-information-ack"]
 
 AUCTION_BID: str = _config["auction"]["auction-bid"]
 AUCTION_WIN: str = _config["auction"]["auction-win"]

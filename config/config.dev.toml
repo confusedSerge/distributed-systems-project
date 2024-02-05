@@ -22,6 +22,9 @@ auction_pool_size = 1
 buffer_size = 1024
 timeout_receive = 1
 timeout_response = 20
+reliable_timeout = 1
+reliable_attempts = 5
+
 
 [communication.replica]
 emitter_period = 2
@@ -55,7 +58,6 @@ reliable-res = "RELIABLE_RESPONSE"
 [communication.header.replica]
 find-replica-req = "FIND_REPLICA_REQUEST"
 find-replica-res = "FIND_REPLICA_RESPONSE"
-find-replica-ack = "FIND_REPLICA_ACK"
 peers-announcement = "PEERS_ANNOUNCEMENT"
 
 [communication.header.auction]
@@ -63,7 +65,6 @@ auction-announcement = "AUCTION_ANNOUNCEMENT"
 auction-state-announcement = "AUCTION_STATE_ANNOUNCEMENT"
 auction-information-req = "AUCTION_INFORMATION_REQUEST"
 auction-information-res = "AUCTION_INFORMATION_RESPONSE"
-auction-information-ack = "AUCTION_INFORMATION_ACK"
 auction-bid = "AUCTION_BID"
 auction-win = "AUCTION_WIN"
 

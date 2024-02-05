@@ -12,13 +12,12 @@ from logging import Logger
 
 from model import Auction, Leader, AuctionPeersStore
 from communication import (
-    Unicast,
+    ReliableUnicast,
     AuctionMessageData,
     MessageSchema,
     MessageFindReplicaRequest,
     MessageFindReplicaResponse,
     MessageAuctionInformationResponse,
-    MessageAuctionInformationAcknowledgement,
     MessageHeartbeatRequest,
     MessageHeartbeatResponse,
     MessageElectionRequest,
@@ -41,9 +40,10 @@ from constant import (
     TIMEOUT_HEARTBEAT,
     REPLICA_EMITTER_PERIOD,
     TIMEOUT_REPLICATION,
-    TIMEOUT_RECEIVE,
     TIMEOUT_RESPONSE,
     TIMEOUT_ELECTION,
+    RELIABLE_TIMEOUT,
+    RELIABLE_ATTEMPTS,
     REPLICA_AUCTION_POOL_SIZE,
     BUFFER_SIZE,
     SLEEP_TIME,
@@ -78,7 +78,9 @@ class Replica(Process):
         self._initial_request: MessageFindReplicaRequest = request
 
         # Communication
-        self._unicast: Unicast = Unicast(timeout=TIMEOUT_RECEIVE)
+        self._unicast: ReliableUnicast = ReliableUnicast(
+            timeout=RELIABLE_TIMEOUT, retry=RELIABLE_ATTEMPTS
+        )
 
         # Shared memory
         self.manager: Manager = Manager()
@@ -118,11 +120,6 @@ class Replica(Process):
             - Wait for auction to end
             - Perform Auction finish tasks
             - Release resources
-
-        TODO:
-            - Implement actual election
-            - Auction Management
-            - Auction Finish tasks
 
         """
         self._logger.info(f"{self._name}: Started")
@@ -231,25 +228,21 @@ class Replica(Process):
         self._logger.info(f"{self._name}: PRELUDE: Started")
 
         # Send response to auctioneer
-        self._unicast.send(
-            MessageFindReplicaResponse(_id=self._initial_request._id).encode(),
-            self._initial_sender,
-        )
-        self._logger.info(
-            f"{self._name}: PRELUDE: Replica response sent to {self._initial_sender}"
-        )
-
-        # Wait for auctioneer to acknowledge, or timeout
-        self._logger.info(f"{self._name}: PRELUDE: Waiting for acknowledgement")
         try:
-            self._wait_acknowledge()
+            self._unicast.send(
+                MessageFindReplicaResponse(_id=self._initial_request._id).encode(),
+                self._initial_sender,
+            )
         except TimeoutError:
             self._logger.info(
-                f"{self._name}: PRELUDE: Acknowledgement not received; Exiting"
+                f"{self._name}: PRELUDE: Sender not reachable; Response not sent. Exiting"
             )
             self.stop()
             return
-        self._logger.info(f"{self._name}: PRELUDE: Acknowledgement received")
+
+        self._logger.info(
+            f"{self._name}: PRELUDE: Replica response sent to {self._initial_sender}"
+        )
 
         # Wait for auctioneer to send auction information, or timeout
         self._logger.info(f"{self._name}: PRELUDE: Waiting for auction information")
@@ -266,29 +259,6 @@ class Replica(Process):
         self._finalize_prelude()
 
         self._logger.info(f"{self._name}: PRELUDE: Prelude concluded")
-
-    def _wait_acknowledge(self) -> None:
-        """Waits for the auctioneer to acknowledge the response message.
-
-        Raises:
-            TimeoutError: If the auctioneer did not acknowledge the response message in time.
-        """
-        with Timeout(TIMEOUT_REPLICATION, throw_exception=True):
-            while not self._exit.is_set():
-                try:
-                    message, address = self._unicast.receive(BUFFER_SIZE)
-                except TimeoutError:
-                    continue
-
-                # Check if message is an acknowledgement from the replica searcher
-                if (
-                    not MessageSchema.of(com.HEADER_FIND_REPLICA_ACK, message)
-                    or MessageSchema.get_id(message) != self._initial_request._id
-                    or address != self._initial_sender
-                ):
-                    continue
-
-                break
 
     def _wait_information(self) -> None:
         """Waits for the auctioneer to send the state of the auction.
@@ -330,16 +300,6 @@ class Replica(Process):
         self._logger.info(f"{self._name}: PRELUDE: Finalizing prelude")
 
         self._start_listeners()
-
-        self._unicast.send(
-            MessageAuctionInformationAcknowledgement(
-                _id=self._initial_request._id
-            ).encode(),
-            self._initial_sender,
-        )
-        self._logger.info(
-            f"{self._name}: PRELUDE: Auction information acknowledgement sent to {self._initial_sender}"
-        )
 
         self._logger.info(f"{self._name}: PRELUDE: Prelude finalized")
 
@@ -411,7 +371,10 @@ class Replica(Process):
             f"{self._name}: HEARTBEAT SENDER: Emitting heartbeats with id {heartbeat_id}"
         )
         for replica in replicas.keys():
-            self._unicast.send(heartbeat, replica)
+            self._unicast.usend(heartbeat, replica)
+            self._logger.error(
+                f"{self._name}: HEARTBEAT SENDER: Timeout; Heartbeat not sent to {replica}"
+            )
 
         self._logger.info(f"{self._name}: HEARTBEAT SENDER: Heartbeats emitted")
 
@@ -436,7 +399,7 @@ class Replica(Process):
                 and not all(replicas.values())
             ):
                 try:
-                    response, address = self._unicast.receive(BUFFER_SIZE)
+                    response, address = self._unicast.ureceive(BUFFER_SIZE)
                 except TimeoutError:
                     continue
 
@@ -490,7 +453,8 @@ class Replica(Process):
                         heartbeat: MessageHeartbeatRequest = (
                             MessageHeartbeatRequest.decode(response)
                         )
-                        self._unicast.send(
+                        # For heartbeats, it is enough to just respond without reliability
+                        self._unicast.usend(
                             MessageHeartbeatResponse(_id=heartbeat._id).encode(),
                             self.leader.get(),
                         )
@@ -745,10 +709,15 @@ class Replica(Process):
             _id=generate_message_id(self.auction.get_id()), req_id=self.get_id()
         )
         for replica in self.peers.iter():
-            self._unicast.send(
-                message=coordinator_message.encode(),
-                address=(replica[0], ELECTION_PORT),
-            )
+            try:
+                self._unicast.send(
+                    message=coordinator_message.encode(),
+                    address=(replica[0], ELECTION_PORT),
+                )
+            except TimeoutError:
+                self._logger.error(
+                    f"{self._name}: ELECTION: Receiver not reachable; Coordinator message not sent to {replica}"
+                )
 
     def _send_election_request(
         self, higher_priority_replicas: list[tuple[IPv4Address, int]]
@@ -766,10 +735,15 @@ class Replica(Process):
         message_id = generate_message_id(self.auction.get_id())
         election_message = MessageElectionRequest(_id=message_id, req_id=self.get_id())
         for replica in higher_priority_replicas:
-            self._unicast.send(
-                message=election_message.encode(),
-                address=(replica[0], ELECTION_PORT),
-            )
+            try:
+                self._unicast.send(
+                    message=election_message.encode(),
+                    address=(replica[0], ELECTION_PORT),
+                )
+            except TimeoutError:
+                self._logger.error(
+                    f"{self._name}: ELECTION: Timeout; Election message not sent to {replica}"
+                )
 
         return message_id
 
