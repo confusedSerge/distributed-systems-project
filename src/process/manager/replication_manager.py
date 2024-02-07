@@ -14,9 +14,9 @@ from communication import (
     MessageSchema,
     MessageFindReplicaRequest,
     MessageFindReplicaResponse,
-    MessagePeersAnnouncement,
+    MessageAuctionPeersAnnouncement,
     AuctionMessageData,
-    MessageAuctionInformationResponse,
+    MessageAuctionInformationReplication,
 )
 from model import Auction, AuctionPeersStore
 from util import create_logger, generate_message_id, Timeout
@@ -218,7 +218,7 @@ class ReplicationManager(Process):
             list[tuple[IPv4Address, int]]: The list of new replicas that acknowledged the auction information.
         """
         # Send auction information to new replicas
-        response = MessageAuctionInformationResponse(
+        response = MessageAuctionInformationReplication(
             _id=message_id,
             auction=AuctionMessageData.from_auction(self._auction),
         ).encode()
@@ -256,7 +256,7 @@ class ReplicationManager(Process):
         self._logger.info(
             f"{self._name}: Announcing peers to all replicas at {(self._auction.get_group(), MULTICAST_AUCTION_PORT)} with message id {message_id}"
         )
-        peers: MessagePeersAnnouncement = MessagePeersAnnouncement(
+        peers: MessageAuctionPeersAnnouncement = MessageAuctionPeersAnnouncement(
             _id=generate_message_id(self._auction.get_id()),
             peers=[(str(peer[0]), peer[1]) for peer in self._peers.iter()],
         )

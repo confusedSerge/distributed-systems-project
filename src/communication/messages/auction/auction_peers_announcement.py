@@ -10,7 +10,7 @@ from constant import HEADER_PEERS_ANNOUNCEMENT
 
 
 @dataclass
-class MessagePeersAnnouncement:
+class MessageAuctionPeersAnnouncement:
     """Announcement message for new replicas.
 
     This message is sent by the auctioneer over the auction multicast group to announce new replicas.
@@ -44,7 +44,7 @@ class MessagePeersAnnouncement:
 
     def __eq__(self, o: object) -> bool:
         """Returns whether the value is equal to the message."""
-        if not isinstance(o, MessagePeersAnnouncement):
+        if not isinstance(o, MessageAuctionPeersAnnouncement):
             return False
         return self._id == o._id
 
@@ -53,11 +53,11 @@ class MessagePeersAnnouncement:
         return bytes(dumps(SCHEMA_MESSAGE_REPLICA_ANNOUNCEMENT().dump(self)), "utf-8")
 
     @staticmethod
-    def decode(message: bytes) -> MessagePeersAnnouncement:
+    def decode(message: bytes) -> MessageAuctionPeersAnnouncement:
         """Return the decoded replica announcement."""
         return SCHEMA_MESSAGE_REPLICA_ANNOUNCEMENT().load(loads(message.decode("utf-8")))  # type: ignore
 
 
 SCHEMA_MESSAGE_REPLICA_ANNOUNCEMENT = marshmallow_dataclass.class_schema(
-    MessagePeersAnnouncement
+    MessageAuctionPeersAnnouncement
 )

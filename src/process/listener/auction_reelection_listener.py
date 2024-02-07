@@ -10,19 +10,18 @@ from logging import Logger
 # === Custom Modules ===
 
 from communication import (
-    Unicast,
+    ReliableUnicast,
     MessageSchema,
     MessageElectionRequest,
     MessageElectionAnswer,
     MessageElectionCoordinator,
 )
-from model import Leader
+from model import Leader, Auction
 from util import create_logger
 
 from constant import (
-    communication as com,
-    TIMEOUT_RECEIVE,
-    ELECTION_PORT,
+    RELIABLE_ATTEMPTS,
+    RELIABLE_TIMEOUT,
     HEADER_ELECTION_REQ,
     HEADER_ELECTION_COORDINATOR,
 )
@@ -69,19 +68,22 @@ class AuctionReelectionListener(Process):
         self._prefix: str = f"{self._name}::{auction_id}"
         self._logger: Logger = create_logger(self._name, with_pid=True)
 
+        self._auction_id: str = auction_id
         self._own_id: tuple[str, int] = own_id
         self._leader: Leader = leader
         self._reelect: Event = reelect
         self._coordinator: Event = coordinator
+
+        self._seen_message_ids: list[str] = []
 
         self._logger.info(f"{self._name}: Initialized")
 
     def run(self) -> None:
         """Runs the auction reelection listener process."""
         self._logger.info(f"{self._name}: Started")
-        uc: Unicast = Unicast(
-            TIMEOUT_RECEIVE,
-            port=ELECTION_PORT,
+        uc: ReliableUnicast = ReliableUnicast(
+            retry=RELIABLE_ATTEMPTS,
+            timeout=RELIABLE_TIMEOUT,
         )
 
         self._logger.info(f"{self._name}: Listening for reelection messages")
@@ -92,16 +94,32 @@ class AuctionReelectionListener(Process):
             except TimeoutError:
                 continue
 
-            if not MessageSchema.of(
-                HEADER_ELECTION_REQ, message
-            ) and not MessageSchema.of(HEADER_ELECTION_COORDINATOR, message):
+            if (
+                not MessageSchema.of(HEADER_ELECTION_REQ, message)
+                and not MessageSchema.of(HEADER_ELECTION_COORDINATOR, message)
+                or MessageSchema.get_id(message) in self._seen_message_ids
+            ):
+                continue
+
+            try:
+                parsed_id = Auction.parse_id(MessageSchema.get_id(message))
+            except ValueError:
+                self._logger.info(
+                    f"{self._name}: Received message with invalid auction id {MessageSchema.get_id(message)}"
+                )
+                continue
+
+            if parsed_id != self._auction_id:
+                self._logger.info(
+                    f"{self._name}: Ignoring received message from {address} for different auction {parsed_id} (expected {self._auction_id})"
+                )
                 continue
 
             if MessageSchema.of(HEADER_ELECTION_REQ, message):
                 election: MessageElectionRequest = MessageElectionRequest.decode(
                     message
                 )
-                self._handle_election(election, address)
+                self._handle_election(election, uc, address)
 
             if MessageSchema.of(HEADER_ELECTION_COORDINATOR, message):
                 coordinator: MessageElectionCoordinator = (
@@ -120,12 +138,16 @@ class AuctionReelectionListener(Process):
         self._logger.info(f"{self._name}: Stopped")
 
     def _handle_election(
-        self, message: MessageElectionRequest, address: tuple[IPv4Address, int]
+        self,
+        message: MessageElectionRequest,
+        uc: ReliableUnicast,
+        address: tuple[IPv4Address, int],
     ) -> None:
         """Handle an election request message.
 
         Args:
             message (MessageElectionRequest): The election request message.
+            uc (ReliableUnicast): The unicast communication object.
             address (tuple[IPv4Address, int]): The address of the sender.
         """
         if self._own_id < message.req_id:
@@ -141,10 +163,9 @@ class AuctionReelectionListener(Process):
             _id=message._id,
             req_id=self._own_id,
         )
-        Unicast.qsend(
+        uc.send(
             message=answer.encode(),
-            host=address[0],
-            port=address[1],
+            address=address,
         )
 
         self._reelect.set()

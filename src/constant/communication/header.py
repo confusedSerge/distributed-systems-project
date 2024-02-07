@@ -16,8 +16,9 @@ PEERS_ANNOUNCEMENT: str = _config["replica"]["peers-announcement"]
 AUCTION_ANNOUNCEMENT: str = _config["auction"]["auction-announcement"]
 AUCTION_STATE_ANNOUNCEMENT: str = _config["auction"]["auction-state-announcement"]
 
-AUCTION_INFORMATION_REQ: str = _config["auction"]["auction-information-req"]
-AUCTION_INFORMATION_RES: str = _config["auction"]["auction-information-res"]
+AUCTION_INFORMATION_REPLICATION: str = _config["auction"][
+    "auction-information-replication"
+]
 
 AUCTION_BID: str = _config["auction"]["auction-bid"]
 AUCTION_WIN: str = _config["auction"]["auction-win"]

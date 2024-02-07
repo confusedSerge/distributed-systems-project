@@ -50,6 +50,7 @@ group_base = "224.2.0.0/16" # this is the base prefix for the multicast group
 port = 5008
 ttl = 32
 announcement_period = 5.0
+high_frequency_announcement_period = 1.0
 
 [communication.header]
 reliable-req = "RELIABLE_REQUEST"
@@ -63,8 +64,7 @@ peers-announcement = "PEERS_ANNOUNCEMENT"
 [communication.header.auction]
 auction-announcement = "AUCTION_ANNOUNCEMENT"
 auction-state-announcement = "AUCTION_STATE_ANNOUNCEMENT"
-auction-information-req = "AUCTION_INFORMATION_REQUEST"
-auction-information-res = "AUCTION_INFORMATION_RESPONSE"
+auction-information-replication = "AUCTION_INFORMATION_REPLICATION"
 auction-bid = "AUCTION_BID"
 auction-win = "AUCTION_WIN"
 

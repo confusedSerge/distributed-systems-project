@@ -7,15 +7,12 @@ import marshmallow_dataclass
 from json import dumps, loads
 
 from .auction_dataclass import AuctionData
-from constant import HEADER_AUCTION_INFORMATION_RES
+from constant import HEADER_AUCTION_INFORMATION_REPLICATION
 
 
 @dataclass
-class MessageAuctionInformationResponse:
-    """Response message for auction information request.
-
-    This message is sent over a udp unicast message to respond to a auction information request.
-    The _id field is the same as the request message.
+class MessageAuctionInformationReplication:
+    """This message is used to replicate auction information to the other peers in the network.
 
     Fields:
         _id: (str) Unique identifier of the message. Structure is "uname::uuid". Corresponds to the request message ID.
@@ -25,8 +22,8 @@ class MessageAuctionInformationResponse:
 
     _id: str = field(metadata={"validate": lambda x: len(x) > 0})
     header: str = field(
-        default=HEADER_AUCTION_INFORMATION_RES,
-        metadata={"validate": validate.OneOf([HEADER_AUCTION_INFORMATION_RES])},
+        default=HEADER_AUCTION_INFORMATION_REPLICATION,
+        metadata={"validate": validate.OneOf([HEADER_AUCTION_INFORMATION_REPLICATION])},
     )
 
     # corresponding auction information.
@@ -37,9 +34,7 @@ class MessageAuctionInformationResponse:
 
     def __str__(self) -> str:
         """Returns the string representation of the message."""
-        return (
-            f"{HEADER_AUCTION_INFORMATION_RES}(id={self._id}, auction={self.auction})"
-        )
+        return f"{HEADER_AUCTION_INFORMATION_REPLICATION}(id={self._id}, auction={self.auction})"
 
     def __repr__(self) -> str:
         """Returns the string representation of the message."""
@@ -47,7 +42,7 @@ class MessageAuctionInformationResponse:
 
     def __eq__(self, o: object) -> bool:
         """Returns whether the value is equal to the message."""
-        if not isinstance(o, MessageAuctionInformationResponse):
+        if not isinstance(o, MessageAuctionInformationReplication):
             return False
         return self._id == o._id
 
@@ -58,11 +53,11 @@ class MessageAuctionInformationResponse:
         )
 
     @staticmethod
-    def decode(message: bytes) -> MessageAuctionInformationResponse:
+    def decode(message: bytes) -> MessageAuctionInformationReplication:
         """Return the decoded replica announcement."""
         return SCHEMA_MESSAGE_AUCTION_INFORMATION_RES().load(loads(message.decode("utf-8")))  # type: ignore
 
 
 SCHEMA_MESSAGE_AUCTION_INFORMATION_RES = marshmallow_dataclass.class_schema(
-    MessageAuctionInformationResponse
+    MessageAuctionInformationReplication
 )

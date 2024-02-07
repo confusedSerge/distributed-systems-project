@@ -1,5 +1,3 @@
-import os
-
 from multiprocessing import Process, Event as ProcessEvent
 from multiprocessing.synchronize import Event
 
@@ -80,7 +78,7 @@ class AuctionBidListener(Process):
 
             if parsed_id != self._auction.get_id():
                 self._logger.info(
-                    f"{self._name}: Ignoring received bid from {address} for different auction {parsed_id}"
+                    f"{self._name}: Ignoring received bid from {address} for different auction {parsed_id} (expected {self._auction.get_id()})"
                 )
                 continue
 
@@ -88,8 +86,8 @@ class AuctionBidListener(Process):
                 f"{self._name}: Received bid {bid} from {address} for corresponding auction"
             )
 
-            self._auction.bid(bid.bidder, bid.bid)
             self._seen_message_id.append(bid._id)
+            self._auction.bid(bid.bidder, bid.bid)
 
         self._logger.info(f"{self._name}: Releasing resources")
         mc.close()

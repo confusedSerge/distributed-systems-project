@@ -6,6 +6,12 @@ from model import Auction, Leader, AuctionAnnouncementStore, AuctionPeersStore
 
 # General Memory Manager
 class Manager(BaseManager):
+    """General Memory Manager
+
+    Args:
+        BaseManager: The base manager provided by the multiprocessing module.
+    """
+
     pass
 
 

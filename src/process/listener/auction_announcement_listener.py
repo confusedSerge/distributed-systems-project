@@ -1,4 +1,6 @@
-import os
+from typing import Optional
+
+from ipaddress import IPv4Address
 
 from multiprocessing import Process, Event as ProcessEvent
 from multiprocessing.synchronize import Event
@@ -18,6 +20,7 @@ from constant import (
     BUFFER_SIZE,
     MULTICAST_DISCOVERY_GROUP,
     MULTICAST_DISCOVERY_PORT,
+    MULTICAST_AUCTION_PORT,
 )
 
 
@@ -27,7 +30,11 @@ class AuctionAnnouncementListener(Process):
     This process listens to auction announcements on the multicast discovery channel.
     """
 
-    def __init__(self, auction_announcement_store: AuctionAnnouncementStore):
+    def __init__(
+        self,
+        auction_announcement_store: AuctionAnnouncementStore,
+        auction_id: str = "",
+    ):
         """Initializes the auction listener process.
 
         Args:
@@ -40,16 +47,29 @@ class AuctionAnnouncementListener(Process):
         self._prefix: str = f"{self._name}::{USERNAME}"
         self._logger: Logger = create_logger(self._name, with_pid=True)
 
+        self._seen_message_ids: list[str] = []
         self._store: AuctionAnnouncementStore = auction_announcement_store
+
+        self._auction_id: str = auction_id
+        self._high_frequency: bool = self._auction_id is not None
+        self._address: tuple[IPv4Address, int] = (
+            (MULTICAST_DISCOVERY_GROUP, MULTICAST_DISCOVERY_PORT)
+            if self._high_frequency
+            else (
+                IPv4Address(self._store.get(self._auction_id).auction.group),
+                MULTICAST_AUCTION_PORT,
+            )
+        )
 
         self._logger.info(f"{self._name}: Initialized")
 
     def run(self) -> None:
         """Runs the auction listener process."""
+
         self._logger.info(f"{self._name}: Started")
         mc: Multicast = Multicast(
-            group=MULTICAST_DISCOVERY_GROUP,
-            port=MULTICAST_DISCOVERY_PORT,
+            group=self._address[0],
+            port=self._address[1],
             timeout=TIMEOUT_RECEIVE,
         )
 
@@ -61,7 +81,15 @@ class AuctionAnnouncementListener(Process):
             except TimeoutError:
                 continue
 
-            if not MessageSchema.of(com.HEADER_AUCTION_ANNOUNCEMENT, message):
+            if (
+                not MessageSchema.of(com.HEADER_AUCTION_ANNOUNCEMENT, message)
+                or message in self._seen_message_ids
+                or (
+                    self._high_frequency
+                    and MessageAuctionAnnouncement.decode(message)._id
+                    != self._auction_id
+                )
+            ):
                 continue
 
             announcement: MessageAuctionAnnouncement = (
@@ -70,6 +98,8 @@ class AuctionAnnouncementListener(Process):
             self._logger.info(
                 f"{self._name}: Received announcement for auction {announcement._id}: {announcement}"
             )
+
+            self._seen_message_ids.append(announcement._id)
             self._store.update(announcement)
 
         self._logger.info(f"{self._name}: Releasing resources")

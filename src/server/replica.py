@@ -17,7 +17,7 @@ from communication import (
     MessageSchema,
     MessageFindReplicaRequest,
     MessageFindReplicaResponse,
-    MessageAuctionInformationResponse,
+    MessageAuctionInformationReplication,
     MessageHeartbeatRequest,
     MessageHeartbeatResponse,
     MessageElectionRequest,
@@ -135,25 +135,8 @@ class Replica(Process):
             self._handle_stop()
             return
 
-        # Check that prelude was successful
         assert self.auction is not None
         assert self.peers is not None
-
-        # Wait till initial peers are received
-        self._logger.info(f"{self._name}: Waiting for peers")
-        while not self._exit.is_set() and self.peer_change.is_set():
-            sleep(SLEEP_TIME)
-
-        if self._exit.is_set():
-            self._logger.info(
-                f"{self._name}: Replica received stop signal during peer wait"
-            )
-            self._handle_stop()
-            return
-
-        assert self.peers.len() > 0, "No peers received, yet process event was set"
-        self.peer_change.clear()
-        self._logger.info(f"{self._name}: Initial peers received")
 
         # Start replica leader/follower tasks (heartbeat, election, etc.)
         self._logger.info(
@@ -203,6 +186,11 @@ class Replica(Process):
                 self._auction_manager.stop()
                 self._auction_manager.join()
 
+            if self._replica_finder is not None and self._replica_finder.is_alive():
+                self._logger.info(f"{self._name}: LEADER: Stopping replica finder")
+                self._replica_finder.stop()
+                self._replica_finder.join()
+
             # Start Election
             while self.reelection.is_set():
                 self._logger.info(f"{self._name}: REELECTION: Started")
@@ -219,9 +207,8 @@ class Replica(Process):
 
         This is done through the following steps:
             - Responding to the replica-searcher replica request to indicate that the replica is available.
-            - Waiting for the replica-searcher to acknowledge the response.
             - Waiting for the auctioneer to send the state of the auction.
-            - Starting the listeners and sending an acknowledgement to the replica-searcher to indicate that the replica is ready to handle the auction.
+            - Starting the listeners.
 
         If the replica does not receive confirmation from the replica-searcher or the auction in time, the replica will set the stop signal.
         """
@@ -274,14 +261,16 @@ class Replica(Process):
                     continue
 
                 if (
-                    not MessageSchema.of(com.HEADER_AUCTION_INFORMATION_RES, message)
+                    not MessageSchema.of(
+                        com.HEADER_AUCTION_INFORMATION_REPLICATION, message
+                    )
                     or MessageSchema.get_id(message) != self._initial_request._id
                     or address != self._initial_sender
                 ):
                     continue
 
-                response: MessageAuctionInformationResponse = (
-                    MessageAuctionInformationResponse.decode(message)
+                response: MessageAuctionInformationReplication = (
+                    MessageAuctionInformationReplication.decode(message)
                 )
 
                 self._handle_auction_information_message(response)
@@ -300,6 +289,25 @@ class Replica(Process):
         self._logger.info(f"{self._name}: PRELUDE: Finalizing prelude")
 
         self._start_listeners()
+
+        assert self.auction is not None
+        assert self.peers is not None
+
+        # Wait till initial peers are received
+        self._logger.info(f"{self._name}: Waiting for peers")
+        while not self._exit.is_set() and self.peer_change.is_set():
+            sleep(SLEEP_TIME)
+
+        if self._exit.is_set():
+            self._logger.info(
+                f"{self._name}: Replica received stop signal during peer wait"
+            )
+            self._handle_stop()
+            return
+
+        assert self.peers.len() > 0, "No peers received, yet process event was set"
+        self.peer_change.clear()
+        self._logger.info(f"{self._name}: Initial peers received")
 
         self._logger.info(f"{self._name}: PRELUDE: Prelude finalized")
 
@@ -510,7 +518,7 @@ class Replica(Process):
 
     def _handle_auction_information_message(
         self,
-        message: MessageAuctionInformationResponse,
+        message: MessageAuctionInformationReplication,
     ):
         """Handles an auction information message by setting the local auction.
 

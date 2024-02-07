@@ -1,5 +1,3 @@
-import os
-
 from ipaddress import IPv4Address
 
 from multiprocessing import Process, Event as ProcessEvent
@@ -9,7 +7,7 @@ from logging import Logger
 
 # === Custom Modules ===
 
-from communication import Multicast, MessageSchema, MessagePeersAnnouncement
+from communication import Multicast, MessageSchema, MessageAuctionPeersAnnouncement
 from model import Auction, AuctionPeersStore
 from util import create_logger
 
@@ -82,8 +80,8 @@ class AuctionPeersAnnouncementListener(Process):
                 continue
 
             # Decode message and store peers
-            peers_announcement: MessagePeersAnnouncement = (
-                MessagePeersAnnouncement.decode(message)
+            peers_announcement: MessageAuctionPeersAnnouncement = (
+                MessageAuctionPeersAnnouncement.decode(message)
             )
 
             try:
@@ -96,7 +94,7 @@ class AuctionPeersAnnouncementListener(Process):
 
             if parsed_id != self._auction.get_id():
                 self._logger.info(
-                    f"{self._name}: Ignoring received peer list from {address} for different auction {parsed_id}"
+                    f"{self._name}: Ignoring received peer list from {address} for different auction {parsed_id} (expected {self._auction.get_id()})"
                 )
                 continue
 
@@ -105,6 +103,7 @@ class AuctionPeersAnnouncementListener(Process):
             ]
 
             self._logger.info(f"{self._name}: Received peers announcement {peers}")
+
             self._seen_message_ids.append(peers_announcement._id)
             changes: bool = self._store.replace(peers)
 

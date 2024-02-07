@@ -1,3 +1,2 @@
 from .find_replica_req import MessageFindReplicaRequest
 from .find_replica_res import MessageFindReplicaResponse
-from .peers_announcement import MessagePeersAnnouncement

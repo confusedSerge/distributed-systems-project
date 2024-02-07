@@ -10,24 +10,18 @@ from time import time
 
 from communication import (
     Multicast,
-    Unicast,
-    MessageSchema,
     AuctionMessageData,
-    MessageAuctionInformationRequest,
-    MessageAuctionInformationResponse,
 )
 from communication import MessageAuctionAnnouncement, MessageAuctionStateAnnouncement
 from model import Auction
 from util import create_logger, generate_message_id
 
 from constant import (
-    communication as com,
-    TIMEOUT_RECEIVE,
-    BUFFER_SIZE,
     MULTICAST_DISCOVERY_GROUP,
     MULTICAST_DISCOVERY_PORT,
     MULTICAST_AUCTION_PORT,
     MULTICAST_AUCTION_ANNOUNCEMENT_PERIOD,
+    MULTICAST_AUCTION_HIGH_FREQUENCY_ANNOUNCEMENT_PERIOD,
 )
 
 
@@ -60,6 +54,7 @@ class AuctionManager(Process):
         self._auction: Auction = auction
         self._last_auction_state: tuple[int, str] = self._auction.get_state()
         self._last_auction_announcement: float = 0.0
+        self._last_high_freq_auction_announcement: float = 0.0
 
         self._seen_message_id: list[str] = []
 
@@ -67,19 +62,19 @@ class AuctionManager(Process):
 
     def run(self) -> None:
         """Runs the auction manager process."""
-        mc_discovery_receiver: Multicast = Multicast(
-            group=MULTICAST_DISCOVERY_GROUP,
-            port=MULTICAST_DISCOVERY_PORT,
-            timeout=TIMEOUT_RECEIVE,
-        )
-
         mc_discovery_sender: Multicast = Multicast(
             group=MULTICAST_DISCOVERY_GROUP,
             port=MULTICAST_DISCOVERY_PORT,
             sender=True,
         )
 
-        mc_auction_sender: Multicast = Multicast(
+        mc_auction_unreliable_sender: Multicast = Multicast(
+            group=self._auction.get_group(),
+            port=MULTICAST_AUCTION_PORT,
+            sender=True,
+        )
+
+        mc_auction_reliable_sender: Multicast = Multicast(
             group=self._auction.get_group(),
             port=MULTICAST_AUCTION_PORT,
             sender=True,
@@ -93,8 +88,8 @@ class AuctionManager(Process):
         while not self._exit.is_set():
             self._auction_state_changes()
             self._auction_announcement(mc_discovery_sender)
-            self._auction_state_announcement(mc_auction_sender)
-            self._auction_information_request(mc_discovery_receiver)
+            self._high_frequency_auction_announcement(mc_auction_unreliable_sender)
+            self._auction_state_announcement(mc_auction_reliable_sender)
 
         self._logger.info(f"{self._prefix} received stop signal; releasing resources")
         mc_discovery_sender.close()
@@ -172,6 +167,34 @@ class AuctionManager(Process):
             self._last_auction_announcement = self._auction.get_end_time()
             self._logger.info(f"{self._prefix}: Sent announcement {message}")
 
+    def _high_frequency_auction_announcement(self, mc_auction: Multicast) -> None:
+        """Handles high frequency auction announcements over the auction multicast group.
+        These announcements are sent are unreliable.
+
+        Args:
+            mc_auction (Multicast): Multicast object to use for sending the auction announcement.
+        """
+        if (
+            self._auction.is_running()
+            and time()
+            > self._last_high_freq_auction_announcement
+            + MULTICAST_AUCTION_HIGH_FREQUENCY_ANNOUNCEMENT_PERIOD
+            and self._last_high_freq_auction_announcement
+            + MULTICAST_AUCTION_HIGH_FREQUENCY_ANNOUNCEMENT_PERIOD
+            < self._auction.get_end_time()
+        ) or self._last_auction_state != self._auction.get_state():
+            message: MessageAuctionAnnouncement = MessageAuctionAnnouncement(
+                _id=generate_message_id(self._auction.get_id()),
+                auction=AuctionMessageData.from_auction(self._auction),
+            )
+
+            mc_auction.send(message=message.encode())
+
+            self._last_high_freq_auction_announcement = self._auction.get_end_time()
+            self._logger.info(
+                f"{self._prefix}: Sent high frequency announcement {message}"
+            )
+
     def _auction_state_announcement(self, mc_auction: Multicast) -> None:
         """Handles auction state changes.
 
@@ -195,50 +218,3 @@ class AuctionManager(Process):
 
         self._last_auction_state = self._auction.get_state()
         self._logger.info(f"{self._prefix}: Sent state announcement {message}")
-
-    def _auction_information_request(self, mc_receiver: Multicast) -> None:
-        """Handles auction information requests.
-
-        This includes checking, whether the auction is still running,
-            a valid auction information request is received and the auction information response is sent.
-
-        Args:
-            mc_discovery (Multicast): Multicast object to use for receiving the auction information request.
-        """
-        try:
-            message, address = mc_receiver.receive(BUFFER_SIZE)
-        except TimeoutError:
-            return
-
-        if (
-            not MessageSchema.of(com.HEADER_AUCTION_INFORMATION_REQ, message)
-            or MessageSchema.get_id(message) in self._seen_message_id
-        ):
-            return
-
-        request: MessageAuctionInformationRequest = (
-            MessageAuctionInformationRequest.decode(message)
-        )
-        self._seen_message_id.append(request._id)
-
-        if not request.auction and self._auction.get_id() == request.auction:
-            self._logger.info(
-                f"{self._prefix}: Received request {request} from {address} for another auction"
-            )
-            return
-
-        self._logger.info(
-            f"{self._prefix}: Received request {request} from {address} for {'all' if request.auction else 'auction ' + request.auction}"
-        )
-        response: MessageAuctionInformationResponse = MessageAuctionInformationResponse(
-            _id=request._id,
-            auction=AuctionMessageData.from_auction(self._auction),
-        )
-        Unicast.qsend(
-            message=response.encode(),
-            host=address[0],
-            port=request.port,
-        )
-        self._logger.info(
-            f"{self._prefix}: Sent response {response} to {address} for auction {self._auction.get_id()}"
-        )

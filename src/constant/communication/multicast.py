@@ -16,3 +16,6 @@ AUCTION_TTL: int = int(_config["auction"]["ttl"])
 
 # Multicast Auction Discovery
 ANNOUNCEMENT_PERIOD: float = float(_config["auction"]["announcement_period"])
+HIGH_FREQUENCY_ANNOUNCEMENT_PERIOD: float = float(
+    _config["auction"]["high_frequency_announcement_period"]
+)

@@ -81,7 +81,7 @@ class AuctionStateAnnouncementListener(Process):
 
             if parsed_id != self._auction.get_id():
                 self._logger.info(
-                    f"{self._name}: Ignoring received auction state announcement from {address} for different auction {parsed_id}"
+                    f"{self._name}: Ignoring received auction state announcement from {address} for different auction {parsed_id} (expected {self._auction.get_id()})"
                 )
                 continue
 
