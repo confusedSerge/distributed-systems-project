@@ -16,13 +16,12 @@ from .messages import (
     MessageIsisAgreedSequence,
 )
 
-from .unicast import Unicast
-
-from util import generate_message_id, Timeout
+from util import generate_message_id
 
 # === Constants ===
 
 from constant import (
+    USERNAME,
     BUFFER_SIZE,
     HEADER_ISIS_MESSAGE,
     HEADER_ISIS_MESSAGE_PROPOSED_SEQ,
@@ -144,14 +143,25 @@ class IsisRMulticast:
     This allows to simplify the multicasting, else needed to use the ReliableUnicast class to send reliable 1-to-1 messages.
     """
 
-    def __init__(self, group: IPv4Address, port: int, timeout: Optional[int] = None):
+    def __init__(
+        self,
+        group: IPv4Address,
+        port: int,
+        timeout: Optional[int] = None,
+        sequence_number: int = 0,
+        client: bool = False,
+    ):
         """Initialize the ISIS multicast class.
 
         Args:
             group (IPv4Address): The multicast group to send and receive messages.
             port (int): The port to send and receive messages.
             timeout (Optional[int], optional): The timeout for receiving messages. Defaults to None, which does not trigger a timeout.
+            sequence_number (int, optional): The initial sequence number to use. This is used for reinstating a previous sequence number. Defaults to 0.
         """
+        # Device Identification
+        self._sender_id: str = USERNAME + ("::CLIENT" if client else "::SERVER")
+
         # Basic setup
         self._group: IPv4Address = group
         self._port: int = port
@@ -159,17 +169,18 @@ class IsisRMulticast:
 
         self._exit: Event = ProcessEvent()
 
-        # B-Multicast sender setup
-        self._sequence_number: int = 0
+        # R-Multicast sender setup
+        self._sequence_number: int = sequence_number
         self._multicast_sender: Multicast = Multicast(
             group=group, port=port, sender=True
         )
+        self._received_messages: set[str] = set()
 
         # B-Multicast receiver setup
         self.delivery_queue: Queue = Queue()
         self._receiver: Process = Process(
             target=self._receive,
-            args=(self.delivery_queue, (self._group, self._port)),
+            args=(self.delivery_queue,),
         )
         self._receiver.start()
 
@@ -181,9 +192,12 @@ class IsisRMulticast:
         """
         isis_message = MessageIsisMessage(
             _id=generate_message_id(),
-            payload=message.decode(),
+            sender=self._sender_id,
             b_sequence_number=self._sequence_number,
+            payload=message.decode(),
         )
+        # Add the message to the received messages, as sockets do not receive their own messages
+        self._received_messages.add(isis_message._id)
         self._multicast_sender.send(isis_message.encode())
         self._sequence_number += 1
 
@@ -194,7 +208,12 @@ class IsisRMulticast:
             tuple[bytes, tuple[IPv4Address, int]]: The ISIS message and the address of the sender.
         """
         try:
-            return self.delivery_queue.get(timeout=self._timeout)
+            message, address = self.delivery_queue.get(timeout=self._timeout)
+            if message._id not in self._received_messages:
+                self._multicast_sender.send(message.encode())
+                self._received_messages.add(message._id)
+
+            return message.payload, address
         except:
             raise TimeoutError(f"Timeout of {str(self._timeout)} seconds reached.")
 
@@ -206,49 +225,53 @@ class IsisRMulticast:
 
     # === Receiver ===
 
-    def _receive(
-        self, delivery_queue: Queue, ignore_address: tuple[IPv4Address, int]
-    ) -> None:
+    def _receive(self, delivery_queue: Queue) -> None:
         """Receive ISIS messages from the multicast group.
 
         This is handled in a separate process, where messages ready to be delivered are put into the delivery_queue.
 
         Args:
             delivery_queue (Queue): The queue to put the received messages.
-            ignore_address (tuple[IPv4Address, int]): The address to ignore. Should be the address of the own sender.
         """
         # Initialize the multicast receiver
-        _peer_sequence_numbers: dict[tuple[IPv4Address, int], int] = {}
+        _peer_sequence_numbers: dict[str, int] = {}
         _multicast_receiver: Multicast = Multicast(
             group=self._group, port=self._port, timeout=1
         )
-        # address -> list of (sequence number, message)
-        _holdback_queue: dict[tuple[IPv4Address, int], list[tuple[int, bytes]]] = {}
+        # address of initial sender (encoded in message) -> list of (sequence number, message)
+        _holdback_queue: dict[str, list[tuple[int, MessageIsisMessage]]] = {}
 
         # Receive ISIS messages
         while not self._exit.is_set():
             try:
-                message, address = _multicast_receiver.receive()
+                message, _ = _multicast_receiver.receive()
             except TimeoutError:
                 continue
 
-            # Validate the message
+            # Validate the message (own address is already ignored by socket implementation)
             if not MessageSchema.of(HEADER_ISIS_MESSAGE, message):
                 continue
 
+            decoded_message = MessageIsisMessage.decode(message)
+            if decoded_message.sender == self._sender_id:
+                continue
+
+            # Initialize the peer if not present
+            self._initialize_peer(
+                decoded_message.sender, _peer_sequence_numbers, _holdback_queue
+            )
+
             # Decode the message
             self._manage_message(
-                delivery_queue,
-                _peer_sequence_numbers,
-                _holdback_queue,
-                message,
-                address,
+                delivery_queue, _peer_sequence_numbers, _holdback_queue, decoded_message
             )
 
             # Check the holdback queue for possible messages to deliver
-
             self._holdback_queue_delivery(
-                delivery_queue, _peer_sequence_numbers, _holdback_queue, address
+                delivery_queue,
+                _peer_sequence_numbers,
+                _holdback_queue,
+                decoded_message,
             )
 
         # Close the multicast receiver
@@ -256,13 +279,29 @@ class IsisRMulticast:
 
     # === Helper Functions ===
 
+    def _initialize_peer(
+        self,
+        sender: str,
+        _peer_sequence_numbers: dict[str, int],
+        _holdback_queue: dict[str, list[tuple[int, MessageIsisMessage]]],
+    ):
+        """Initialize the peer in the sequence numbers and holdback queue.
+
+        Args:
+            sender (str): The sender of the message.
+            _peer_sequence_numbers (dict[str, int]): The sequence number of the peers.
+            _holdback_queue (dict[str, list[tuple[int, MessageIsisMessage]]]): The holdback queue for the peers.
+        """
+        if sender not in _peer_sequence_numbers:
+            _peer_sequence_numbers[sender] = -1
+            _holdback_queue[sender] = []
+
     def _manage_message(
         self,
         delivery_queue: Queue,
-        _peer_sequence_numbers: dict[tuple[IPv4Address, int], int],
-        _holdback_queue: dict[tuple[IPv4Address, int], list[tuple[int, bytes]]],
-        message: bytes,
-        address: tuple[IPv4Address, int],
+        _peer_sequence_numbers: dict[str, int],
+        _holdback_queue: dict[str, list[tuple[int, MessageIsisMessage]]],
+        message: MessageIsisMessage,
     ):
         """Manage the received ISIS message.
 
@@ -273,48 +312,40 @@ class IsisRMulticast:
             _peer_sequence_numbers (dict[tuple[IPv4Address, int], int]): The sequence number of the peers.
             _holdback_queue (dict[tuple[IPv4Address, int], list[tuple[int, bytes]]]): The holdback queue for the peers.
             message (bytes): The received message.
-            address (tuple[IPv4Address, int]): The address of the sender.
         """
-        received_message = MessageIsisMessage.decode(message)
-        peer_sequence_number = _peer_sequence_numbers.get(address, -1)
+        peer_sequence_number = _peer_sequence_numbers.get(message.sender, -1)
 
         # Receive message
-        if received_message.b_sequence_number == peer_sequence_number + 1:
-            delivery_queue.put((received_message.payload.encode(), address))
-            _peer_sequence_numbers[address] = peer_sequence_number + 1
+        if message.b_sequence_number == peer_sequence_number + 1:
+            delivery_queue.put((message, message.sender))
+            _peer_sequence_numbers[message.sender] = peer_sequence_number + 1
         else:
-            _holdback_queue[address].append(
-                (
-                    received_message.b_sequence_number,
-                    received_message.payload.encode(),
-                )
-            )
+            _holdback_queue[message.sender].append((message.b_sequence_number, message))
 
     def _holdback_queue_delivery(
         self,
         delivery_queue: Queue,
-        _peer_sequence_numbers: dict[tuple[IPv4Address, int], int],
-        _holdback_queue: dict[tuple[IPv4Address, int], list[tuple[int, bytes]]],
-        address: tuple[IPv4Address, int],
+        _peer_sequence_numbers: dict[str, int],
+        _holdback_queue: dict[str, list[tuple[int, MessageIsisMessage]]],
+        message: MessageIsisMessage,
     ):
         """Check the holdback queue for possible messages to deliver.
 
         Args:
             delivery_queue (Queue): The queue to put the received messages, if ready to deliver.
             _peer_sequence_numbers (dict[tuple[IPv4Address, int], int]): The sequence number of the peers.
-            _holdback_queue (dict[tuple[IPv4Address, int], list[tuple[int, bytes]]]): The holdback queue for the peers.
-            address (tuple[IPv4Address, int]): The address of the sender.
+            _holdback_queue (dict[tuple[IPv4Address, int], list[tuple[int, MessageIsisMessage]]]): The holdback queue for the peers.
         """
-        if address not in _holdback_queue:
+        if message.sender not in _holdback_queue:
             return
 
         holdback_queue_for_address = sorted(
-            _holdback_queue[address], key=lambda x: x[0]
+            _holdback_queue[message.sender], key=lambda x: x[0]
         )
-        for sequence_number, payload in holdback_queue_for_address:
-            if sequence_number == _peer_sequence_numbers[address] + 1:
-                delivery_queue.put((payload, address))
-                _peer_sequence_numbers[address] += 1
-                _holdback_queue[address].remove((sequence_number, payload))
+        for sequence_number, message in holdback_queue_for_address:
+            if sequence_number == _peer_sequence_numbers[message.sender] + 1:
+                delivery_queue.put((message, message.sender))
+                _holdback_queue[message.sender].remove((sequence_number, message))
+                _peer_sequence_numbers[message.sender] += 1
             else:
                 break

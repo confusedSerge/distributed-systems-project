@@ -7,20 +7,27 @@ from constant import MULTICAST_DISCOVERY_GROUP, MULTICAST_DISCOVERY_PORT
 
 
 def send():
+    print("I am client")
     multicast = IsisRMulticast(
-        IPv4Address(MULTICAST_DISCOVERY_GROUP), MULTICAST_DISCOVERY_PORT
+        IPv4Address(MULTICAST_DISCOVERY_GROUP),
+        MULTICAST_DISCOVERY_PORT,
+        30,
+        client=True,
     )
     multicast.send(b"Hello, world!")
+    print(multicast.deliver())
     print(multicast.deliver())
     multicast.close()
 
 
 def receive():
+    print("I am server")
     multicast = IsisRMulticast(
         IPv4Address(MULTICAST_DISCOVERY_GROUP), MULTICAST_DISCOVERY_PORT, 30
     )
     print(multicast.deliver())
     multicast.send(b"Hello, back!")
+    print(multicast.deliver())
     multicast.close()
 
 

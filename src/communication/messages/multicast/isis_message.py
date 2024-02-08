@@ -17,6 +17,7 @@ class MessageIsisMessage:
     Fields:
         _id: (str) Unique identifier of the message.
         header: (str) Header of the message. Should be constant HEADER_ISIS_MESSAGE.
+        sender: (str) The sender of the message.
         b_sequence_number: (int) The sequence number of the message in the B-Multicast.
         payload: (str) Payload of the message.
     """
@@ -26,6 +27,10 @@ class MessageIsisMessage:
     header: str = field(
         default=HEADER_ISIS_MESSAGE,
         metadata={"validate": validate.OneOf([HEADER_ISIS_MESSAGE])},
+    )
+    sender: str = field(
+        default="",
+        metadata={"validate": lambda x: isinstance(x, str) and len(x) > 0},
     )
 
     # Message payload
@@ -47,7 +52,11 @@ class MessageIsisMessage:
         """Returns whether the value is equal to the message."""
         if not isinstance(o, MessageIsisMessage):
             return False
-        return self._id == o._id
+        return (
+            self._id == o._id
+            and self.b_sequence_number == o.b_sequence_number
+            and self.sender == o.sender
+        )
 
     def encode(self) -> bytes:
         """Encodes the message into a bytes object."""
