@@ -21,17 +21,17 @@ auction_pool_size = 1
 [communication]
 buffer_size = 1024
 timeout_receive = 1
-timeout_response = 20
+timeout_response = 5
 reliable_timeout = 1
 reliable_attempts = 5
 
 
 [communication.replica]
-emitter_period = 2
-timeout = 20
+emitter_period = 1
+timeout = 5
 
 [communication.heartbeat]
-timeout = 5
+timeout = 1
 
 [communication.election]
 timeout = 5

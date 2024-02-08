@@ -31,6 +31,7 @@ from .election import (
     MessageElectionCoordinator,
 )
 from .multicast import (
+    MessageIsisMessage,
     MessageIsisProposedSequence,
     MessageIsisAgreedSequence,
 )

@@ -1,31 +1,32 @@
 from client import Client
 from server import Server
 
-from communication import RMulticast
+from communication import AdjustedIsisRMulticast, RMulticast
 from ipaddress import IPv4Address
 from constant import MULTICAST_DISCOVERY_GROUP, MULTICAST_DISCOVERY_PORT
 
 
 def send():
     print("I am client")
-    multicast = RMulticast(
+    multicast = AdjustedIsisRMulticast(
         IPv4Address(MULTICAST_DISCOVERY_GROUP),
         MULTICAST_DISCOVERY_PORT,
-        30,
+        10,
         client=True,
     )
     multicast.send(b"Hello, world!")
-    print(multicast.deliver())
     multicast.close()
 
 
 def receive():
     print("I am server")
-    multicast = RMulticast(
-        IPv4Address(MULTICAST_DISCOVERY_GROUP), MULTICAST_DISCOVERY_PORT, 30
+    multicast = AdjustedIsisRMulticast(
+        IPv4Address(MULTICAST_DISCOVERY_GROUP), MULTICAST_DISCOVERY_PORT, 10
     )
-    print(multicast.deliver())
-    multicast.send(b"Hello, back!")
+    try:
+        print(multicast.deliver())
+    except TimeoutError:
+        print("Timeout")
     multicast.close()
 
 

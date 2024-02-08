@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from marshmallow import validate
 import marshmallow_dataclass
 
-from constant import HEADER_ISIS_MESSAGE
+from constant import HEADER_RELIABLE_MULTICAST
 
 
 @dataclass
@@ -23,8 +23,8 @@ class MessageReliableMulticast:
     # Message ID
     _id: str = field(metadata={"validate": lambda x: len(x) > 0})
     header: str = field(
-        default=HEADER_ISIS_MESSAGE,
-        metadata={"validate": validate.OneOf([HEADER_ISIS_MESSAGE])},
+        default=HEADER_RELIABLE_MULTICAST,
+        metadata={"validate": validate.OneOf([HEADER_RELIABLE_MULTICAST])},
     )
     sender: str = field(
         default="",
@@ -43,7 +43,7 @@ class MessageReliableMulticast:
 
     def __str__(self) -> str:
         """Returns the string representation of the message."""
-        return f"{HEADER_ISIS_MESSAGE}(id={self._id}, payload={self.payload})"
+        return f"{HEADER_RELIABLE_MULTICAST}(id={self._id}, payload={self.payload})"
 
     def __repr__(self) -> str:
         """Returns the string representation of the message."""
