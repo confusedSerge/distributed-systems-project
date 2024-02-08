@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from ipaddress import IPv4Network
 from marshmallow import validate
 import marshmallow_dataclass
 
@@ -10,35 +11,33 @@ from constant import HEADER_ISIS_MESSAGE
 
 
 @dataclass
-class MessageIsis:
-    """Message to be B-multicasted to members of the group
+class MessageIsisMessage:
+    """ISIS message to B-Multicast and find the counter of.
 
     Fields:
-        _id: (str) Unique identifier of the message. Structure is "uname::aname::uuid".
+        _id: (str) Unique identifier of the message.
         header: (str) Header of the message. Should be constant HEADER_ISIS_MESSAGE.
-        message_content: (str) content of the message.
-        sender_id: (int) the sender id.
-        
+        b_sequence_number: (int) The sequence number of the message in the B-Multicast.
+        payload: (str) Payload of the message.
     """
-    sender_id: int = field(
-        metadata={
-            "validate": lambda x: isinstance(x, int) and x > 0
-        }
-    )
 
     # Message ID
     _id: str = field(metadata={"validate": lambda x: len(x) > 0})
-    
-    # Data
-    message_content: str = field(default="")
     header: str = field(
         default=HEADER_ISIS_MESSAGE,
         metadata={"validate": validate.OneOf([HEADER_ISIS_MESSAGE])},
     )
 
+    # Message payload
+    b_sequence_number: int = field(default=0)
+    payload: str = field(
+        default="",
+        metadata={"validate": lambda x: isinstance(x, str) and len(x) > 0},
+    )
+
     def __str__(self) -> str:
         """Returns the string representation of the message."""
-        return f"{HEADER_ISIS_MESSAGE}(id={self._id})"
+        return f"{HEADER_ISIS_MESSAGE}(id={self._id}, payload={self.payload})"
 
     def __repr__(self) -> str:
         """Returns the string representation of the message."""
@@ -46,19 +45,18 @@ class MessageIsis:
 
     def __eq__(self, o: object) -> bool:
         """Returns whether the value is equal to the message."""
-        if not isinstance(o, MessageIsis):
+        if not isinstance(o, MessageIsisMessage):
             return False
         return self._id == o._id
 
     def encode(self) -> bytes:
         """Encodes the message into a bytes object."""
-        return dumps(
-            marshmallow_dataclass.class_schema(MessageIsis)().dump(self)
-        ).encode()
+        return SCHEMA_MESSAGE_ISIS_MESSAGE().dumps(self).encode()
 
     @staticmethod
-    def decode(data: bytes) -> MessageIsis:
+    def decode(message: bytes) -> MessageIsisMessage:
         """Decodes the bytes object into a message object."""
-        return marshmallow_dataclass.class_schema(MessageIsis)().load(
-            loads(data.decode())
-        )
+        return SCHEMA_MESSAGE_ISIS_MESSAGE().loads(message.decode())  # type: ignore
+
+
+SCHEMA_MESSAGE_ISIS_MESSAGE = marshmallow_dataclass.class_schema(MessageIsisMessage)

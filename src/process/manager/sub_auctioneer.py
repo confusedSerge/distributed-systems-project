@@ -161,10 +161,8 @@ class SubAuctioneer(Process):
     def _listen(self):
         """Starts the auction bid listener to listen to bids for the auction."""
         self._logger.info(
-            f"{self._name}: Listening to bids for auction {self._auction.get_id()}"
+            f"{self._name}: Listening for auction {self._auction.get_id()}"
         )
-        auction_bid_listener: AuctionBidListener = AuctionBidListener(self._auction)
-        auction_bid_listener.start()
 
         high_freq_auction_listener: AuctionAnnouncementListener = (
             AuctionAnnouncementListener(

@@ -34,9 +34,6 @@ ELECTION_COORDINATOR: str = _config["election"]["election-coordinator"]
 
 
 # Total Ordering Header
-ISIS_MESSAGE_WITH_COUNTER: str = _config["total_ordering_isis"][
-    "isis-message-with-counter"
-]
 ISIS_MESSAGE: str = _config["total_ordering_isis"]["isis-message"]
-PROPOSED_SEQ: str = _config["total_ordering_isis"]["proposed-seq"]
-AGREED_SEQ: str = _config["total_ordering_isis"]["agreed-seq"]
+ISIS_PROPOSED_SEQ: str = _config["total_ordering_isis"]["proposed-seq"]
+ISIS_AGREED_SEQ: str = _config["total_ordering_isis"]["agreed-seq"]
