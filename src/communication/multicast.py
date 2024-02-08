@@ -4,8 +4,10 @@ from ipaddress import IPv4Address
 import socket
 import struct
 
-from multiprocessing import Process, Queue, Event as ProcessEvent
+from multiprocessing import Process, Queue, Manager, Event as ProcessEvent
 from multiprocessing.synchronize import Event
+
+from time import sleep
 
 # === Custom Modules ===
 
@@ -167,6 +169,7 @@ class IsisRMulticast:
         self._port: int = port
         self._timeout: Optional[int] = timeout
 
+        self._manager = Manager()
         self._exit: Event = ProcessEvent()
 
         # R-Multicast sender setup
@@ -175,14 +178,33 @@ class IsisRMulticast:
             group=group, port=port, sender=True
         )
         self._received_messages: set[str] = set()
+        self.sequence_to_messages = self._manager.dict()
 
-        # B-Multicast receiver setup
-        self.delivery_queue: Queue = Queue()
+        # R-Multicast receiver setup
+        self.delivery_queue: Queue = Queue()  # where the messages are delivered
+        self.retransmission_queue: Queue = (
+            Queue()
+        )  # sequence number of the message to be retransmitted
+        self.acknowledgement_queue: Queue = (
+            Queue()
+        )  # tuple of (sender_id, sequence_number, true) to be acknowledged
+
         self._receiver: Process = Process(
             target=self._receive,
-            args=(self.delivery_queue,),
+            args=(
+                self.delivery_queue,
+                self.retransmission_queue,
+                self.acknowledgement_queue,
+            ),
         )
         self._receiver.start()
+
+        # Retransmission setup
+        self._retransmission: Process = Process(
+            target=self.retransmit,
+            args=(self.retransmission_queue, self.sequence_to_messages),
+        )
+        self._retransmission.start()
 
     def send(self, message: bytes) -> None:
         """Send an ISIS message to the multicast group.
@@ -190,14 +212,20 @@ class IsisRMulticast:
         Args:
             message (bytes): payload of the message.
         """
+        ack_messages: list[tuple[str, int, bool]] = []
+        while not self.acknowledgement_queue.empty():
+            ack_messages.append(self.acknowledgement_queue.get())
+
         isis_message = MessageIsisMessage(
             _id=generate_message_id(),
             sender=self._sender_id,
             b_sequence_number=self._sequence_number,
             payload=message.decode(),
+            acknowledgements=ack_messages,
         )
         # Add the message to the received messages, as sockets do not receive their own messages
         self._received_messages.add(isis_message._id)
+        self.sequence_to_messages[self._sequence_number] = isis_message
         self._multicast_sender.send(isis_message.encode())
         self._sequence_number += 1
 
@@ -221,11 +249,17 @@ class IsisRMulticast:
         """Close the ISIS multicast sender and receiver."""
         self._exit.set()
         self._receiver.join()
+        self._retransmission.join()
         self._multicast_sender.close()
 
     # === Receiver ===
 
-    def _receive(self, delivery_queue: Queue) -> None:
+    def _receive(
+        self,
+        delivery_queue: Queue,
+        retransmission_queue: Queue,
+        acknowledgement_queue: Queue,
+    ):
         """Receive ISIS messages from the multicast group.
 
         This is handled in a separate process, where messages ready to be delivered are put into the delivery_queue.
@@ -254,16 +288,23 @@ class IsisRMulticast:
 
             decoded_message = MessageIsisMessage.decode(message)
             if decoded_message.sender == self._sender_id:
-                continue
+                continue  # Ignore own messages
 
             # Initialize the peer if not present
             self._initialize_peer(
                 decoded_message.sender, _peer_sequence_numbers, _holdback_queue
             )
 
-            # Decode the message
+            # Manage the received ISIS message
             self._manage_message(
                 delivery_queue, _peer_sequence_numbers, _holdback_queue, decoded_message
+            )
+
+            self._process_acknowledgements(
+                _peer_sequence_numbers,
+                acknowledgement_queue,
+                retransmission_queue,
+                decoded_message,
             )
 
             # Check the holdback queue for possible messages to deliver
@@ -276,6 +317,26 @@ class IsisRMulticast:
 
         # Close the multicast receiver
         _multicast_receiver.close()
+
+    def retransmit(
+        self,
+        retransmission_queue: Queue,
+        sent_messages,
+    ):
+        """Retransmit the ISIS messages from the retransmission queue.
+
+        Args:
+            retransmission_queue (Queue): The queue for the retransmissions.
+            sent_messages (DictProxy[str, MessageIsisMessage]): The sent messages to look up the message to retransmit.
+        """
+        while not self._exit.is_set():
+            try:
+                sequence_number = retransmission_queue.get(timeout=self._timeout)
+                message = sent_messages.get(sequence_number)
+                if message:
+                    self._multicast_sender.send(message.encode())
+            except:
+                continue
 
     # === Helper Functions ===
 
@@ -295,6 +356,34 @@ class IsisRMulticast:
         if sender not in _peer_sequence_numbers:
             _peer_sequence_numbers[sender] = -1
             _holdback_queue[sender] = []
+
+    def _process_acknowledgements(
+        self,
+        _peer_sequence_numbers: dict[str, int],
+        acknowledgement_queue: Queue,
+        retransmission_queue: Queue,
+        message: MessageIsisMessage,
+    ):
+        """Process the acknowledgements of the received ISIS message.
+
+        Args:
+            _peer_sequence_numbers (dict[str, int]): The sequence number of the peers.
+            acknowledgement_queue (Queue): The queue for the acknowledgements.
+            retransmission_queue (Queue): The queue for the retransmissions.
+            message (MessageIsisMessage): The received message.
+        """
+        acknowledgement_queue.put((message.sender, message.b_sequence_number, True))
+
+        for sender, sequence_number, ack in message.acknowledgements:
+            if sender == self._sender_id:
+                if not ack:
+                    retransmission_queue.put(sequence_number)
+            elif (
+                sender not in _peer_sequence_numbers
+                or sequence_number > _peer_sequence_numbers[sender]
+            ):
+                for needed in range(sequence_number - _peer_sequence_numbers[sender]):
+                    acknowledgement_queue.put((sender, sequence_number - needed, False))
 
     def _manage_message(
         self,

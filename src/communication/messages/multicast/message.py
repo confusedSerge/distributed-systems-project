@@ -20,6 +20,7 @@ class MessageIsisMessage:
         sender: (str) The sender of the message.
         b_sequence_number: (int) The sequence number of the message in the B-Multicast.
         payload: (str) Payload of the message.
+        acknowledgements: (list[tuple[str, int, bool]]) List of acknowledgements.
     """
 
     # Message ID
@@ -39,6 +40,9 @@ class MessageIsisMessage:
         default="",
         metadata={"validate": lambda x: isinstance(x, str) and len(x) > 0},
     )
+
+    # Acknowledgement
+    acknowledgements: list[tuple[str, int, bool]] = field(default_factory=list)
 
     def __str__(self) -> str:
         """Returns the string representation of the message."""

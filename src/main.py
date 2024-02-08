@@ -16,7 +16,6 @@ def send():
     )
     multicast.send(b"Hello, world!")
     print(multicast.deliver())
-    print(multicast.deliver())
     multicast.close()
 
 
@@ -27,7 +26,6 @@ def receive():
     )
     print(multicast.deliver())
     multicast.send(b"Hello, back!")
-    print(multicast.deliver())
     multicast.close()
 
 
