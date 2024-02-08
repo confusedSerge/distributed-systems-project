@@ -3,6 +3,7 @@ from .message_schema import MessageSchema
 from .wrapper import (
     MessageReliableRequest,
     MessageReliableResponse,
+    MessageReliableMulticast,
 )
 
 from .replica import (
@@ -30,7 +31,6 @@ from .election import (
     MessageElectionCoordinator,
 )
 from .multicast import (
-    MessageIsisMessage,
     MessageIsisProposedSequence,
     MessageIsisAgreedSequence,
 )

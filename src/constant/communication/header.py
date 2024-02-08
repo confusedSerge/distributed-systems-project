@@ -5,6 +5,7 @@ _config = load_config()["communication"]["header"]
 # Wrapper Header
 RELIABLE_REQ: str = _config["reliable-req"]
 RELIABLE_RES: str = _config["reliable-res"]
+RELIABLE_MULTICAST: str = _config["reliable-multicast"]
 
 # Message Header
 FIND_REPLICA_REQ: str = _config["replica"]["find-replica-req"]

@@ -55,6 +55,7 @@ high_frequency_announcement_period = 1.0
 [communication.header]
 reliable-req = "RELIABLE_REQUEST"
 reliable-res = "RELIABLE_RESPONSE"
+reliable-multicast = "RELIABLE_MULTICAST"
 
 [communication.header.replica]
 find-replica-req = "FIND_REPLICA_REQUEST"

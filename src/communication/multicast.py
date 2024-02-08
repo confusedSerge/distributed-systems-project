@@ -13,22 +13,14 @@ from time import sleep
 
 from .messages import (
     MessageSchema,
-    MessageIsisMessage,
-    MessageIsisProposedSequence,
-    MessageIsisAgreedSequence,
+    MessageReliableMulticast,
 )
 
 from util import generate_message_id
 
 # === Constants ===
 
-from constant import (
-    USERNAME,
-    BUFFER_SIZE,
-    HEADER_ISIS_MESSAGE,
-    HEADER_ISIS_MESSAGE_PROPOSED_SEQ,
-    HEADER_ISIS_MESSAGE_AGREED_SEQ,
-)
+from constant import USERNAME, BUFFER_SIZE, HEADER_RELIABLE_MULTICAST
 
 
 class Multicast:
@@ -137,10 +129,10 @@ class Multicast:
         mc.close()
 
 
-class IsisRMulticast:
-    """IsisRMulticast class for sending and receiving ISIS messages over multicast.
+class RMulticast:
+    """RMulticast class for sending and receiving reliable messages over multicast.
 
-    This class implements a basic ISIS multicast using R-Multicast over UDP.
+    This class implements a R-Multicast over UDP.
     The R-Multicast is a reliable multicast protocol using the IP protocol and UDP.
     This allows to simplify the multicasting, else needed to use the ReliableUnicast class to send reliable 1-to-1 messages.
     """
@@ -153,7 +145,7 @@ class IsisRMulticast:
         sequence_number: int = 0,
         client: bool = False,
     ):
-        """Initialize the ISIS multicast class.
+        """Initialize the R-Multicast class.
 
         Args:
             group (IPv4Address): The multicast group to send and receive messages.
@@ -206,8 +198,8 @@ class IsisRMulticast:
         )
         self._retransmission.start()
 
-    def send(self, message: bytes) -> None:
-        """Send an ISIS message to the multicast group.
+    def send(self, payload: bytes) -> None:
+        """Send an R-Multicast message to the multicast group.
 
         Args:
             message (bytes): payload of the message.
@@ -216,24 +208,24 @@ class IsisRMulticast:
         while not self.acknowledgement_queue.empty():
             ack_messages.append(self.acknowledgement_queue.get())
 
-        isis_message = MessageIsisMessage(
+        message = MessageReliableMulticast(
             _id=generate_message_id(),
             sender=self._sender_id,
             b_sequence_number=self._sequence_number,
-            payload=message.decode(),
+            payload=payload.decode(),
             acknowledgements=ack_messages,
         )
         # Add the message to the received messages, as sockets do not receive their own messages
-        self._received_messages.add(isis_message._id)
-        self.sequence_to_messages[self._sequence_number] = isis_message
-        self._multicast_sender.send(isis_message.encode())
+        self._received_messages.add(message._id)
+        self.sequence_to_messages[self._sequence_number] = message
+        self._multicast_sender.send(message.encode())
         self._sequence_number += 1
 
     def deliver(self) -> tuple[bytes, tuple[IPv4Address, int]]:
-        """Deliver the ISIS messages from the delivery queue.
+        """Deliver the next R-Multicast message from the delivery queue.
 
         Returns:
-            tuple[bytes, tuple[IPv4Address, int]]: The ISIS message and the address of the sender.
+            tuple[bytes, tuple[IPv4Address, int]]: The payload of the message and the sender address.
         """
         try:
             message, address = self.delivery_queue.get(timeout=self._timeout)
@@ -246,7 +238,7 @@ class IsisRMulticast:
             raise TimeoutError(f"Timeout of {str(self._timeout)} seconds reached.")
 
     def close(self) -> None:
-        """Close the ISIS multicast sender and receiver."""
+        """Close the R-Multicast sender and receiver."""
         self._exit.set()
         self._receiver.join()
         self._retransmission.join()
@@ -260,7 +252,7 @@ class IsisRMulticast:
         retransmission_queue: Queue,
         acknowledgement_queue: Queue,
     ):
-        """Receive ISIS messages from the multicast group.
+        """Receive R-Multicast messages from the multicast group.
 
         This is handled in a separate process, where messages ready to be delivered are put into the delivery_queue.
 
@@ -273,9 +265,9 @@ class IsisRMulticast:
             group=self._group, port=self._port, timeout=1
         )
         # address of initial sender (encoded in message) -> list of (sequence number, message)
-        _holdback_queue: dict[str, list[tuple[int, MessageIsisMessage]]] = {}
+        _holdback_queue: dict[str, list[tuple[int, MessageReliableMulticast]]] = {}
 
-        # Receive ISIS messages
+        # Receive messages
         while not self._exit.is_set():
             try:
                 message, _ = _multicast_receiver.receive()
@@ -283,10 +275,10 @@ class IsisRMulticast:
                 continue
 
             # Validate the message (own address is already ignored by socket implementation)
-            if not MessageSchema.of(HEADER_ISIS_MESSAGE, message):
+            if not MessageSchema.of(HEADER_RELIABLE_MULTICAST, message):
                 continue
 
-            decoded_message = MessageIsisMessage.decode(message)
+            decoded_message = MessageReliableMulticast.decode(message)
             if decoded_message.sender == self._sender_id:
                 continue  # Ignore own messages
 
@@ -295,7 +287,7 @@ class IsisRMulticast:
                 decoded_message.sender, _peer_sequence_numbers, _holdback_queue
             )
 
-            # Manage the received ISIS message
+            # Manage the received message
             self._manage_message(
                 delivery_queue, _peer_sequence_numbers, _holdback_queue, decoded_message
             )
@@ -323,11 +315,11 @@ class IsisRMulticast:
         retransmission_queue: Queue,
         sent_messages,
     ):
-        """Retransmit the ISIS messages from the retransmission queue.
+        """Retransmit the messages from the retransmission queue.
 
         Args:
             retransmission_queue (Queue): The queue for the retransmissions.
-            sent_messages (DictProxy[str, MessageIsisMessage]): The sent messages to look up the message to retransmit.
+            sent_messages (DictProxy[str, MessageReliableMulticast]): The sent messages to look up the message to retransmit.
         """
         while not self._exit.is_set():
             try:
@@ -344,14 +336,14 @@ class IsisRMulticast:
         self,
         sender: str,
         _peer_sequence_numbers: dict[str, int],
-        _holdback_queue: dict[str, list[tuple[int, MessageIsisMessage]]],
+        _holdback_queue: dict[str, list[tuple[int, MessageReliableMulticast]]],
     ):
         """Initialize the peer in the sequence numbers and holdback queue.
 
         Args:
             sender (str): The sender of the message.
             _peer_sequence_numbers (dict[str, int]): The sequence number of the peers.
-            _holdback_queue (dict[str, list[tuple[int, MessageIsisMessage]]]): The holdback queue for the peers.
+            _holdback_queue (dict[str, list[tuple[int, MessageReliableMulticast]]]): The holdback queue for the peers.
         """
         if sender not in _peer_sequence_numbers:
             _peer_sequence_numbers[sender] = -1
@@ -362,15 +354,15 @@ class IsisRMulticast:
         _peer_sequence_numbers: dict[str, int],
         acknowledgement_queue: Queue,
         retransmission_queue: Queue,
-        message: MessageIsisMessage,
+        message: MessageReliableMulticast,
     ):
-        """Process the acknowledgements of the received ISIS message.
+        """Process the acknowledgements of the received message.
 
         Args:
             _peer_sequence_numbers (dict[str, int]): The sequence number of the peers.
             acknowledgement_queue (Queue): The queue for the acknowledgements.
             retransmission_queue (Queue): The queue for the retransmissions.
-            message (MessageIsisMessage): The received message.
+            message (MessageReliableMulticast): The received message.
         """
         acknowledgement_queue.put((message.sender, message.b_sequence_number, True))
 
@@ -389,10 +381,10 @@ class IsisRMulticast:
         self,
         delivery_queue: Queue,
         _peer_sequence_numbers: dict[str, int],
-        _holdback_queue: dict[str, list[tuple[int, MessageIsisMessage]]],
-        message: MessageIsisMessage,
+        _holdback_queue: dict[str, list[tuple[int, MessageReliableMulticast]]],
+        message: MessageReliableMulticast,
     ):
-        """Manage the received ISIS message.
+        """Manage the received message.
 
         The behavior is the same as normal B-Multicast.
 
@@ -415,15 +407,15 @@ class IsisRMulticast:
         self,
         delivery_queue: Queue,
         _peer_sequence_numbers: dict[str, int],
-        _holdback_queue: dict[str, list[tuple[int, MessageIsisMessage]]],
-        message: MessageIsisMessage,
+        _holdback_queue: dict[str, list[tuple[int, MessageReliableMulticast]]],
+        message: MessageReliableMulticast,
     ):
         """Check the holdback queue for possible messages to deliver.
 
         Args:
             delivery_queue (Queue): The queue to put the received messages, if ready to deliver.
             _peer_sequence_numbers (dict[tuple[IPv4Address, int], int]): The sequence number of the peers.
-            _holdback_queue (dict[tuple[IPv4Address, int], list[tuple[int, MessageIsisMessage]]]): The holdback queue for the peers.
+            _holdback_queue (dict[tuple[IPv4Address, int], list[tuple[int, MessageReliableMulticast]]]): The holdback queue for the peers.
         """
         if message.sender not in _holdback_queue:
             return

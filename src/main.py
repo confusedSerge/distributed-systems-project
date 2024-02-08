@@ -1,14 +1,14 @@
 from client import Client
 from server import Server
 
-from communication import IsisRMulticast
+from communication import RMulticast
 from ipaddress import IPv4Address
 from constant import MULTICAST_DISCOVERY_GROUP, MULTICAST_DISCOVERY_PORT
 
 
 def send():
     print("I am client")
-    multicast = IsisRMulticast(
+    multicast = RMulticast(
         IPv4Address(MULTICAST_DISCOVERY_GROUP),
         MULTICAST_DISCOVERY_PORT,
         30,
@@ -21,7 +21,7 @@ def send():
 
 def receive():
     print("I am server")
-    multicast = IsisRMulticast(
+    multicast = RMulticast(
         IPv4Address(MULTICAST_DISCOVERY_GROUP), MULTICAST_DISCOVERY_PORT, 30
     )
     print(multicast.deliver())
