@@ -11,6 +11,7 @@ from time import time
 
 from communication import (
     Multicast,
+    AdjustedIsisRMulticast,
     AuctionMessageData,
 )
 from communication import MessageAuctionAnnouncement, MessageAuctionStateAnnouncement
@@ -76,10 +77,9 @@ class AuctionManager(Process):
             sender=True,
         )
 
-        mc_state_announcement: Multicast = Multicast(
+        mc_state_announcement: AdjustedIsisRMulticast = AdjustedIsisRMulticast(
             group=self._auction.get_group(),
             port=MULTICAST_AUCTION_STATE_ANNOUNCEMENT_PORT,
-            sender=True,
         )
 
         if self._auction.is_preparation():
@@ -192,7 +192,7 @@ class AuctionManager(Process):
                 f"{self._prefix}: Sent high frequency announcement: {message}"
             )
 
-    def _auction_state_announcement(self, mc_auction: Multicast) -> None:
+    def _auction_state_announcement(self, mc_auction: AdjustedIsisRMulticast) -> None:
         """Handles auction state changes.
 
         When a state change is detected, the auction manager will send an auction state announcement to the auction multicast group.
@@ -201,7 +201,7 @@ class AuctionManager(Process):
         This method also modifies the last auction state variable.
 
         Args:
-            mc_auction (Multicast): Multicast object to use for sending the auction state announcement.
+            mc_auction (AdjustedIsisRMulticast): Multicast object to use for sending the auction state announcement.
         """
         if self._last_auction_state == self._auction.get_state():
             return
@@ -211,7 +211,7 @@ class AuctionManager(Process):
             state=self._auction.get_state()[0],
         )
 
-        mc_auction.send(message=message.encode())
+        mc_auction.send(message.encode())
 
         self._last_auction_state = self._auction.get_state()
         self._logger.info(f"{self._prefix}: Sent state announcement {message}")

@@ -12,7 +12,7 @@ import inquirer
 from model import Auction, AuctionAnnouncementStore
 from process import Manager, AuctionAnnouncementListener
 from communication import (
-    Multicast,
+    AdjustedIsisRMulticast,
     AuctionMessageData,
     MessageAuctionBid,
     MessageAuctionAnnouncement,
@@ -224,11 +224,12 @@ class Bidder:
             bidder=USERNAME,
             bid=bid_amount,
         )
-        Multicast.qsend(
-            message=bid.encode(),
+        multicast: AdjustedIsisRMulticast = AdjustedIsisRMulticast(
             group=auction.get_group(),
             port=MULTICAST_AUCTION_BID_PORT,
+            only_send=True,
         )
+        multicast.send(bid.encode())
         self._logger.info(
             f"{self._prefix}: Sent bid {bid} for auction {auction.get_id()}"
         )

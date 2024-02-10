@@ -10,6 +10,7 @@ from logging import Logger
 
 from communication import (
     Multicast,
+    RMulticast,
     ReliableUnicast,
     MessageSchema,
     MessageFindReplicaRequest,
@@ -261,11 +262,11 @@ class ReplicationManager(Process):
             _id=generate_message_id(self._auction.get_id()),
             peers=[(str(peer[0]), peer[1]) for peer in self._peers.iter()],
         )
-        Multicast.qsend(
-            message=peers.encode(),
+        multicast: RMulticast = RMulticast(
             group=self._auction.get_group(),
             port=MULTICAST_AUCTION_PEERS_ANNOUNCEMENT_PORT,
         )
+        multicast.send(payload=peers.encode())
 
     # === Emitter ===
 

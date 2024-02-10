@@ -7,7 +7,11 @@ from logging import Logger
 
 # === Custom Modules ===
 
-from communication import Multicast, MessageSchema, MessageAuctionPeersAnnouncement
+from communication import (
+    RMulticast as Multicast,
+    MessageSchema,
+    MessageAuctionPeersAnnouncement,
+)
 from model import Auction, AuctionPeersStore
 from util import create_logger
 
@@ -68,7 +72,7 @@ class AuctionPeersAnnouncementListener(Process):
         while not self._exit.is_set():
             # Receive announcement or timeout to check exit condition
             try:
-                message, address = mc.receive(COMMUNICATION_BUFFER_SIZE)
+                message, address = mc.deliver()
             except TimeoutError:
                 continue
 

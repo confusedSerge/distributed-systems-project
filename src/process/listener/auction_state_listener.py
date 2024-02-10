@@ -8,7 +8,11 @@ from logging import Logger
 # === Custom Modules ===
 
 from model import Auction
-from communication import Multicast, MessageSchema, MessageAuctionStateAnnouncement
+from communication import (
+    AdjustedIsisRMulticast,
+    MessageSchema,
+    MessageAuctionStateAnnouncement,
+)
 from util import create_logger
 
 from constant import (
@@ -46,7 +50,7 @@ class AuctionStateAnnouncementListener(Process):
         self._logger.info(f"{self._prefix}: Initialized for {self._auction.get_id()}")
 
         self._logger.info(f"{self._prefix}: Started")
-        mc: Multicast = Multicast(
+        mc: AdjustedIsisRMulticast = AdjustedIsisRMulticast(
             group=self._auction.get_group(),
             port=MULTICAST_AUCTION_STATE_ANNOUNCEMENT_PORT,
             timeout=COMMUNICATION_TIMEOUT,
@@ -58,7 +62,7 @@ class AuctionStateAnnouncementListener(Process):
         while not self._exit.is_set():
             # Receive state announcement
             try:
-                message, address = mc.receive(COMMUNICATION_BUFFER_SIZE)
+                message, address = mc.deliver()
             except TimeoutError:
                 continue
 

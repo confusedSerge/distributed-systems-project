@@ -471,7 +471,7 @@ class AdjustedIsisRMulticast:
         port: int,
         timeout: Optional[int] = None,
         sequence_number: int = 0,
-        client: bool = False,
+        only_send: bool = False,
     ):
         """Initialize the ISIS R-Multicast class.
 
@@ -488,7 +488,7 @@ class AdjustedIsisRMulticast:
         self._exit: Event = ProcessEvent()
 
         # ISIS setup
-        self._client = client
+        self._client = only_send
         self._proposed_sequence = 0
         self._agreed_sequence = 0
         self.send_queue = Queue()
@@ -496,11 +496,11 @@ class AdjustedIsisRMulticast:
 
         # Start the sender and receiver processes
         self._sender = Process(target=self._send, args=(self.send_queue,))
-        if not client:
+        if not only_send:
             self._receiver = Process(target=self._receive, args=(self.delivery_queue,))
 
         self._sender.start()
-        if not client:
+        if not only_send:
             self._receiver.start()
 
     def send(self, payload: bytes) -> None:

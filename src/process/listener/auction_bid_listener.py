@@ -5,7 +5,7 @@ from logging import Logger
 
 # === Custom Modules ===
 
-from communication import Multicast, MessageSchema, MessageAuctionBid
+from communication import AdjustedIsisRMulticast, MessageSchema, MessageAuctionBid
 from model import Auction
 from util import create_logger
 
@@ -46,7 +46,7 @@ class AuctionBidListener(Process):
         self._logger.info(f"{self._prefix}: Initialized for {self._auction.get_id()}")
 
         self._logger.info(f"{self._prefix}: Started")
-        mc: Multicast = Multicast(
+        mc: AdjustedIsisRMulticast = AdjustedIsisRMulticast(
             group=self._auction.get_group(),
             port=MULTICAST_AUCTION_BID_PORT,
             timeout=COMMUNICATION_TIMEOUT,
@@ -56,7 +56,7 @@ class AuctionBidListener(Process):
         while not self._exit.is_set():
             # Receive bid
             try:
-                message, address = mc.receive(COMMUNICATION_BUFFER_SIZE)
+                message, address = mc.deliver()
             except TimeoutError:
                 continue
 
