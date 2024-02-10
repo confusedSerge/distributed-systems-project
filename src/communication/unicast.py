@@ -23,7 +23,7 @@ class Unicast:
 
     def __init__(
         self,
-        timeout: Optional[int] = None,
+        timeout: Optional[float] = None,
         no_bind: bool = False,
         port: int = 0,
         ports: list[int] = [],
@@ -34,7 +34,7 @@ class Unicast:
         Messages are sent and received using the UDP protocol.
 
         Args:
-            timeout (int, optional): The timeout for receiving messages. Defaults to None.
+            timeout (float, optional): The timeout for receiving messages. Defaults to None.
             no_bind (bool, optional): Whether to bind the socket. Defaults to False.
             port (int, optional): The port to bind the socket to. Defaults to 0.
         """
@@ -124,7 +124,7 @@ class ReliableUnicast:
 
     def __init__(
         self,
-        timeout: int = 1,
+        timeout: float = 0.01,
         retry: int = 5,
         no_bind: bool = False,
         port: int = 0,
@@ -140,7 +140,7 @@ class ReliableUnicast:
             timeout (int, optional): The timeout for receiving messages. Defaults to 1.
             retry (int, optional): The number of times to retry sending a message. Defaults to 5.
         """
-        self._timeout: int = timeout
+        self._timeout: float = timeout
         self._retry: int = retry
         self._unicast: Unicast = Unicast(
             timeout=timeout, no_bind=no_bind, port=port, ports=ports

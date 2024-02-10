@@ -142,7 +142,14 @@ class Replica(Process):
             f"{self._prefix}: MAIN LOOP: ELECTION: Triggering election process as new replica"
         )
         self.reelection.set()
+        # sleep_time = (
+        #     time()
+        #     + COMMUNICATION_RELIABLE_RETRIES
+        #     * COMMUNICATION_RELIABLE_RETRIES
+        #     * len(REPLICA_ELECTION_PORTS)
+        # )
         self._election()
+        # sleep(sleep_time - time())
         self._main_auction_loop()
 
         self._logger.info(f"{self._prefix}: END: Releasing resources")
@@ -200,7 +207,14 @@ class Replica(Process):
             # Start Election
             while self.reelection.is_set():
                 self._logger.info(f"{self._prefix}: MAIN LOOP: REELECTION: Started")
+                # sleep_time = (
+                #     time()
+                #     + COMMUNICATION_RELIABLE_RETRIES
+                #     * COMMUNICATION_RELIABLE_RETRIES
+                #     * len(REPLICA_ELECTION_PORTS)
+                # )
                 self._election()
+                # sleep(sleep_time - time())
                 self.reelection.clear()
                 self._logger.info(f"{self._prefix}: MAIN LOOP: REELECTION: Stopped")
 
@@ -735,13 +749,7 @@ class Replica(Process):
 
         if not higher_priority_replicas:
             self._logger.info(f"{self._prefix}: ELECTION: No higher priority replicas")
-
-            # Need to wait for replicas to catch up, as best branch to quick, if others need to reliably send to all possible ports
-            sleep_time = time() + COMMUNICATION_RELIABLE_RETRIES * len(
-                REPLICA_ELECTION_PORTS
-            )
             self._send_election_coordinator()
-            sleep(sleep_time - time())
 
             self.leader.set(*self._unicast.get_address())
             self.coordinator.set()

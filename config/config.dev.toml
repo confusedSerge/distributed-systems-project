@@ -22,7 +22,7 @@ pool_size = 3
 [communication] # general communication settings
 buffer_size = 1024
 timeout = 1
-reliable_timeout = 1
+reliable_timeout = 0.1
 reliable_retries = 5
 
 [communication.multicast.discovery]

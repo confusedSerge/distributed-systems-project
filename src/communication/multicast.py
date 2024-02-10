@@ -550,7 +550,7 @@ class AdjustedIsisRMulticast:
             sequence_number=self.b_sequence_number,
             client=self._client,
         )
-        unicast_receiver = ReliableUnicast(timeout=1)
+        unicast_receiver = ReliableUnicast(timeout=0.1)
 
         # Main sending loop
         while not self._exit.is_set() or not send_queue.empty():
