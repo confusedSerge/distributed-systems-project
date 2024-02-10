@@ -243,7 +243,7 @@ class Replica(Process):
 
         # Wait for auctioneer to send auction information, or timeout
         self._logger.info(f"{self._prefix}: PRELUDE: Waiting for auction information")
-        if self._wait_information():
+        if not self._wait_information():
             self._logger.info(
                 f"{self._prefix}: PRELUDE: Auction information not received; Exiting"
             )
@@ -742,8 +742,7 @@ class Replica(Process):
         message_id: str = self._send_election_request(higher_priority_replicas)
 
         # wait for responses
-        ans_recv = self._wait_election_responses(message_id)
-        if not ans_recv:
+        if not self._wait_election_responses(message_id):
             self._logger.info(
                 f"{self._prefix}: ELECTION: Won the election, broadcasting victory"
             )
