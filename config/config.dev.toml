@@ -57,7 +57,7 @@ period = 1
 timeout = 5 # timeout for the replication manager to wait for a response from the replicas
 
 [communication.replica.heartbeat]
-period = 1
+period = 10
 
 [communication.replica.election]
 ports = [7713, 7714, 7715]

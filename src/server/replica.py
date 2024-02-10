@@ -468,6 +468,7 @@ class Replica(Process):
         If the replica does not receive a heartbeat from the leader in time, the replica will set the reelection signal.
         """
         assert self.leader is not None
+        assert self.peers is not None
 
         self._logger.info(f"{self._prefix}: HEARTBEAT LISTENER: Started")
         while not self.reelection.is_set() and not self._exit.is_set():
@@ -517,6 +518,9 @@ class Replica(Process):
             self._logger.info(
                 f"{self._prefix}: HEARTBEAT LISTENER: Timeout; Starting election"
             )
+            # Remove leader from peers
+            self.peers.remove(*self.leader.get())
+
             # Initiate reelection if leader is not responding
             self.reelection.set()
             break
@@ -731,7 +735,13 @@ class Replica(Process):
 
         if not higher_priority_replicas:
             self._logger.info(f"{self._prefix}: ELECTION: No higher priority replicas")
+
+            # Need to wait for replicas to catch up, as best branch to quick, if others need to reliably send to all possible ports
+            sleep_time = time() + COMMUNICATION_RELIABLE_RETRIES * len(
+                REPLICA_ELECTION_PORTS
+            )
             self._send_election_coordinator()
+            sleep(sleep_time - time())
 
             self.leader.set(*self._unicast.get_address())
             self.coordinator.set()
