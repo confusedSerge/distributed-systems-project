@@ -7,6 +7,7 @@ from logging import Logger
 
 # === Custom Modules ===
 
+from model import Auction
 from communication import Multicast, MessageSchema, MessageFindReplicaRequest
 from util import create_logger
 
@@ -43,7 +44,7 @@ class Server(Process):
         self._logger: Logger = create_logger(self._name.lower())
 
         self._replica_pool: list[Replica] = []
-        self._seen_message_ids: list[str] = []
+        self._seen_auctions: list[str] = []
 
         self._logger.info(f"{self._prefix}: Initialized")
 
@@ -69,7 +70,6 @@ class Server(Process):
             if (
                 not MessageSchema.of(com.HEADER_FIND_REPLICA_REQ, message)
                 or len(self._replica_pool) >= SERVER_POOL_SIZE
-                or MessageSchema.get_id(message) in self._seen_message_ids
             ):
                 continue
 
@@ -81,16 +81,34 @@ class Server(Process):
                 f"{self.name}: Replica request received: {find_req} from Multicast {address}"
             )
 
+            try:
+                auction_id = Auction.parse_id(find_req._id)
+            except ValueError:
+                self._logger.error(
+                    f"{self._prefix}: Invalid auction id for message: {find_req}"
+                )
+                continue
+
+            if auction_id in self._seen_auctions:
+                self._logger.info(
+                    f"{self._prefix}: Ignoring request for auction {auction_id} as it has already been seen"
+                )
+                continue
+
             # Create replica and add to pool
             replica = Replica(
                 request=find_req, sender=(IPv4Address(address[0]), find_req.port)
             )
             replica.start()
             self._replica_pool.append(replica)
-            self._seen_message_ids.append(find_req._id)
+            self._seen_auctions.append(auction_id)
 
             self._logger.info(
                 f"{self._prefix}: Replica created and added to pool: {replica.get_id()}"
+            )
+
+            self._logger.info(
+                f"{self._prefix}: Replica in pool: {len(self._replica_pool)}"
             )
 
         # Stop listening for replica requests

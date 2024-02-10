@@ -352,7 +352,12 @@ class Replica(Process):
 
         self._logger.info(f"{self._prefix}: HEARTBEAT SENDER: Started")
 
-        while not self.reelection.is_set() and not self._exit.is_set():
+        while (
+            not self.reelection.is_set()
+            and not self._exit.is_set()
+            and (not self.auction.is_ended() or not self.auction.is_cancelled())
+        ):
+            self._logger.info(f"{self._prefix}: HEARTBEAT SENDER: Started heartbeat")
             # Create peers dict for keeping track of unresponsive peers
             responses: dict[tuple[IPv4Address, int], bool] = {
                 replica: False
@@ -372,9 +377,9 @@ class Replica(Process):
             unresponsive_peers: list[tuple[IPv4Address, int]] = [
                 replica for replica, responded in responses.items() if not responded
             ]
-            if len(unresponsive_peers) > 0:
+            if len(unresponsive_peers) > 0 or self.peers.len() <= AUCTION_POOL_SIZE:
                 self._logger.info(
-                    f"{self._prefix}: HEARTBEAT SENDER: Unresponsive peers: {unresponsive_peers}"
+                    f"{self._prefix}: HEARTBEAT SENDER: Handling unresponsive peers"
                 )
                 self._handle_unresponsive_replicas(unresponsive_peers)
 
@@ -422,6 +427,8 @@ class Replica(Process):
             heartbeat_id (str): The id of the heartbeat.
             replicas (dict[tuple[IPv4Address, int], bool]): The replicas to listen for a heartbeat response from.
         """
+        assert self.auction is not None
+
         self._logger.info(
             f"{self._prefix}: HEARTBEAT SENDER: Listening for heartbeat responses from {replicas.keys()}"
         )
@@ -432,6 +439,7 @@ class Replica(Process):
             and not self._exit.is_set()
             and not all(replicas.values())
             and time() <= end_time
+            and (not self.auction.is_ended() or not self.auction.is_cancelled())
         ):
             try:
                 response, address = self._unicast.ureceive(COMMUNICATION_BUFFER_SIZE)
@@ -467,6 +475,7 @@ class Replica(Process):
 
         If the replica does not receive a heartbeat from the leader in time, the replica will set the reelection signal.
         """
+        assert self.auction is not None
         assert self.leader is not None
         assert self.peers is not None
 
@@ -478,6 +487,7 @@ class Replica(Process):
                 not self.reelection.is_set()
                 and not self._exit.is_set()
                 and time() <= end_time
+                and (not self.auction.is_ended() or not self.auction.is_cancelled())
             ):
                 try:
                     response, address = self._unicast.ureceive(
@@ -548,8 +558,14 @@ class Replica(Process):
         for replica in unresponsive_peers:
             self.peers.remove(*replica)
 
+        sleep(SLEEP_TIME)
+
         # Start replica finder in background if there are not enough replicas
-        if self.peers.len() <= AUCTION_POOL_SIZE:
+
+        self._logger.info(
+            f"{self._prefix}: HEARTBEAT SENDER: Starting replica finder if necessary {self.peers.len()} < {AUCTION_POOL_SIZE} and {self._replica_finder} is None or not alive"
+        )
+        if self.peers.len() < AUCTION_POOL_SIZE:
             if self._replica_finder is None or not self._replica_finder.is_alive():
                 self._logger.info(
                     f"{self._prefix}: HEARTBEAT SENDER: Starting replica finder"
@@ -557,6 +573,7 @@ class Replica(Process):
                 self._replica_finder = ReplicationManager(
                     self.auction, self.peers, REPLICA_REPLICATION_PERIOD
                 )
+                self._replica_finder.start()
             else:
                 self._logger.info(
                     f"{self._prefix}: HEARTBEAT SENDER: Replica finder already running"

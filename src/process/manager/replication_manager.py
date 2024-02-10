@@ -89,26 +89,27 @@ class ReplicationManager(Process):
         # Start replica request emitter
         message_id, emitter = self._start_emitter(uc)
 
-        try:
-            new_peer_candidates: list[tuple[IPv4Address, int]] = self._find_replicas(
-                message_id, uc
-            )
-        except TimeoutError:
-            self._logger.info(f"{self._prefix}: Not enough replicas found; Exiting")
-            uc.close()
-            return
-        finally:
-            if emitter.is_alive():
-                emitter.terminate()
-                emitter.join()
+        new_peer_candidates: list[tuple[IPv4Address, int]] = self._find_replicas(
+            message_id, uc
+        )
 
-        # If exit signal was received during replica finding, exit and do not add new replicas
-        # Replicas will time out and exit, as they do not receive an auction information message
         if self._exit.is_set():
             self._logger.info(
                 f"{self._prefix}: Received stop signal during replica finding: Exiting"
             )
             return
+
+        if len(new_peer_candidates) + self._peers.len() < AUCTION_POOL_SIZE:
+            self._logger.info(f"{self._prefix}: Not enough replicas found; Exiting")
+            uc.close()
+            if emitter.is_alive():
+                emitter.terminate()
+                emitter.join()
+            return
+
+        if emitter.is_alive():
+            emitter.terminate()
+            emitter.join()
 
         self._logger.info(f"{self._prefix}: Found enough replicas")
 
