@@ -17,7 +17,7 @@ sleep_time = 0.5
 pool_size = 1
 
 [server]
-pool_size = 5
+pool_size = 3
 
 [communication] # general communication settings
 buffer_size = 1024
@@ -60,7 +60,7 @@ timeout = 5 # timeout for the replication manager to wait for a response from th
 period = 1
 
 [communication.replica.election]
-port = 7713
+ports = [7713, 7714, 7715]
 timeout = 1
 
 [communication.header]

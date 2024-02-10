@@ -45,7 +45,7 @@ from constant import (
     REPLICA_HEARTBEAT_PERIOD,
     REPLICA_REPLICATION_PERIOD,
     REPLICA_REPLICATION_TIMEOUT,
-    REPLICA_ELECTION_PORT,
+    REPLICA_ELECTION_PORTS,
     REPLICA_ELECTION_TIMEOUT,
 )
 
@@ -777,15 +777,13 @@ class Replica(Process):
         for replica in self.peers.iter():
             if replica == self._unicast.get_address():
                 continue
-            try:
-                self._unicast.send(
-                    message=coordinator_message.encode(),
-                    address=(replica[0], REPLICA_ELECTION_PORT),
-                )
-            except TimeoutError:
-                self._logger.error(
-                    f"{self._prefix}: ELECTION: Receiver not reachable; Coordinator message not sent to {replica}"
-                )
+            _received = self._unicast.send_to_all(
+                message=coordinator_message.encode(),
+                addresses=[(replica[0], port) for port in REPLICA_ELECTION_PORTS],
+            )
+            self._logger.info(
+                f"{self._prefix}: ELECTION: Sent coordinator message to {replica} with port set {REPLICA_ELECTION_PORTS} where {_received} received"
+            )
 
     def _send_election_request(
         self, higher_priority_replicas: list[tuple[IPv4Address, int]]
@@ -803,15 +801,13 @@ class Replica(Process):
         message_id = generate_message_id(self.auction.get_id())
         election_message = MessageElectionRequest(_id=message_id, req_id=self.get_id())
         for replica in higher_priority_replicas:
-            try:
-                self._unicast.send(
-                    message=election_message.encode(),
-                    address=(replica[0], REPLICA_ELECTION_PORT),
-                )
-            except TimeoutError:
-                self._logger.error(
-                    f"{self._prefix}: ELECTION: Timeout; Election message not sent to {replica}"
-                )
+            _received = self._unicast.send_to_all(
+                message=election_message.encode(),
+                addresses=[(replica[0], port) for port in REPLICA_ELECTION_PORTS],
+            )
+            self._logger.info(
+                f"{self._prefix}: ELECTION: Sent election request to {replica} with port set {REPLICA_ELECTION_PORTS} where {_received} received"
+            )
 
         return message_id
 

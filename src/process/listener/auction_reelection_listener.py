@@ -24,7 +24,7 @@ from constant import (
     HEADER_ELECTION_COORDINATOR,
     COMMUNICATION_RELIABLE_RETRIES,
     COMMUNICATION_RELIABLE_TIMEOUT,
-    REPLICA_ELECTION_PORT,
+    REPLICA_ELECTION_PORTS,
 )
 
 
@@ -85,7 +85,7 @@ class AuctionReelectionListener(Process):
         uc: ReliableUnicast = ReliableUnicast(
             timeout=COMMUNICATION_RELIABLE_TIMEOUT,
             retry=COMMUNICATION_RELIABLE_RETRIES,
-            port=REPLICA_ELECTION_PORT,
+            ports=REPLICA_ELECTION_PORTS,
         )
 
         self._logger.info(f"{self._prefix}: Listening for reelection messages")

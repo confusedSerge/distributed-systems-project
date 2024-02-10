@@ -22,7 +22,11 @@ class Unicast:
     """Unicast class for sending and receiving unicast messages."""
 
     def __init__(
-        self, timeout: Optional[int] = None, no_bind: bool = False, port: int = 0
+        self,
+        timeout: Optional[int] = None,
+        no_bind: bool = False,
+        port: int = 0,
+        ports: list[int] = [],
     ):
         """Initialize the unicast socket.
 
@@ -41,7 +45,15 @@ class Unicast:
         self._socket: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         if not no_bind:
             self._socket.settimeout(timeout) if timeout else None
-            self._socket.bind(("", port))
+            if ports:
+                for port in ports:
+                    try:
+                        self._socket.bind(("", port))
+                        break
+                    except OSError:
+                        pass
+            else:
+                self._socket.bind(("", port))
 
     def send(self, message: bytes, address: tuple[IPv4Address, int]) -> None:
         """Send a message to the unicast host.
@@ -108,7 +120,12 @@ class ReliableUnicast:
     """ReliableUnicast class for sending and receiving reliable unicast messages."""
 
     def __init__(
-        self, timeout: int = 1, retry: int = 5, no_bind: bool = False, port: int = 0
+        self,
+        timeout: int = 1,
+        retry: int = 5,
+        no_bind: bool = False,
+        port: int = 0,
+        ports: list[int] = [],
     ):
         """Initialize the reliable unicast socket.
 
@@ -122,7 +139,9 @@ class ReliableUnicast:
         """
         self._timeout: int = timeout
         self._retry: int = retry
-        self._unicast: Unicast = Unicast(timeout=timeout, no_bind=no_bind, port=port)
+        self._unicast: Unicast = Unicast(
+            timeout=timeout, no_bind=no_bind, port=port, ports=ports
+        )
 
         # Duplicate protection
         self._acknowledged: set[str] = set()
@@ -164,6 +183,27 @@ class ReliableUnicast:
                 pass
 
         raise TimeoutError
+
+    def send_to_all(
+        self, message: bytes, addresses: list[tuple[IPv4Address, int]]
+    ) -> list[tuple[IPv4Address, int]]:
+        """Send a message to multiple unicast hosts.
+
+        Args:
+            message (bytes): The message to send.
+            addresses (list[tuple[IPv4Address, int]]): The addresses to send the message to.
+
+        Returns:
+            list[tuple[IPv4Address, int]]: The addresses that the message was sent to.
+        """
+        sent_to: list[tuple[IPv4Address, int]] = []
+        for address in addresses:
+            try:
+                self.send(message, address)
+                sent_to.append(address)
+            except TimeoutError:
+                pass
+        return sent_to
 
     def usend(self, message: bytes, address: tuple[IPv4Address, int]) -> None:
         """Send a message to the unicast host without any reliability guarantees.

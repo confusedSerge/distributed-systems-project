@@ -10,5 +10,5 @@ REPLICATION_TIMEOUT = int(_config["replication"]["timeout"])
 
 HEARTBEAT_PERIOD = int(_config["heartbeat"]["period"])
 
-ELECTION_PORT = int(_config["election"]["port"])
+ELECTION_PORTS = [int(port) for port in _config["election"]["ports"]]
 ELECTION_TIMEOUT = int(_config["election"]["timeout"])

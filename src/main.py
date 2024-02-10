@@ -4,7 +4,7 @@ from server import Server
 from multiprocessing import Process
 from ipaddress import IPv4Address
 from communication import ReliableUnicast
-from constant import REPLICA_ELECTION_PORT
+from constant import REPLICA_ELECTION_PORTS
 
 
 # def send(address: tuple[IPv4Address, int]) -> None:
