@@ -4,7 +4,6 @@ other/
 log/
 .vscode/
 .venv/
-doc/
 
 # Ignore python cache files
 *.pyc
