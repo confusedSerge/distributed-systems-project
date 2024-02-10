@@ -721,8 +721,6 @@ class Replica(Process):
             exit(1)
 
         self._logger.info(f"{self._prefix}: ELECTION: Started")
-        self.reelection.clear()  # Clear reelection signal to track if reelection needs to be started again
-        self.coordinator.clear()  # Clear coordinator signal to track if coordinator message was received for this election
 
         # Get the id of this replica
         # Check if there's any replica with higher priority
@@ -734,6 +732,10 @@ class Replica(Process):
         if not higher_priority_replicas:
             self._logger.info(f"{self._prefix}: ELECTION: No higher priority replicas")
             self._send_election_coordinator()
+
+            self.leader.set(*self._unicast.get_address())
+            self.coordinator.set()
+            self.reelection.clear()
             return
 
         self._logger.info(
@@ -750,6 +752,7 @@ class Replica(Process):
 
             self.leader.set(*self._unicast.get_address())
             self.coordinator.set()
+            self.reelection.clear()
             return
 
         self._logger.info(
@@ -763,12 +766,18 @@ class Replica(Process):
             self._logger.info(
                 f"{self._prefix}: ELECTION: No victory message received, re-starting election"
             )
+
+            self.coordinator.clear()
             self.reelection.set()
+
             return
 
         self._logger.info(
             f"{self._prefix}: ELECTION: Received coordinator message, stopping election"
         )
+
+        self.reelection.clear()
+        self.coordinator.clear()
 
         self._logger.info(f"{self._prefix}: ELECTION: Stopped")
 
