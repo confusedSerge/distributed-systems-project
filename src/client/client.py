@@ -59,24 +59,26 @@ class Client:
             auction_announcement_store=self.auction_announcement_store,
         )
 
-        self._logger.info(f"{self._name}: Initialized")
+        self._logger.info(f"{self._prefix}: Initialized")
 
     def run(self) -> None:
         """Starts the client background tasks."""
-        self._logger.info(f"{self._name}: Started")
+        self._logger.info(f"{self._prefix}: Started")
 
         self._prelude()
 
-        self._logger.info(f"{self._name}: Starting interactive command line interface")
+        self._logger.info(
+            f"{self._prefix}: Starting interactive command line interface"
+        )
         self.interact()
 
         self._shutdown()
-        self._logger.info(f"{self._name}: Stopped")
+        self._logger.info(f"{self._prefix}: Stopped")
 
     def stop(self) -> None:
         """Stops the client background tasks."""
         self._exit.set()
-        self._logger.info(f"{self._name}: Stopping")
+        self._logger.info(f"{self._prefix}: Stopping")
 
     def interact(self) -> None:
         """Handles the interactive command line interface for the client.
@@ -110,14 +112,14 @@ class Client:
                     self.stop()
                 case _:
                     self._logger.error(
-                        f"{self._name}: Invalid action {answer['action']}"
+                        f"{self._prefix}: Invalid action {answer['action']}"
                     )
 
     # === Helper Methods ===
 
     def _prelude(self):
         """Starts the client background tasks."""
-        self._logger.info(f"{self._name}: Starting listeners")
+        self._logger.info(f"{self._prefix}: Starting listeners")
         self._auction_announcement_process: AuctionAnnouncementListener = (
             AuctionAnnouncementListener(self.auction_announcement_store)
         )
@@ -125,7 +127,7 @@ class Client:
 
     def _shutdown(self):
         """Stops the client background tasks and releases resources."""
-        self._logger.info(f"{self._name}: Stopping listeners and releasing resources")
+        self._logger.info(f"{self._prefix}: Stopping listeners and releasing resources")
 
         self._auctioneer.stop()
         self._bidder.stop()
@@ -134,4 +136,4 @@ class Client:
 
         self.manager_running.clear()
         self.manager.shutdown()
-        self._logger.info(f"{self._name}: Released resources")
+        self._logger.info(f"{self._prefix}: Released resources")

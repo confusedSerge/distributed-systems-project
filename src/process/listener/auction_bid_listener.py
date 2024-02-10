@@ -41,18 +41,18 @@ class AuctionBidListener(Process):
         self._auction: Auction = auction
         self._seen_message_id: list[str] = []
 
-        self._logger.info(f"{self._name}: Initialized")
-
     def run(self) -> None:
         """Runs the auction listener process."""
-        self._logger.info(f"{self._name}: Started")
+        self._logger.info(f"{self._prefix}: Initialized for {self._auction.get_id()}")
+
+        self._logger.info(f"{self._prefix}: Started")
         mc: Multicast = Multicast(
             group=self._auction.get_group(),
             port=MULTICAST_AUCTION_BID_PORT,
             timeout=COMMUNICATION_TIMEOUT,
         )
 
-        self._logger.info(f"{self._name}: Listening for bids on auction")
+        self._logger.info(f"{self._prefix}: Listening for bids on auction")
         while not self._exit.is_set():
             # Receive bid
             try:
@@ -72,29 +72,31 @@ class AuctionBidListener(Process):
                 parsed_id = Auction.parse_id(bid._id)
             except ValueError:
                 self._logger.info(
-                    f"{self._name}: Received bid {bid} with invalid auction id {bid._id}"
+                    f"{self._prefix}: Received bid: ith invalid auction id: {bid}"
                 )
                 continue
 
             if parsed_id != self._auction.get_id():
                 self._logger.info(
-                    f"{self._name}: Ignoring received bid from {address} for different auction {parsed_id} (expected {self._auction.get_id()})"
+                    f"{self._prefix}: Ignoring received bid from {address} for different auction {parsed_id} (expected {self._auction.get_id()}): {bid}"
                 )
                 continue
 
-            self._logger.info(
-                f"{self._name}: Received bid {bid} from {address} for corresponding auction"
-            )
+            self._logger.info(f"{self._prefix}: Received bid from {address}: {bid}")
 
             self._seen_message_id.append(bid._id)
             self._auction.bid(bid.bidder, bid.bid)
 
-        self._logger.info(f"{self._name}: Releasing resources")
+            self._logger.info(
+                f"{self._prefix}: Updated auction state with bid from {address}: {bid}"
+            )
+
+        self._logger.info(f"{self._prefix}: Releasing resources")
         mc.close()
 
-        self._logger.info(f"{self._name}: Stopped")
+        self._logger.info(f"{self._prefix}: Stopped")
 
     def stop(self) -> None:
         """Stops the auction listener process."""
         self._exit.set()
-        self._logger.info(f"{self._name}: Stopping")
+        self._logger.info(f"{self._prefix}: Stopping")

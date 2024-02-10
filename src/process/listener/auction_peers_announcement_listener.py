@@ -46,8 +46,6 @@ class AuctionPeersAnnouncementListener(Process):
         self._change: Event = change
         self._seen_message_ids: list[str] = []
 
-        self._logger.info(f"{self._name}: Initialized")
-
     def run(self) -> None:
         """Runs the auction listener process
 
@@ -55,7 +53,9 @@ class AuctionPeersAnnouncementListener(Process):
         The peers are stored in the auction peers store.
 
         """
-        self._logger.info(f"{self._name}: Started")
+        self._logger.info(f"{self._prefix}: Initialized for {self._auction.get_id()}")
+
+        self._logger.info(f"{self._prefix}: Started")
         mc: Multicast = Multicast(
             group=self._auction.get_group(),
             port=MULTICAST_AUCTION_PEERS_ANNOUNCEMENT_PORT,
@@ -63,7 +63,7 @@ class AuctionPeersAnnouncementListener(Process):
         )
 
         self._logger.info(
-            f"{self._name}: Listening for peers announcements on {(self._auction.get_group(), MULTICAST_AUCTION_PEERS_ANNOUNCEMENT_PORT)} for auction {self._auction.get_id()}"
+            f"{self._prefix}: Listening for peers announcements on {(self._auction.get_group(), MULTICAST_AUCTION_PEERS_ANNOUNCEMENT_PORT)} for auction {self._auction.get_id()} "
         )
         while not self._exit.is_set():
             # Receive announcement or timeout to check exit condition
@@ -88,13 +88,13 @@ class AuctionPeersAnnouncementListener(Process):
                 parsed_id = Auction.parse_id(peers_announcement._id)
             except ValueError:
                 self._logger.info(
-                    f"{self._name}: Received peer list {peers_announcement} with invalid auction id {peers_announcement._id}"
+                    f"{self._prefix}: Received peers announcement with invalid auction id: {peers_announcement}"
                 )
                 continue
 
             if parsed_id != self._auction.get_id():
                 self._logger.info(
-                    f"{self._name}: Ignoring received peer list from {address} for different auction {parsed_id} (expected {self._auction.get_id()})"
+                    f"{self._prefix}: Ignoring received peer list from {address} for different auction {parsed_id} (expected {self._auction.get_id()}): {peers_announcement}"
                 )
                 continue
 
@@ -102,7 +102,7 @@ class AuctionPeersAnnouncementListener(Process):
                 (IPv4Address(peer[0]), peer[1]) for peer in peers_announcement.peers
             ]
 
-            self._logger.info(f"{self._name}: Received peers announcement {peers}")
+            self._logger.info(f"{self._prefix}: Received peers announcement: {peers}")
 
             self._seen_message_ids.append(peers_announcement._id)
             changes: bool = self._store.replace(peers)
@@ -112,16 +112,16 @@ class AuctionPeersAnnouncementListener(Process):
                 continue
 
             self._logger.info(
-                f"{self._name}: Peers announcement caused changes in the store"
+                f"{self._prefix}: Peers announcement caused changes in the store"
             )
             self._change.set()
 
-        self._logger.info(f"{self._name}: Releasing resources")
+        self._logger.info(f"{self._prefix}: Releasing resources")
         mc.close()
 
-        self._logger.info(f"{self._name}: Stopped")
+        self._logger.info(f"{self._prefix}: Stopped")
 
     def stop(self) -> None:
         """Stops the auction listener process."""
         self._exit.set()
-        self._logger.info(f"{self._name}: Stopping")
+        self._logger.info(f"{self._prefix}: Stopping")

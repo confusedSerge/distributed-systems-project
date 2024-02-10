@@ -1,9 +1,9 @@
 from ipaddress import IPv4Address
 
-from multiprocessing import Process, Event as ProcessEvent
 from multiprocessing.synchronize import Event
-from time import sleep, time
+from time import time
 
+from time import localtime, strftime
 from logging import Logger
 
 import re
@@ -13,11 +13,13 @@ import inquirer
 
 from model import Auction, AuctionAnnouncementStore
 from process import Manager, SubAuctioneer
+from communication import MessageAuctionAnnouncement, AuctionMessageData
 
 from util import create_logger, generate_mc_group
 
 from constant import (
     interaction as inter,
+    stateid2stateobj,
     USERNAME,
 )
 
@@ -54,19 +56,18 @@ class Auctioneer:
         self.manager: Manager = manager
         self.manager_running: Event = manager_running
 
+        # Keep track of created auctions and corresponding sub-auctioneers
         self.auction_announcement_store: AuctionAnnouncementStore = (
             auction_announcement_store
         )
-
-        # Keep track of created auctions and corresponding sub-auctioneers
         self._created_auctions: dict[str, Auction] = {}
         self._sub_auctioneers: dict[str, SubAuctioneer] = {}
 
-        self._logger.info(f"{self._name}: Initialized")
+        self._logger.info(f"{self._prefix}: Initialized")
 
     def stop(self) -> None:
         """Stops the auctioneer background tasks."""
-        self._logger.info(f"{self._name}: Releasing resources")
+        self._logger.info(f"{self._prefix}: Releasing resources")
 
         for sub_auctioneer in self._sub_auctioneers.values():
             sub_auctioneer.stop()
@@ -74,7 +75,7 @@ class Auctioneer:
         for sub_auctioneer in self._sub_auctioneers.values():
             sub_auctioneer.join()
 
-        self._logger.info(f"{self._name}: Stopped")
+        self._logger.info(f"{self._prefix}: Stopped")
 
     def interact(self) -> None:
         """Handles the interactive command line interface for the auctioneer.
@@ -114,9 +115,13 @@ class Auctioneer:
     def _list_auctions(self) -> None:
         """Lists all auctions."""
         print("Your auctions:")
-        for auction in self._created_auctions.values():
-            print(f"* {auction}")
-        print()
+        for _, auction in self.auction_announcement_store.items():
+            if auction.auction._id not in self._created_auctions.keys():
+                continue
+            auction_data: Auction = self._get_auction_from_message(auction)
+            print(
+                f"Auction {auction_data.get_id()}: Progress: {auction_data.get_state_description()}, Item: {auction_data.get_item()}, Highest Bid: {auction_data.get_highest_bid()}, Ends: {strftime('%a, %d %b %Y %H:%M:%S +0000', localtime(auction.auction.time))}"
+            )
 
     def _create_auction(self) -> None:
         """Creates an auction.
@@ -126,7 +131,7 @@ class Auctioneer:
         assert self.manager_running.is_set()
 
         # Prompt user for auction information
-        self._logger.info(f"{self._name}: Creating auction")
+        self._logger.info(f"{self._prefix}: Creating auction")
         aname, item, price, running_time = self._define_auction()
         if aname is None or item is None or price is None or running_time is None:
             return
@@ -141,15 +146,16 @@ class Auctioneer:
         _auction: Auction = self.manager.Auction(  # type: ignore
             aname, USERNAME, item, price, end_time, address
         )
-        self._logger.info(f"{self._name}: Created auction {_auction}")
+        self._logger.info(f"{self._prefix}: Created auction {_auction}")
 
         # Start sub-auctioneer
         sub_auctioneer = SubAuctioneer(
             _auction, self.auction_announcement_store, self.manager
         )
         sub_auctioneer.start()
+
         self._logger.info(
-            f"{self._name}: Started sub-auctioneer for auction {_auction}"
+            f"{self._prefix}: Started sub-auctioneer for auction {_auction}"
         )
 
         self._created_auctions[_auction.get_id()] = _auction
@@ -205,3 +211,32 @@ class Auctioneer:
             float(answer["price"]) if "price" in answer else None,
             int(answer["time"]) if "time" in answer else None,
         )
+
+    # === Helper Methods ===
+
+    def _get_auction_from_message(self, message: MessageAuctionAnnouncement) -> Auction:
+        """Handles an auction information message.
+
+        Creates an auction from the auction information message.
+        This auction is a shared memory object.
+
+        Args:
+            message (MessageAuctionInformationResponse): The auction information message.
+
+        Returns:
+            Auction: The auction created from the message.
+        """
+        assert self.manager_running.is_set()
+
+        rec = AuctionMessageData.to_auction(message.auction)
+        auction: Auction = self.manager.Auction(  # type: ignore
+            rec.get_name(),
+            rec.get_auctioneer(),
+            rec.get_item(),
+            rec.get_price(),
+            rec.get_end_time(),
+            rec.get_group(),
+        )
+        auction.from_other(rec)
+
+        return auction

@@ -10,17 +10,21 @@ from logging import Logger
 # === Custom Modules ===
 
 from communication import Multicast, MessageSchema, MessageAuctionAnnouncement
-from model import AuctionAnnouncementStore
+from constant.state.auction import AUCTION_CANCELLED, AUCTION_ENDED
+from model import Auction, AuctionAnnouncementStore
 from util import create_logger
 
 from constant import (
     communication as com,
+    stateid2stateobj,
     USERNAME,
     COMMUNICATION_BUFFER_SIZE,
     COMMUNICATION_TIMEOUT,
     MULTICAST_DISCOVERY_GROUP,
     MULTICAST_DISCOVERY_PORT,
     MULTICAST_AUCTION_ANNOUNCEMENT_PORT,
+    AUCTION_CANCELLED,
+    AUCTION_ENDED,
 )
 
 
@@ -33,7 +37,8 @@ class AuctionAnnouncementListener(Process):
     def __init__(
         self,
         auction_announcement_store: AuctionAnnouncementStore,
-        auction_id: str = "",
+        auction_id: Optional[str] = None,
+        auction_group: Optional[IPv4Address] = None,
     ):
         """Initializes the auction listener process.
 
@@ -50,30 +55,31 @@ class AuctionAnnouncementListener(Process):
         self._seen_message_ids: list[str] = []
         self._store: AuctionAnnouncementStore = auction_announcement_store
 
-        self._auction_id: str = auction_id
-        self._high_frequency: bool = self._auction_id is not None
-        self._address: tuple[IPv4Address, int] = (
-            (MULTICAST_DISCOVERY_GROUP, MULTICAST_DISCOVERY_PORT)
-            if self._high_frequency
-            else (
-                IPv4Address(self._store.get(self._auction_id).auction.group),
-                MULTICAST_AUCTION_ANNOUNCEMENT_PORT,
-            )
+        self._auction_id: str = auction_id if auction_id else ""
+        self._high_frequency: bool = bool(self._auction_id and auction_group)
+        self._auction_group: IPv4Address = (
+            auction_group if auction_group else MULTICAST_DISCOVERY_GROUP
         )
-
-        self._logger.info(f"{self._name}: Initialized")
+        self._auction_port: int = (
+            MULTICAST_AUCTION_ANNOUNCEMENT_PORT
+            if self._high_frequency
+            else MULTICAST_DISCOVERY_PORT
+        )
 
     def run(self) -> None:
         """Runs the auction listener process."""
+        self._logger.info(
+            f"{self._prefix}: Initialized for {(self._auction_group, self._auction_port)} with {self._auction_id if self._auction_id else 'all auctions'}"
+        )
 
-        self._logger.info(f"{self._name}: Started")
+        self._logger.info(f"{self._prefix}: Started")
         mc: Multicast = Multicast(
-            group=self._address[0],
-            port=self._address[1],
+            group=self._auction_group,
+            port=self._auction_port,
             timeout=COMMUNICATION_TIMEOUT,
         )
 
-        self._logger.info(f"{self._name}: Listening for auction announcements")
+        self._logger.info(f"{self._prefix}: Listening for auction announcements")
         while not self._exit.is_set():
             # Receive announcement
             try:
@@ -84,31 +90,50 @@ class AuctionAnnouncementListener(Process):
             if (
                 not MessageSchema.of(com.HEADER_AUCTION_ANNOUNCEMENT, message)
                 or message in self._seen_message_ids
-                or (
-                    self._high_frequency
-                    and MessageAuctionAnnouncement.decode(message)._id
-                    != self._auction_id
-                )
             ):
+                continue
+
+            try:
+                if (
+                    self._high_frequency
+                    and Auction.parse_id(MessageSchema.get_id(message))
+                    != self._auction_id
+                ):
+                    self._logger.info(
+                        f"{self._prefix}: Received announcement for different auction on same multicast: {message}"
+                    )
+                    continue
+            except ValueError:
+                self._logger.error(
+                    f"{self._prefix}: Invalid message ID for message {message}"
+                )
                 continue
 
             announcement: MessageAuctionAnnouncement = (
                 MessageAuctionAnnouncement.decode(message)
             )
             self._logger.info(
-                f"{self._name}: Received announcement for auction {announcement._id}: {announcement}"
+                f"{self._prefix}: Received announcement for auction: {announcement}"
             )
 
             self._seen_message_ids.append(announcement._id)
             self._store.update(announcement)
 
-        self._logger.info(f"{self._name}: Releasing resources")
+            if self._high_frequency and stateid2stateobj[
+                announcement.auction.state
+            ] in [AUCTION_CANCELLED, AUCTION_ENDED]:
+                self._logger.info(
+                    f"{self._prefix}: Auction {announcement.auction._id} has ended or been cancelled, stopping listener"
+                )
+                break
+
+        self._logger.info(f"{self._prefix}: Releasing resources")
 
         mc.close()
 
-        self._logger.info(f"{self._name}: Stopped")
+        self._logger.info(f"{self._prefix}: Stopped")
 
     def stop(self) -> None:
         """Stops the auction listener process."""
         self._exit.set()
-        self._logger.info(f"{self._name}: Stop signal received")
+        self._logger.info(f"{self._prefix}: Stop signal received")

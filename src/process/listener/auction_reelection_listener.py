@@ -77,18 +77,18 @@ class AuctionReelectionListener(Process):
 
         self._seen_message_ids: list[str] = []
 
-        self._logger.info(f"{self._name}: Initialized")
-
     def run(self) -> None:
         """Runs the auction reelection listener process."""
-        self._logger.info(f"{self._name}: Started")
+        self._logger.info(f"{self._prefix}: Initialized for {self._auction_id}")
+
+        self._logger.info(f"{self._prefix}: Started")
         uc: ReliableUnicast = ReliableUnicast(
             timeout=COMMUNICATION_RELIABLE_TIMEOUT,
             retry=COMMUNICATION_RELIABLE_RETRIES,
             port=REPLICA_ELECTION_PORT,
         )
 
-        self._logger.info(f"{self._name}: Listening for reelection messages")
+        self._logger.info(f"{self._prefix}: Listening for reelection messages")
         while not self._exit.is_set():
             # Receive message
             try:
@@ -107,13 +107,13 @@ class AuctionReelectionListener(Process):
                 parsed_id = Auction.parse_id(MessageSchema.get_id(message))
             except ValueError:
                 self._logger.info(
-                    f"{self._name}: Received message with invalid auction id {MessageSchema.get_id(message)}"
+                    f"{self._prefix}: Received message with invalid auction id: {message}"
                 )
                 continue
 
             if parsed_id != self._auction_id:
                 self._logger.info(
-                    f"{self._name}: Ignoring received message from {address} for different auction {parsed_id} (expected {self._auction_id})"
+                    f"{self._prefix}: Ignoring received message from {address} for different auction {parsed_id} (expected {self._auction_id}): {message}"
                 )
                 continue
 
@@ -133,16 +133,17 @@ class AuctionReelectionListener(Process):
                 self._seen_message_ids.append(coordinator._id)
                 continue
 
-            self._logger.error(f"{self._name}: Unreachable code with message {message}")
+            self._logger.error(
+                f"{self._prefix}: Unreachable code with message {message}"
+            )
             assert False, "Unreachable code"
 
-        self._logger.info(f"{self._name}: Stopped")
+        self._logger.info(f"{self._prefix}: Stopped")
 
     def stop(self) -> None:
         """Stops the auction reelection listener process."""
-        self._logger.info(f"{self._name}: Stopping")
+        self._logger.info(f"{self._prefix}: Received stop signal")
         self._exit.set()
-        self._logger.info(f"{self._name}: Stopped")
 
     def _handle_election(
         self,
@@ -159,12 +160,12 @@ class AuctionReelectionListener(Process):
         """
         if self._own_id < message.req_id:
             self._logger.info(
-                f"{self._name}: Received election request from {message._id} with higher id."
+                f"{self._prefix}: Received election request with higher id ({self._own_id}, (Ignored)): {message}"
             )
             return
 
         self._logger.info(
-            f"{self._name}: Received election request from {message._id} with lower id. Sending election answer and starting election process"
+            f"{self._prefix}: Received election request with lower id ({self._own_id}, (Answered)): {message}"
         )
         answer: MessageElectionAnswer = MessageElectionAnswer(
             _id=message._id,
@@ -188,13 +189,13 @@ class AuctionReelectionListener(Process):
         """
         if self._own_id < message.req_id:
             self._logger.info(
-                f"{self._name}: Received coordinator message from {message._id} with higher id. Found new coordinator. Setting coordinator flag and updating leader"
+                f"{self._prefix}: Received coordinator message with higher id ({self._own_id}, (New Leader)): {message}"
             )
             self._leader.set(*address)
             self._coordinator.set()
             return
 
         self._logger.info(
-            f"{self._name}: Received coordinator message from {message._id} with lower id. Setting reelect flag"
+            f"{self._prefix}: Received coordinator message with lower id ({self._own_id}, (Reelection)): {message}"
         )
         self._reelect.set()

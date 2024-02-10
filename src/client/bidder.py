@@ -1,8 +1,8 @@
+from ipaddress import IPv4Address
 from multiprocessing.synchronize import Event
 
 from logging import Logger
 from time import localtime, strftime
-from typing import Optional
 
 import re
 import inquirer
@@ -71,19 +71,21 @@ class Bidder:
             str, AuctionAnnouncementListener
         ] = {}
 
-        self._logger.info(f"{self._name}: Initialized")
+        self._logger.info(f"{self._prefix}: Initialized")
 
     def stop(self) -> None:
         """Stops the bidder background tasks."""
-        self._logger.info(f"{self._name}: Releasing resources")
+        self._logger.info(f"{self._prefix}: Releasing resources")
 
         for listener in self._joined_auction_announcement_listeners.values():
-            listener.stop()
+            if listener.is_alive():
+                listener.stop()
 
         for listener in self._joined_auction_announcement_listeners.values():
-            listener.join()
+            if listener.is_alive():
+                listener.join()
 
-        self._logger.info(f"{self._name}: Stopped")
+        self._logger.info(f"{self._prefix}: Stopped")
 
     def interact(self) -> None:
         """Handles the interactive command line interface for the bidder.
@@ -126,7 +128,7 @@ class Bidder:
                     break
                 case _:
                     self._logger.error(
-                        f"{self._name}: Invalid action {answer['action']}"
+                        f"{self._prefix}: Invalid action {answer['action']}"
                     )
 
     # === Interaction Methods ===
@@ -136,8 +138,9 @@ class Bidder:
         print("Auctions available to join:")
         for _, auction in self.auction_announcement_store.items():
             print(
-                f"Auction {auction.auction._id} with ({auction.auction.item}, {auction.auction.price}, {strftime('%a, %d %b %Y %H:%M:%S +0000', localtime(auction.auction.time))}) currently in state {stateid2stateobj[auction.auction.state][1]}"
+                f"Auction {auction.auction._id}: Progress: {stateid2stateobj[auction.auction.state][1]}, Item: {auction.auction.item}, Starting Price: {auction.auction.price} Ends: {strftime('%a, %d %b %Y %H:%M:%S +0000', localtime(auction.auction.time))}"
             )
+        print()
 
     def _list_auction_info(self) -> None:
         """Lists the information of an auction."""
@@ -148,11 +151,14 @@ class Bidder:
             self.auction_announcement_store.get(auction_id)
         )
         print(f"Information about auction {auction_id}:")
-        print(f"* Joined auction {auction_id}: {auction}")
+        print(f"* Item: {auction.get_item()}")
+        print(f"* Starting price: {auction.get_price()}")
         print(f"* Highest bid: {auction.get_highest_bid()}")
         print(
-            f"* Winner: {auction.get_winner() if auction.is_ended() else 'No winner yet'}"
+            f"* Ends: {strftime('%a, %d %b %Y %H:%M:%S +0000', localtime(auction.get_end_time()))}"
         )
+        print(f"* Progress: {auction.get_state_description()}")
+        print()
 
     def _join_auction(self) -> None:
         """Joins an auction"""
@@ -166,10 +172,19 @@ class Bidder:
         if auction is None:
             return
 
+        try:
+            auction_to_join: AuctionMessageData = self.auction_announcement_store.get(
+                auction
+            ).auction
+        except ValueError:
+            print(f"Auction with id {auction} does not exist")
+            return
+
         self._joined_auction_announcement_listeners[auction] = (
             AuctionAnnouncementListener(
                 self.auction_announcement_store,
-                auction,
+                auction_to_join._id,
+                IPv4Address(auction_to_join.group),
             )
         )
 
@@ -200,7 +215,7 @@ class Bidder:
             self.auction_announcement_store.get(auction_id)
         )
         if not auction.is_running():
-            print(f"Auction with id {auction} is not running. Cannot place bid.")
+            print(f"Auction with id {auction._id} is not running. Cannot place bid.")
             return
 
         # Place bid
@@ -215,7 +230,7 @@ class Bidder:
             port=MULTICAST_AUCTION_BID_PORT,
         )
         self._logger.info(
-            f"{self._name}: Sent bid {bid} for auction {auction.get_id()}"
+            f"{self._prefix}: Sent bid {bid} for auction {auction.get_id()}"
         )
 
     # === Prompt Methods ===

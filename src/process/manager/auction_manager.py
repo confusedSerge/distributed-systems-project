@@ -1,3 +1,4 @@
+from email import message
 import os
 
 from multiprocessing import Process, Event as ProcessEvent
@@ -59,10 +60,10 @@ class AuctionManager(Process):
 
         self._seen_message_id: list[str] = []
 
-        self._logger.info(f"{self._prefix}: Initialized")
-
     def run(self) -> None:
         """Runs the auction manager process."""
+        self._logger.info(f"{self._prefix}: Initialized for {self._auction.get_id()}")
+
         mc_discovery: Multicast = Multicast(
             group=MULTICAST_DISCOVERY_GROUP,
             port=MULTICAST_DISCOVERY_PORT,
@@ -85,7 +86,6 @@ class AuctionManager(Process):
             self._initial_auction_prep(mc_discovery)
 
         self._logger.info(f"{self._prefix}: Started")
-        self._logger.info(f"{self._prefix}: Listening for auction information requests")
         while not self._exit.is_set():
             self._auction_state_changes()
             self._auction_announcement(mc_discovery)
@@ -94,6 +94,8 @@ class AuctionManager(Process):
 
         self._logger.info(f"{self._prefix}: Received stop signal; releasing resources")
         mc_discovery.close()
+        mc_auction_announcement.close()
+        mc_state_announcement.close()
 
         self._logger.info(f"{self._prefix}: Stopped")
 
@@ -120,13 +122,12 @@ class AuctionManager(Process):
         self._auction.next_state()
 
         self._logger.info(f"{self._prefix}: Announcing running auction to discovery")
-        mc_discovery.send(
-            message=MessageAuctionAnnouncement(
-                _id=generate_message_id(self._auction.get_id()),
-                auction=AuctionMessageData.from_auction(self._auction),
-            ).encode()
+        message: MessageAuctionAnnouncement = MessageAuctionAnnouncement(
+            _id=generate_message_id(self._auction.get_id()),
+            auction=AuctionMessageData.from_auction(self._auction),
         )
-        self._logger.info(f"{self._prefix}: Announced auction {self._auction.get_id()}")
+        mc_discovery.send(message=message.encode())
+        self._logger.info(f"{self._prefix}: Announced running auction: {message}")
 
     def _auction_state_changes(self) -> None:
         """Handles auction state changes.
@@ -155,8 +156,6 @@ class AuctionManager(Process):
             self._auction.is_running()
             and time()
             > self._last_auction_announcement + MULTICAST_AUCTION_ANNOUNCEMENT_PERIOD
-            and self._last_auction_announcement + MULTICAST_AUCTION_ANNOUNCEMENT_PERIOD
-            < self._auction.get_end_time()
         ) or self._last_auction_state != self._auction.get_state():
             message: MessageAuctionAnnouncement = MessageAuctionAnnouncement(
                 _id=generate_message_id(self._auction.get_id()),
@@ -165,8 +164,8 @@ class AuctionManager(Process):
 
             mc_discovery.send(message=message.encode())
 
-            self._last_auction_announcement = self._auction.get_end_time()
-            self._logger.info(f"{self._prefix}: Sent announcement {message}")
+            self._last_auction_announcement = time()
+            self._logger.info(f"{self._prefix}: Sent announcement: {message}")
 
     def _high_frequency_auction_announcement(self, mc_auction: Multicast) -> None:
         """Handles high frequency auction announcements over the auction multicast group.
@@ -180,9 +179,6 @@ class AuctionManager(Process):
             and time()
             > self._last_high_freq_auction_announcement
             + MULTICAST_AUCTION_ANNOUNCEMENT_PERIOD_HF
-            and self._last_high_freq_auction_announcement
-            + MULTICAST_AUCTION_ANNOUNCEMENT_PERIOD_HF
-            < self._auction.get_end_time()
         ) or self._last_auction_state != self._auction.get_state():
             message: MessageAuctionAnnouncement = MessageAuctionAnnouncement(
                 _id=generate_message_id(self._auction.get_id()),
@@ -191,9 +187,9 @@ class AuctionManager(Process):
 
             mc_auction.send(message=message.encode())
 
-            self._last_high_freq_auction_announcement = self._auction.get_end_time()
+            self._last_high_freq_auction_announcement = time()
             self._logger.info(
-                f"{self._prefix}: Sent high frequency announcement {message}"
+                f"{self._prefix}: Sent high frequency announcement: {message}"
             )
 
     def _auction_state_announcement(self, mc_auction: Multicast) -> None:

@@ -41,18 +41,20 @@ class AuctionStateAnnouncementListener(Process):
         self._auction: Auction = auction
         self._seen_message_id: list[str] = []
 
-        self._logger.info(f"{self._name}: Initialized")
-
     def run(self) -> None:
         """Runs the auction listener process."""
-        self._logger.info(f"{self._name}: Started")
+        self._logger.info(f"{self._prefix}: Initialized for {self._auction.get_id()}")
+
+        self._logger.info(f"{self._prefix}: Started")
         mc: Multicast = Multicast(
             group=self._auction.get_group(),
             port=MULTICAST_AUCTION_STATE_ANNOUNCEMENT_PORT,
             timeout=COMMUNICATION_TIMEOUT,
         )
 
-        self._logger.info(f"{self._name}: Listening for state announcements on auction")
+        self._logger.info(
+            f"{self._prefix}: Listening for state announcements on auction"
+        )
         while not self._exit.is_set():
             # Receive state announcement
             try:
@@ -75,13 +77,13 @@ class AuctionStateAnnouncementListener(Process):
                 parsed_id = Auction.parse_id(state_announcement._id)
             except ValueError:
                 self._logger.info(
-                    f"{self._name}: Received auction state announcement {state_announcement} with invalid auction id {state_announcement._id}"
+                    f"{self._prefix}: Received auction state announcement with invalid auction id: {state_announcement}"
                 )
                 continue
 
             if parsed_id != self._auction.get_id():
                 self._logger.info(
-                    f"{self._name}: Ignoring received auction state announcement from {address} for different auction {parsed_id} (expected {self._auction.get_id()})"
+                    f"{self._prefix}: Ignoring received auction state announcement from {address} for different auction {parsed_id} (expected {self._auction.get_id()}): {state_announcement}"
                 )
                 continue
 
@@ -90,16 +92,16 @@ class AuctionStateAnnouncementListener(Process):
             # Update auction state
             self._auction.set_state(state_announcement.state)
             self._logger.info(
-                f"{self._name}: Updated auction state to {self._auction.get_state()}"
+                f"{self._prefix}: Updated auction state to {self._auction.get_state()}"
             )
 
-        self._logger.info(f"{self._name}: Stop signal received")
+        self._logger.info(f"{self._prefix}: Stop signal received")
 
         mc.close()
 
-        self._logger.info(f"{self._name}: Stopped")
+        self._logger.info(f"{self._prefix}: Stopped")
 
     def stop(self) -> None:
         """Stops the auction listener process."""
         self._exit.set()
-        self._logger.info(f"{self._name}: Stop signal received")
+        self._logger.info(f"{self._prefix}: Stop signal received")

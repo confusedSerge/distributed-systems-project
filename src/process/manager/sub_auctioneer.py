@@ -1,3 +1,4 @@
+from email import message
 from multiprocessing import Process, Event as ProcessEvent
 from multiprocessing.synchronize import Event
 from time import sleep
@@ -10,7 +11,6 @@ from model import Auction, AuctionPeersStore, AuctionAnnouncementStore
 from ..memory_manager import Manager
 from .replication_manager import ReplicationManager
 from process import (
-    AuctionBidListener,
     AuctionAnnouncementListener,
 )
 from communication import Multicast, AuctionMessageData, MessageAuctionAnnouncement
@@ -61,35 +61,36 @@ class SubAuctioneer(Process):
         self._auction: Auction = auction
         self._announcement_store = announcement_store
 
-        self._logger.info(
-            f"{self._name}: Initialized for auction {auction} on {auction.get_group()}"
-        )
-
     def run(self) -> None:
         """Runs the sub-auctioneer.
 
         Args:
             auction (Auction): The auction to run.
         """
-        self._logger.info(f"{self._name}: Started")
+        self._logger.info(
+            f"{self._prefix}: Initialized for auction {self._auction.get_id()}"
+        )
+        self._logger.info(f"{self._prefix}: Started")
 
         self._announce_auction_preparation()
 
         self._replicate()
 
         if self._exit.is_set():
-            self._logger.info(f"{self._name}: Exiting as process received stop signal")
+            self._logger.info(
+                f"{self._prefix}: Exiting as process received stop signal"
+            )
             self._announce_auction_cancelled()
             return
 
         # Create multicast listener to receive bids and update auction state
         self._listen()
 
-        self._logger.info(f"{self._name}: Stopped")
+        self._logger.info(f"{self._prefix}: Stopped")
 
     def stop(self) -> None:
         """Stops the sub-auctioneer."""
-        self._logger.info(f"{self._name}: Stop signal received")
+        self._logger.info(f"{self._prefix}: Stop signal received")
         self._exit.set()
 
     # === Helper methods ===
@@ -100,32 +101,34 @@ class SubAuctioneer(Process):
         This is used to reserve the auction group and announce the auction to others.
         """
         self._logger.info(f"{self._prefix}: Preparing running auction to discovery")
+        message: MessageAuctionAnnouncement = MessageAuctionAnnouncement(
+            _id=generate_message_id(self._auction.get_id()),
+            auction=AuctionMessageData.from_auction(self._auction),
+        )
         Multicast.qsend(
-            message=MessageAuctionAnnouncement(
-                _id=generate_message_id(self._auction.get_id()),
-                auction=AuctionMessageData.from_auction(self._auction),
-            ).encode(),
+            message=message.encode(),
             group=MULTICAST_DISCOVERY_GROUP,
             port=MULTICAST_DISCOVERY_PORT,
         )
         self._logger.info(
-            f"{self._prefix}: Announced auction {self._auction.get_id()} preparation to discovery"
+            f"{self._prefix}: Announced auction preparation to discovery: {message}"
         )
 
     def _announce_auction_cancelled(self) -> None:
         """Announces that an auction has been cancelled."""
         self._logger.info(f"{self._prefix}: Cancelling auction")
         self._auction.cancel()
+        message: MessageAuctionAnnouncement = MessageAuctionAnnouncement(
+            _id=generate_message_id(self._auction.get_id()),
+            auction=AuctionMessageData.from_auction(self._auction),
+        )
         Multicast.qsend(
-            message=MessageAuctionAnnouncement(
-                _id=generate_message_id(self._auction.get_id()),
-                auction=AuctionMessageData.from_auction(self._auction),
-            ).encode(),
+            message=message.encode(),
             group=MULTICAST_DISCOVERY_GROUP,
             port=MULTICAST_DISCOVERY_PORT,
         )
         self._logger.info(
-            f"{self._prefix}: Announced auction {self._auction.get_id()} cancelled to discovery"
+            f"{self._prefix}: Announced auction cancellation to discovery: {message}"
         )
 
     def _replicate(self) -> None:
@@ -135,7 +138,7 @@ class SubAuctioneer(Process):
         """
 
         self._logger.info(
-            f"{self._name}: Replicating auction {self._auction.get_id()} to replicas"
+            f"{self._prefix}: Replicating auction {self._auction.get_id()} to replicas"
         )
 
         # Start replica finder process to find replicas
@@ -149,36 +152,45 @@ class SubAuctioneer(Process):
         # Check if enough replicas were found
         if replica_list.len() < AUCTION_POOL_SIZE:
             self._logger.info(
-                f"{self._name}: Not enough replicas found, cancelling auction {self._auction.get_id()}"
+                f"{self._prefix}: Not enough replicas found, cancelling auction {self._auction.get_id()}"
             )
             self._exit.set()
             return
 
         self._logger.info(
-            f"{self._name}: Replicated auction {self._auction.get_id()} to replicas {replica_list.str()}"
+            f"{self._prefix}: Replicated auction {self._auction.get_id()} to replicas {replica_list.str()}"
         )
 
     def _listen(self):
         """Starts the auction bid listener to listen to bids for the auction."""
-        self._logger.info(
-            f"{self._name}: Listening for auction {self._auction.get_id()}"
-        )
 
         high_freq_auction_listener: AuctionAnnouncementListener = (
             AuctionAnnouncementListener(
-                self._announcement_store, self._auction.get_id()
+                self._announcement_store,
+                self._auction.get_id(),
+                self._auction.get_group(),
             )
         )
         high_freq_auction_listener.start()
 
+        self._logger.info(
+            f"{self._prefix}: Listening for auction {self._auction.get_id()}"
+        )
+
         # Wait for auction to end or if stop signal is received propagate stop signal and return
-        while not self._exit.is_set() and not self._auction.is_ended():
+        while (
+            not self._exit.is_set()
+            and not self._auction.is_ended()
+            and not self._auction.is_cancelled()
+        ):
             sleep(SLEEP_TIME)
 
-        if self._exit.is_set():
-            self._logger.info(f"{self._name}: Stop signal received")
-        else:
-            self._logger.info(f"{self._name}: Auction ended")
+        if not self._exit.is_set():
+            self._logger.info(f"{self._prefix}: Auction ended")
 
-        high_freq_auction_listener.stop()
-        high_freq_auction_listener.join()
+        if high_freq_auction_listener.is_alive():
+            self._logger.info(f"{self._prefix}: Stopping listener")
+            high_freq_auction_listener.stop()
+            high_freq_auction_listener.join()
+
+        self._logger.info(f"{self._prefix}: Listener stopped")

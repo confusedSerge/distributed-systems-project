@@ -67,8 +67,6 @@ class ReplicationManager(Process):
         # Configuration
         self._emitter_period: int = emitter_period
 
-        self._logger.info(f"{self._name}: Initialized")
-
     def run(self):
         """Runs the replica finder process.
 
@@ -80,8 +78,8 @@ class ReplicationManager(Process):
             - Add new replicas to list of known replicas that acknowledge the auction information
             - Announce new list of known replicas of the auction to all replicas
         """
-
-        self._logger.info(f"{self._name}: Started")
+        self._logger.info(f"{self._prefix}: Initialized for {self._auction.get_id()}")
+        self._logger.info(f"{self._prefix}: Started")
 
         # Initialize ReliableUnicast socket for communication with replicas
         uc: ReliableUnicast = ReliableUnicast(
@@ -96,7 +94,7 @@ class ReplicationManager(Process):
                 message_id, uc
             )
         except TimeoutError:
-            self._logger.info(f"{self._name}: Not enough replicas found; Exiting")
+            self._logger.info(f"{self._prefix}: Not enough replicas found; Exiting")
             uc.close()
             return
         finally:
@@ -108,11 +106,11 @@ class ReplicationManager(Process):
         # Replicas will time out and exit, as they do not receive an auction information message
         if self._exit.is_set():
             self._logger.info(
-                f"{self._name}: Received stop signal during replica finding: Exiting"
+                f"{self._prefix}: Received stop signal during replica finding: Exiting"
             )
             return
 
-        self._logger.info(f"{self._name}: Found enough replicas")
+        self._logger.info(f"{self._prefix}: Found enough replicas")
 
         new_peers: list[tuple[IPv4Address, int]] = self._send_information(
             message_id, uc, new_peer_candidates
@@ -122,14 +120,14 @@ class ReplicationManager(Process):
         try:
             self._peers.append(new_peers)
         except ValueError:
-            self._logger.info(f"{self._name}: Duplicate replica found; Exiting")
+            self._logger.info(f"{self._prefix}: Duplicate replica found; Exiting")
             return
 
         sleep(0.01)  # Sleep to allow for shared memory update
         self._announce_peers(message_id)
 
-        self._logger.info(f"{self._name}: Releasing resources")
-        self._logger.info(f"{self._name}: Stopped")
+        self._logger.info(f"{self._prefix}: Releasing resources")
+        self._logger.info(f"{self._prefix}: Stopped")
 
     def stop(self):
         """Stops the replica finder process."""
@@ -164,7 +162,7 @@ class ReplicationManager(Process):
         ]
         new_replicas: list[tuple[IPv4Address, int]] = []
 
-        self._logger.info(f"{self._name}: Finding replicas")
+        self._logger.info(f"{self._prefix}: Finding replicas")
         with Timeout(REPLICA_REPLICATION_TIMEOUT, throw_exception=True):
             while (
                 self._peers.len() + len(new_replicas) < AUCTION_POOL_SIZE
@@ -190,7 +188,7 @@ class ReplicationManager(Process):
 
                 # Send find replica acknowledgement and add replica to list
                 self._logger.info(
-                    f"{self._name}: Received find replica response {response} from {address}. Adding to list of new replicas."
+                    f"{self._prefix}: Received find replica response {response} from {address}. Adding to list of new replicas."
                 )
                 new_replicas.append(address)
                 seen_addresses.append(address)
@@ -225,7 +223,7 @@ class ReplicationManager(Process):
         ).encode()
 
         self._logger.info(
-            f"{self._name}: Sending auction information to all new replicas"
+            f"{self._prefix}: Sending auction information to all new replicas"
         )
 
         unresponsive_replicas = []
@@ -234,7 +232,7 @@ class ReplicationManager(Process):
                 uc.send(response, replica)
             except TimeoutError:
                 unresponsive_replicas.append(replica)
-                self._logger.info(f"{self._name}: Replica {replica} is unresponsive")
+                self._logger.info(f"{self._prefix}: Replica {replica} is unresponsive")
                 continue
 
         cleaned_new_replicas = [
@@ -244,7 +242,7 @@ class ReplicationManager(Process):
         ]
 
         self._logger.info(
-            f"{self._name}: Received auction information acknowledgement from all replicas"
+            f"{self._prefix}: Received auction information acknowledgement from all replicas"
         )
         return cleaned_new_replicas
 
@@ -255,7 +253,7 @@ class ReplicationManager(Process):
             message_id (str): The message id to use for the message.
         """
         self._logger.info(
-            f"{self._name}: Announcing peers to all replicas at {(self._auction.get_group(), MULTICAST_AUCTION_PEERS_ANNOUNCEMENT_PORT)} with message id {message_id}"
+            f"{self._prefix}: Announcing peers to all replicas at {(self._auction.get_group(), MULTICAST_AUCTION_PEERS_ANNOUNCEMENT_PORT)} with message id {message_id}"
         )
         peers: MessageAuctionPeersAnnouncement = MessageAuctionPeersAnnouncement(
             _id=generate_message_id(self._auction.get_id()),
@@ -278,7 +276,7 @@ class ReplicationManager(Process):
         Returns:
             (str, Process): The message id used for the replica request and the replica request emitter process.
         """
-        self._logger.info(f"{self._name}: Starting replica request emitter")
+        self._logger.info(f"{self._prefix}: Starting replica request emitter")
         message_id: str = generate_message_id(self._auction.get_id())
         emitter: Process = Process(
             target=self._emitter_process,
@@ -309,8 +307,8 @@ class ReplicationManager(Process):
 
         while not self._exit.is_set():
             mc.send(req)
-            self._logger.info(f"{self._name}: Emitter: Sent find replica request")
+            self._logger.info(f"{self._prefix}: Emitter: Sent find replica request")
             sleep(self._emitter_period)
 
         mc.close()
-        self._logger.info(f"{self._name}: Emitter: Stopped")
+        self._logger.info(f"{self._prefix}: Emitter: Stopped")
