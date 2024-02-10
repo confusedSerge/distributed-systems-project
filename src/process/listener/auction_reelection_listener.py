@@ -20,10 +20,11 @@ from model import Leader, Auction
 from util import create_logger
 
 from constant import (
-    RELIABLE_ATTEMPTS,
-    RELIABLE_TIMEOUT,
     HEADER_ELECTION_REQ,
     HEADER_ELECTION_COORDINATOR,
+    COMMUNICATION_RELIABLE_RETRIES,
+    COMMUNICATION_RELIABLE_TIMEOUT,
+    REPLICA_ELECTION_PORT,
 )
 
 
@@ -82,8 +83,9 @@ class AuctionReelectionListener(Process):
         """Runs the auction reelection listener process."""
         self._logger.info(f"{self._name}: Started")
         uc: ReliableUnicast = ReliableUnicast(
-            retry=RELIABLE_ATTEMPTS,
-            timeout=RELIABLE_TIMEOUT,
+            timeout=COMMUNICATION_RELIABLE_TIMEOUT,
+            retry=COMMUNICATION_RELIABLE_RETRIES,
+            port=REPLICA_ELECTION_PORT,
         )
 
         self._logger.info(f"{self._name}: Listening for reelection messages")
@@ -120,13 +122,18 @@ class AuctionReelectionListener(Process):
                     message
                 )
                 self._handle_election(election, uc, address)
+                self._seen_message_ids.append(election._id)
+                continue
 
             if MessageSchema.of(HEADER_ELECTION_COORDINATOR, message):
                 coordinator: MessageElectionCoordinator = (
                     MessageElectionCoordinator.decode(message)
                 )
                 self._handle_coordinator(coordinator, address)
+                self._seen_message_ids.append(coordinator._id)
+                continue
 
+            self._logger.error(f"{self._name}: Unreachable code with message {message}")
             assert False, "Unreachable code"
 
         self._logger.info(f"{self._name}: Stopped")

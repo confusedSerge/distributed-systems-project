@@ -19,10 +19,10 @@ from util import create_logger, generate_message_id
 
 from constant import (
     SLEEP_TIME,
-    REPLICA_EMITTER_PERIOD,
-    REPLICA_AUCTION_POOL_SIZE,
+    AUCTION_POOL_SIZE,
     MULTICAST_DISCOVERY_GROUP,
     MULTICAST_DISCOVERY_PORT,
+    REPLICA_REPLICATION_PERIOD,
 )
 
 
@@ -85,7 +85,7 @@ class SubAuctioneer(Process):
         # Create multicast listener to receive bids and update auction state
         self._listen()
 
-        self._logger.info(f"{self._name}: Finished")
+        self._logger.info(f"{self._name}: Stopped")
 
     def stop(self) -> None:
         """Stops the sub-auctioneer."""
@@ -141,13 +141,13 @@ class SubAuctioneer(Process):
         # Start replica finder process to find replicas
         replica_list: AuctionPeersStore = self._manager.AuctionPeersStore()  # type: ignore
         replica_finder: ReplicationManager = ReplicationManager(
-            self._auction, replica_list, REPLICA_EMITTER_PERIOD
+            self._auction, replica_list, REPLICA_REPLICATION_PERIOD
         )
         replica_finder.start()
         replica_finder.join()
 
         # Check if enough replicas were found
-        if replica_list.len() < REPLICA_AUCTION_POOL_SIZE:
+        if replica_list.len() < AUCTION_POOL_SIZE:
             self._logger.info(
                 f"{self._name}: Not enough replicas found, cancelling auction {self._auction.get_id()}"
             )

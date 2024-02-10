@@ -19,9 +19,10 @@ from util import create_logger, generate_message_id
 from constant import (
     MULTICAST_DISCOVERY_GROUP,
     MULTICAST_DISCOVERY_PORT,
-    MULTICAST_AUCTION_PORT,
+    MULTICAST_AUCTION_ANNOUNCEMENT_PORT,
     MULTICAST_AUCTION_ANNOUNCEMENT_PERIOD,
-    MULTICAST_AUCTION_HIGH_FREQUENCY_ANNOUNCEMENT_PERIOD,
+    MULTICAST_AUCTION_ANNOUNCEMENT_PERIOD_HF,
+    MULTICAST_AUCTION_STATE_ANNOUNCEMENT_PORT,
 )
 
 
@@ -62,39 +63,39 @@ class AuctionManager(Process):
 
     def run(self) -> None:
         """Runs the auction manager process."""
-        mc_discovery_sender: Multicast = Multicast(
+        mc_discovery: Multicast = Multicast(
             group=MULTICAST_DISCOVERY_GROUP,
             port=MULTICAST_DISCOVERY_PORT,
             sender=True,
         )
 
-        mc_auction_unreliable_sender: Multicast = Multicast(
+        mc_auction_announcement: Multicast = Multicast(
             group=self._auction.get_group(),
-            port=MULTICAST_AUCTION_PORT,
+            port=MULTICAST_AUCTION_ANNOUNCEMENT_PORT,
             sender=True,
         )
 
-        mc_auction_reliable_sender: Multicast = Multicast(
+        mc_state_announcement: Multicast = Multicast(
             group=self._auction.get_group(),
-            port=MULTICAST_AUCTION_PORT,
+            port=MULTICAST_AUCTION_STATE_ANNOUNCEMENT_PORT,
             sender=True,
         )
 
         if self._auction.is_preparation():
-            self._initial_auction_prep(mc_discovery_sender)
+            self._initial_auction_prep(mc_discovery)
 
         self._logger.info(f"{self._prefix}: Started")
         self._logger.info(f"{self._prefix}: Listening for auction information requests")
         while not self._exit.is_set():
             self._auction_state_changes()
-            self._auction_announcement(mc_discovery_sender)
-            self._high_frequency_auction_announcement(mc_auction_unreliable_sender)
-            self._auction_state_announcement(mc_auction_reliable_sender)
+            self._auction_announcement(mc_discovery)
+            self._high_frequency_auction_announcement(mc_auction_announcement)
+            self._auction_state_announcement(mc_state_announcement)
 
-        self._logger.info(f"{self._prefix} received stop signal; releasing resources")
-        mc_discovery_sender.close()
+        self._logger.info(f"{self._prefix}: Received stop signal; releasing resources")
+        mc_discovery.close()
 
-        self._logger.info(f"{self._prefix} stopped managing auction")
+        self._logger.info(f"{self._prefix}: Stopped")
 
     def stop(self) -> None:
         """Stops the auction manager process."""
@@ -178,9 +179,9 @@ class AuctionManager(Process):
             self._auction.is_running()
             and time()
             > self._last_high_freq_auction_announcement
-            + MULTICAST_AUCTION_HIGH_FREQUENCY_ANNOUNCEMENT_PERIOD
+            + MULTICAST_AUCTION_ANNOUNCEMENT_PERIOD_HF
             and self._last_high_freq_auction_announcement
-            + MULTICAST_AUCTION_HIGH_FREQUENCY_ANNOUNCEMENT_PERIOD
+            + MULTICAST_AUCTION_ANNOUNCEMENT_PERIOD_HF
             < self._auction.get_end_time()
         ) or self._last_auction_state != self._auction.get_state():
             message: MessageAuctionAnnouncement = MessageAuctionAnnouncement(

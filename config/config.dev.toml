@@ -4,7 +4,6 @@ uuid = "development"
 [account]
 username = "test"
 
-
 [logger]
 path = "log/"
 level = "DEBUG"
@@ -14,71 +13,82 @@ format_pid = "[%(levelname)s] - %(asctime)s - %(process)d: %(message)s"
 [general]
 sleep_time = 0.5
 
-[server.replica]
-local_pool_size = 5
-auction_pool_size = 1
+[auction]
+pool_size = 1
 
-[communication]
+[server]
+pool_size = 5
+
+[communication] # general communication settings
 buffer_size = 1024
-timeout_receive = 1
-timeout_response = 5
-reliable_timeout = 1
-reliable_attempts = 5
-
-
-[communication.replica]
-emitter_period = 1
-timeout = 5
-
-[communication.heartbeat]
 timeout = 1
-
-[communication.election]
-timeout = 5
-port = 5555
-
-[communication.total_ordering_isis]
-timeout = 5
+reliable_timeout = 1
+reliable_retries = 5
 
 [communication.multicast.discovery]
 group = "224.1.1.1"
-port = 5007
+port = 7707
 ttl = 32
 
 [communication.multicast.auction]
 group_base = "224.2.0.0/16" # this is the base prefix for the multicast group
-port = 5008
+port = 7708
 ttl = 32
-announcement_period = 5.0
-high_frequency_announcement_period = 1.0
+
+[communication.multicast.auction.announcement]
+port = 7709
+period_base = 5.0
+period_hf = 1.0
+
+[communication.multicast.auction.peers]
+port = 7710
+
+[communication.multicast.auction.state]
+port = 7711
+
+[communication.multicast.auction.bid]
+port = 7712
+
+[communication.replica] # settings for the communication between replicas
+timeout = 5
+
+[communication.replica.replication] # settings for the replication of the auction information
+period = 1
+timeout = 5 # timeout for the replication manager to wait for a response from the replicas
+
+[communication.replica.heartbeat]
+period = 1
+
+[communication.replica.election]
+port = 7713
+timeout = 1
 
 [communication.header]
 reliable-req = "RELIABLE_REQUEST"
 reliable-res = "RELIABLE_RESPONSE"
 reliable-multicast = "RELIABLE_MULTICAST"
 
-[communication.header.replica]
-find-replica-req = "FIND_REPLICA_REQUEST"
-find-replica-res = "FIND_REPLICA_RESPONSE"
-peers-announcement = "PEERS_ANNOUNCEMENT"
-
-[communication.header.auction]
-auction-announcement = "AUCTION_ANNOUNCEMENT"
-auction-state-announcement = "AUCTION_STATE_ANNOUNCEMENT"
-auction-information-replication = "AUCTION_INFORMATION_REPLICATION"
-auction-bid = "AUCTION_BID"
-auction-win = "AUCTION_WIN"
-
-[communication.header.heartbeat]
-heartbeat-req = "HEARTBEAT_REQUEST"
-heartbeat-res = "HEARTBEAT_RESPONSE"
-
-[communication.header.election]
-election-req = "ELECTION_REQUEST"
-election-ans = "ELECTION_ANSWER"
-election-coordinator = "ELECTION_COORDINATOR"
-
-[communication.header.total_ordering_isis]
+[communication.header.isis]
 isis-message = "ISIS_MESSAGE"
 proposed-seq = "PROPOSED_SEQ"
 agreed-seq = "AGREED_SEQ"
+
+[communication.header.replica]
+find-req = "FIND_REPLICA_REQUEST"
+find-res = "FIND_REPLICA_RESPONSE"
+
+[communication.header.heartbeat]
+req = "HEARTBEAT_REQUEST"
+res = "HEARTBEAT_RESPONSE"
+
+[communication.header.election]
+req = "ELECTION_REQUEST"
+ans = "ELECTION_ANSWER"
+coordinator = "ELECTION_COORDINATOR"
+
+[communication.header.auction]
+announcement = "AUCTION_ANNOUNCEMENT"
+information-replication = "AUCTION_INFORMATION_REPLICATION"
+peers-announcement = "PEERS_ANNOUNCEMENT"
+state-announcement = "AUCTION_STATE_ANNOUNCEMENT"
+bid = "AUCTION_BID"

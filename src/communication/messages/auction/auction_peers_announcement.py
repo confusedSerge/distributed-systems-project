@@ -6,7 +6,7 @@ import marshmallow_dataclass
 
 from json import dumps, loads
 
-from constant import HEADER_PEERS_ANNOUNCEMENT
+from constant import HEADER_AUCTION_PEERS_ANNOUNCEMENT
 
 
 @dataclass
@@ -24,8 +24,8 @@ class MessageAuctionPeersAnnouncement:
     # Message ID
     _id: str = field(metadata={"validate": lambda x: len(x) > 0})
     header: str = field(
-        default=HEADER_PEERS_ANNOUNCEMENT,
-        metadata={"validate": validate.OneOf([HEADER_PEERS_ANNOUNCEMENT])},
+        default=HEADER_AUCTION_PEERS_ANNOUNCEMENT,
+        metadata={"validate": validate.OneOf([HEADER_AUCTION_PEERS_ANNOUNCEMENT])},
     )
 
     # Data
@@ -36,7 +36,9 @@ class MessageAuctionPeersAnnouncement:
 
     def __str__(self) -> str:
         """Returns the string representation of the message."""
-        return f"{HEADER_PEERS_ANNOUNCEMENT}(id={self._id}, replicas={self.peers})"
+        return (
+            f"{HEADER_AUCTION_PEERS_ANNOUNCEMENT}(id={self._id}, replicas={self.peers})"
+        )
 
     def __repr__(self) -> str:
         """Returns the string representation of the message."""

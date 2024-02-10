@@ -16,11 +16,11 @@ from util import create_logger
 from constant import (
     communication as com,
     USERNAME,
-    TIMEOUT_RECEIVE,
-    BUFFER_SIZE,
+    COMMUNICATION_BUFFER_SIZE,
+    COMMUNICATION_TIMEOUT,
     MULTICAST_DISCOVERY_GROUP,
     MULTICAST_DISCOVERY_PORT,
-    MULTICAST_AUCTION_PORT,
+    MULTICAST_AUCTION_ANNOUNCEMENT_PORT,
 )
 
 
@@ -57,7 +57,7 @@ class AuctionAnnouncementListener(Process):
             if self._high_frequency
             else (
                 IPv4Address(self._store.get(self._auction_id).auction.group),
-                MULTICAST_AUCTION_PORT,
+                MULTICAST_AUCTION_ANNOUNCEMENT_PORT,
             )
         )
 
@@ -70,14 +70,14 @@ class AuctionAnnouncementListener(Process):
         mc: Multicast = Multicast(
             group=self._address[0],
             port=self._address[1],
-            timeout=TIMEOUT_RECEIVE,
+            timeout=COMMUNICATION_TIMEOUT,
         )
 
         self._logger.info(f"{self._name}: Listening for auction announcements")
         while not self._exit.is_set():
             # Receive announcement
             try:
-                message, _ = mc.receive(BUFFER_SIZE)
+                message, _ = mc.receive(COMMUNICATION_BUFFER_SIZE)
             except TimeoutError:
                 continue
 

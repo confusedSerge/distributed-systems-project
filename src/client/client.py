@@ -71,6 +71,7 @@ class Client:
         self.interact()
 
         self._shutdown()
+        self._logger.info(f"{self._name}: Stopped")
 
     def stop(self) -> None:
         """Stops the client background tasks."""
@@ -133,4 +134,4 @@ class Client:
 
         self.manager_running.clear()
         self.manager.shutdown()
-        self._logger.info(f"{self._name}: Stopped and released resources")
+        self._logger.info(f"{self._name}: Released resources")

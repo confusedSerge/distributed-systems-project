@@ -23,14 +23,14 @@ from util import create_logger, generate_message_id, Timeout
 
 from constant import (
     communication as com,
-    BUFFER_SIZE,
-    TIMEOUT_REPLICATION,
-    RELIABLE_TIMEOUT,
-    RELIABLE_ATTEMPTS,
+    AUCTION_POOL_SIZE,
+    REPLICA_REPLICATION_TIMEOUT,
+    COMMUNICATION_BUFFER_SIZE,
+    COMMUNICATION_RELIABLE_RETRIES,
+    COMMUNICATION_RELIABLE_TIMEOUT,
     MULTICAST_DISCOVERY_GROUP,
     MULTICAST_DISCOVERY_PORT,
-    MULTICAST_AUCTION_PORT,
-    REPLICA_AUCTION_POOL_SIZE,
+    MULTICAST_AUCTION_PEERS_ANNOUNCEMENT_PORT,
 )
 
 
@@ -85,7 +85,7 @@ class ReplicationManager(Process):
 
         # Initialize ReliableUnicast socket for communication with replicas
         uc: ReliableUnicast = ReliableUnicast(
-            timeout=RELIABLE_TIMEOUT, retry=RELIABLE_ATTEMPTS
+            timeout=COMMUNICATION_RELIABLE_TIMEOUT, retry=COMMUNICATION_RELIABLE_RETRIES
         )
 
         # Start replica request emitter
@@ -129,6 +129,7 @@ class ReplicationManager(Process):
         self._announce_peers(message_id)
 
         self._logger.info(f"{self._name}: Releasing resources")
+        self._logger.info(f"{self._name}: Stopped")
 
     def stop(self):
         """Stops the replica finder process."""
@@ -164,14 +165,14 @@ class ReplicationManager(Process):
         new_replicas: list[tuple[IPv4Address, int]] = []
 
         self._logger.info(f"{self._name}: Finding replicas")
-        with Timeout(TIMEOUT_REPLICATION, throw_exception=True):
+        with Timeout(REPLICA_REPLICATION_TIMEOUT, throw_exception=True):
             while (
-                self._peers.len() + len(new_replicas) < REPLICA_AUCTION_POOL_SIZE
+                self._peers.len() + len(new_replicas) < AUCTION_POOL_SIZE
                 and not self._exit.is_set()
             ):
                 # Receive find replica response
                 try:
-                    message, address = uc.receive(BUFFER_SIZE)
+                    message, address = uc.receive(COMMUNICATION_BUFFER_SIZE)
                 except TimeoutError:
                     continue
 
@@ -254,7 +255,7 @@ class ReplicationManager(Process):
             message_id (str): The message id to use for the message.
         """
         self._logger.info(
-            f"{self._name}: Announcing peers to all replicas at {(self._auction.get_group(), MULTICAST_AUCTION_PORT)} with message id {message_id}"
+            f"{self._name}: Announcing peers to all replicas at {(self._auction.get_group(), MULTICAST_AUCTION_PEERS_ANNOUNCEMENT_PORT)} with message id {message_id}"
         )
         peers: MessageAuctionPeersAnnouncement = MessageAuctionPeersAnnouncement(
             _id=generate_message_id(self._auction.get_id()),
@@ -263,7 +264,7 @@ class ReplicationManager(Process):
         Multicast.qsend(
             message=peers.encode(),
             group=self._auction.get_group(),
-            port=MULTICAST_AUCTION_PORT,
+            port=MULTICAST_AUCTION_PEERS_ANNOUNCEMENT_PORT,
         )
 
     # === Emitter ===

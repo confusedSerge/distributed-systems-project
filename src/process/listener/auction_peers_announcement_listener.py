@@ -13,9 +13,9 @@ from util import create_logger
 
 from constant import (
     communication as com,
-    TIMEOUT_RECEIVE,
-    BUFFER_SIZE,
-    MULTICAST_AUCTION_PORT,
+    COMMUNICATION_BUFFER_SIZE,
+    COMMUNICATION_TIMEOUT,
+    MULTICAST_AUCTION_PEERS_ANNOUNCEMENT_PORT,
 )
 
 
@@ -58,23 +58,23 @@ class AuctionPeersAnnouncementListener(Process):
         self._logger.info(f"{self._name}: Started")
         mc: Multicast = Multicast(
             group=self._auction.get_group(),
-            port=MULTICAST_AUCTION_PORT,
-            timeout=TIMEOUT_RECEIVE,
+            port=MULTICAST_AUCTION_PEERS_ANNOUNCEMENT_PORT,
+            timeout=COMMUNICATION_TIMEOUT,
         )
 
         self._logger.info(
-            f"{self._name}: Listening for peers announcements on {(self._auction.get_group(), MULTICAST_AUCTION_PORT)} for auction {self._auction.get_id()}"
+            f"{self._name}: Listening for peers announcements on {(self._auction.get_group(), MULTICAST_AUCTION_PEERS_ANNOUNCEMENT_PORT)} for auction {self._auction.get_id()}"
         )
         while not self._exit.is_set():
             # Receive announcement or timeout to check exit condition
             try:
-                message, address = mc.receive(BUFFER_SIZE)
+                message, address = mc.receive(COMMUNICATION_BUFFER_SIZE)
             except TimeoutError:
                 continue
 
             # Ignore if message is not a peers announcement or if the message has already been seen
             if (
-                not MessageSchema.of(com.HEADER_PEERS_ANNOUNCEMENT, message)
+                not MessageSchema.of(com.HEADER_AUCTION_PEERS_ANNOUNCEMENT, message)
                 or MessageSchema.get_id(message) in self._seen_message_ids
             ):
                 continue

@@ -7,34 +7,28 @@ RELIABLE_REQ: str = _config["reliable-req"]
 RELIABLE_RES: str = _config["reliable-res"]
 RELIABLE_MULTICAST: str = _config["reliable-multicast"]
 
-# Message Header
-FIND_REPLICA_REQ: str = _config["replica"]["find-replica-req"]
-FIND_REPLICA_RES: str = _config["replica"]["find-replica-res"]
+# ISIS Total Ordering Header
+ISIS_MESSAGE: str = _config["isis"]["isis-message"]
+ISIS_PROPOSED_SEQ: str = _config["isis"]["proposed-seq"]
+ISIS_AGREED_SEQ: str = _config["isis"]["agreed-seq"]
 
-PEERS_ANNOUNCEMENT: str = _config["replica"]["peers-announcement"]
-
-# Auction Header
-AUCTION_ANNOUNCEMENT: str = _config["auction"]["auction-announcement"]
-AUCTION_STATE_ANNOUNCEMENT: str = _config["auction"]["auction-state-announcement"]
-
-AUCTION_INFORMATION_REPLICATION: str = _config["auction"][
-    "auction-information-replication"
-]
-
-AUCTION_BID: str = _config["auction"]["auction-bid"]
-AUCTION_WIN: str = _config["auction"]["auction-win"]
+# Replica Header
+FIND_REPLICA_REQ: str = _config["replica"]["find-req"]
+FIND_REPLICA_RES: str = _config["replica"]["find-res"]
 
 # Heartbeat Header
-HEARTBEAT_REQ: str = _config["heartbeat"]["heartbeat-req"]
-HEARTBEAT_RES: str = _config["heartbeat"]["heartbeat-res"]
+HEARTBEAT_REQ: str = _config["heartbeat"]["req"]
+HEARTBEAT_RES: str = _config["heartbeat"]["res"]
 
 # Election Header
-ELECTION_REQ: str = _config["election"]["election-req"]
-ELECTION_ANS: str = _config["election"]["election-ans"]
-ELECTION_COORDINATOR: str = _config["election"]["election-coordinator"]
+ELECTION_REQ: str = _config["election"]["req"]
+ELECTION_ANS: str = _config["election"]["ans"]
+ELECTION_COORDINATOR: str = _config["election"]["coordinator"]
 
+# Auction Header
+AUCTION_ANNOUNCEMENT: str = _config["auction"]["announcement"]
 
-# Total Ordering Header
-ISIS_MESSAGE: str = _config["total_ordering_isis"]["isis-message"]
-ISIS_PROPOSED_SEQ: str = _config["total_ordering_isis"]["proposed-seq"]
-ISIS_AGREED_SEQ: str = _config["total_ordering_isis"]["agreed-seq"]
+AUCTION_INFORMATION_REPLICATION: str = _config["auction"]["information-replication"]
+AUCTION_STATE_ANNOUNCEMENT: str = _config["auction"]["state-announcement"]
+AUCTION_PEERS_ANNOUNCEMENT: str = _config["auction"]["peers-announcement"]
+AUCTION_BID: str = _config["auction"]["bid"]

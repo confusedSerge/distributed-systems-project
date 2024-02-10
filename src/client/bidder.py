@@ -25,12 +25,7 @@ from constant import (
     communication as com,
     stateid2stateobj,
     USERNAME,
-    BUFFER_SIZE,
-    TIMEOUT_RESPONSE,
-    MULTICAST_DISCOVERY_GROUP,
-    MULTICAST_DISCOVERY_PORT,
-    MULTICAST_DISCOVERY_TTL,
-    MULTICAST_AUCTION_PORT,
+    MULTICAST_AUCTION_BID_PORT,
 )
 
 
@@ -217,7 +212,7 @@ class Bidder:
         Multicast.qsend(
             message=bid.encode(),
             group=auction.get_group(),
-            port=MULTICAST_AUCTION_PORT,
+            port=MULTICAST_AUCTION_BID_PORT,
         )
         self._logger.info(
             f"{self._name}: Sent bid {bid} for auction {auction.get_id()}"

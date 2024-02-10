@@ -15,7 +15,7 @@ from .messages import (
 from util import Timeout, generate_message_id
 
 # === Constants ===
-from constant import BUFFER_SIZE, HEADER_RELIABLE_REQ, HEADER_RELIABLE_RES
+from constant import COMMUNICATION_BUFFER_SIZE, HEADER_RELIABLE_REQ, HEADER_RELIABLE_RES
 
 
 class Unicast:
@@ -52,7 +52,7 @@ class Unicast:
         self._socket.sendto(message, (str(address[0]), address[1]))
 
     def receive(
-        self, buffer_size: int = BUFFER_SIZE
+        self, buffer_size: int = COMMUNICATION_BUFFER_SIZE
     ) -> tuple[bytes, tuple[IPv4Address, int]]:
         """Receive a message from the unicast host.
 
@@ -107,7 +107,9 @@ class Unicast:
 class ReliableUnicast:
     """ReliableUnicast class for sending and receiving reliable unicast messages."""
 
-    def __init__(self, timeout: int = 1, retry: int = 5):
+    def __init__(
+        self, timeout: int = 1, retry: int = 5, no_bind: bool = False, port: int = 0
+    ):
         """Initialize the reliable unicast socket.
 
         The reliable unicast socket can be used to send messages to a specific host and port and receive messages from other hosts.
@@ -120,7 +122,7 @@ class ReliableUnicast:
         """
         self._timeout: int = timeout
         self._retry: int = retry
-        self._unicast: Unicast = Unicast(timeout=timeout)
+        self._unicast: Unicast = Unicast(timeout=timeout, no_bind=no_bind, port=port)
 
         # Duplicate protection
         self._acknowledged: set[str] = set()
@@ -173,7 +175,7 @@ class ReliableUnicast:
         self._unicast.send(message, address)
 
     def receive(
-        self, buffer_size: int = BUFFER_SIZE
+        self, buffer_size: int = COMMUNICATION_BUFFER_SIZE
     ) -> tuple[bytes, tuple[IPv4Address, int]]:
         """Receive a message from the unicast host.
 
@@ -223,7 +225,7 @@ class ReliableUnicast:
         raise TimeoutError
 
     def ureceive(
-        self, buffer_size: int = BUFFER_SIZE
+        self, buffer_size: int = COMMUNICATION_BUFFER_SIZE
     ) -> tuple[bytes, tuple[IPv4Address, int]]:
         """Receive a message from the unicast host without any reliability guarantees.
 

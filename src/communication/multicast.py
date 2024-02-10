@@ -27,12 +27,12 @@ from util import generate_message_id
 
 from constant import (
     USERNAME,
-    BUFFER_SIZE,
+    COMMUNICATION_BUFFER_SIZE,
+    REPLICA_HEARTBEAT_PERIOD,
     HEADER_RELIABLE_MULTICAST,
     HEADER_ISIS_MESSAGE,
     HEADER_ISIS_MESSAGE_PROPOSED_SEQ,
     HEADER_ISIS_MESSAGE_AGREED_SEQ,
-    TIMEOUT_HEARTBEAT,
 )
 
 
@@ -105,12 +105,12 @@ class Multicast:
         self._socket.sendto(message, self._address)
 
     def receive(
-        self, buffer_size: int = BUFFER_SIZE
+        self, buffer_size: int = COMMUNICATION_BUFFER_SIZE
     ) -> tuple[bytes, tuple[IPv4Address, int]]:
         """Receive a message from the multicast group.
 
         Args:
-            buffer_size (int): The buffer size for the received message. Defaults to BUFFER_SIZE.
+            buffer_size (int): The buffer size for the received message. Defaults to COMMUNICATION_BUFFER_SIZE.
 
         Returns:
             bytes: The received message.
@@ -559,8 +559,6 @@ class AdjustedIsisRMulticast:
             except:
                 continue
 
-            print("Sending message")
-
             # Build and send the message
             mid = self._send_message(
                 multicast_sender,
@@ -571,24 +569,16 @@ class AdjustedIsisRMulticast:
                 ),
             )
 
-            print(f"Waiting for proposed sequences for {mid}")
-
             # Wait for the proposed sequences
             largest_proposed_sequence = self._receive_proposed_sequences(
                 mid, unicast_receiver
             )
 
-            print(f"Received proposed sequences for {mid}: {largest_proposed_sequence}")
-
             # Send the agreed sequence
             self._send_agreed_sequence(mid, largest_proposed_sequence, multicast_sender)
 
-            print(f"Sent agreed sequence for {mid}")
-
-        print("Exiting sender")
         multicast_sender.close()
         unicast_receiver.close()
-        print("Exited sender")
 
     def _send_message(
         self,
@@ -630,7 +620,7 @@ class AdjustedIsisRMulticast:
         """
         largest_proposed_sequence = 0
         heartbeat = time()
-        while time() - heartbeat < 2 * TIMEOUT_HEARTBEAT:
+        while time() - heartbeat < 2 * REPLICA_HEARTBEAT_PERIOD:
             try:
                 message, _ = unicast_receiver.receive()
             except TimeoutError:
@@ -688,32 +678,23 @@ class AdjustedIsisRMulticast:
             try:
                 message, _ = multicast_receiver.deliver()
             except:
-                print(f"Exiting: {self._exit.is_set()}")
                 continue
             arrival_time = time()
-
-            print(f"Received message {message}")
 
             if not MessageSchema.of(
                 HEADER_ISIS_MESSAGE, message
             ) and not MessageSchema.of(HEADER_ISIS_MESSAGE_AGREED_SEQ, message):
-                print(f"Received message is not a ISIS message")
-                print(MessageSchema.of(HEADER_ISIS_MESSAGE, message))
-                print(MessageSchema.of(HEADER_ISIS_MESSAGE_AGREED_SEQ, message))
                 continue
 
             if MessageSchema.of(HEADER_ISIS_MESSAGE, message):
-                print(f"Received message {MessageSchema.get_id(message)}")
                 self._receive_message(
                     message, unicast_sender, holdback_queue, arrival_time
                 )
-                print(f"Sent agreed sequence for {MessageSchema.get_id(message)}")
                 continue
 
             if MessageSchema.get_id(message) not in holdback_queue:
                 continue  # not a message, where you proposed a sequence
 
-            print(f"Received agreed sequence for {MessageSchema.get_id(message)}")
             self._receive_agreed_sequence(message, holdback_queue)
             # sort the holdback queue by the agreed sequence
             holdback_queue = dict(
@@ -722,13 +703,10 @@ class AdjustedIsisRMulticast:
                     key=lambda item: item[1][0],
                 )
             )
-            print(f"Delivering messages")
             self._deliver_messages(delivery_queue, holdback_queue, arrival_time)
 
-        print("Exiting receiver")
         multicast_receiver.close()
         unicast_sender.close()
-        print("Exited receiver")
 
     def _receive_message(
         self,
@@ -750,8 +728,6 @@ class AdjustedIsisRMulticast:
             max(self._proposed_sequence, self._agreed_sequence) + 1
         )
 
-        print(f"proposed sequence {self._proposed_sequence}")
-
         # Send the proposed sequence
         isis_message = MessageIsisMessage.decode(message)
         proposed_sequence_message = MessageIsisProposedSequence(
@@ -760,8 +736,6 @@ class AdjustedIsisRMulticast:
         reply_to = (IPv4Address(isis_message.reply_to[0]), isis_message.reply_to[1])
         unicast_sender.send(proposed_sequence_message.encode(), reply_to)
 
-        print(f"Sent proposed sequence {self._proposed_sequence}")
-
         # Add the message to the holdback queue
         holdback_queue[isis_message._id] = (
             self._proposed_sequence,
@@ -769,8 +743,6 @@ class AdjustedIsisRMulticast:
             isis_message,
             arrival_time,
         )
-
-        print(f"Added message {isis_message._id} to holdback queue")
 
     def _receive_agreed_sequence(
         self,
@@ -787,13 +759,9 @@ class AdjustedIsisRMulticast:
         agreed_sequence = MessageIsisAgreedSequence.decode(message).agreed_sequence
         self._agreed_sequence = max(self._agreed_sequence, agreed_sequence)
 
-        print(f"Received agreed sequence {agreed_sequence}")
-
         # Update the message in the holdback queue
         message_id = MessageSchema.get_id(message)
         assert message_id in holdback_queue, "The message is not in the holdback queue."
-
-        print(f"Updating message {message_id}")
 
         entry = holdback_queue[message_id]
         entry = (self._agreed_sequence, True, entry[2], entry[3])
@@ -812,7 +780,6 @@ class AdjustedIsisRMulticast:
             holdback_queue (dict[int, tuple[MessageIsisMessage, bool]]): The holdback queue for messages.
             arrival_time (float): The arrival time of the message.
         """
-        print(f"Delivering messages: {holdback_queue}")
         ids_to_remove = []
         for message_id, (
             sequence,
@@ -821,14 +788,11 @@ class AdjustedIsisRMulticast:
             message_arrival_time,
         ) in holdback_queue.items():
             if agreed:
-                print(f"Delivering message {message_id}")
                 delivery_queue.put((message, message.reply_to))
                 ids_to_remove.append(message_id)
-            elif arrival_time - message_arrival_time > 2 * TIMEOUT_HEARTBEAT:
-                print(f"Removing message {message_id}")
+            elif arrival_time - message_arrival_time > 2 * REPLICA_HEARTBEAT_PERIOD:
                 ids_to_remove.append(message_id)
             else:
-                print(f"Keeping message {message_id} as not agreed yet")
                 break
 
         for message_id in ids_to_remove:

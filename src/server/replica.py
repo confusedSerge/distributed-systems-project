@@ -37,17 +37,16 @@ from util import create_logger, generate_message_id, Timeout
 
 from constant import (
     communication as com,
-    TIMEOUT_HEARTBEAT,
-    REPLICA_EMITTER_PERIOD,
-    TIMEOUT_REPLICATION,
-    TIMEOUT_RESPONSE,
-    TIMEOUT_ELECTION,
-    RELIABLE_TIMEOUT,
-    RELIABLE_ATTEMPTS,
-    REPLICA_AUCTION_POOL_SIZE,
-    BUFFER_SIZE,
     SLEEP_TIME,
-    ELECTION_PORT,
+    AUCTION_POOL_SIZE,
+    COMMUNICATION_BUFFER_SIZE,
+    COMMUNICATION_RELIABLE_RETRIES,
+    COMMUNICATION_RELIABLE_TIMEOUT,
+    REPLICA_HEARTBEAT_PERIOD,
+    REPLICA_REPLICATION_PERIOD,
+    REPLICA_REPLICATION_TIMEOUT,
+    REPLICA_ELECTION_PORT,
+    REPLICA_ELECTION_TIMEOUT,
 )
 
 
@@ -55,10 +54,6 @@ class Replica(Process):
     """Replica class.
 
     A replica is a server that is responsible for handling a single auction (in combination with other replica peers).
-
-    TODO:
-        - Implement actual election
-        - Auction Management
     """
 
     def __init__(
@@ -79,7 +74,7 @@ class Replica(Process):
 
         # Communication
         self._unicast: ReliableUnicast = ReliableUnicast(
-            timeout=RELIABLE_TIMEOUT, retry=RELIABLE_ATTEMPTS
+            timeout=COMMUNICATION_RELIABLE_TIMEOUT, retry=COMMUNICATION_RELIABLE_RETRIES
         )
 
         # Shared memory
@@ -103,7 +98,7 @@ class Replica(Process):
         self.peer_change: Event = ProcessEvent()
 
         ## Election
-        self._reelection_listener: Optional[Process] = None
+        self._reelection_listener: Optional[AuctionReelectionListener] = None
         self.reelection: Event = ProcessEvent()
         self.coordinator: Event = ProcessEvent()
 
@@ -140,21 +135,21 @@ class Replica(Process):
 
         # Start replica leader/follower tasks (heartbeat, election, etc.)
         self._logger.info(
-            f"{self._name}: Starting leader/follower tasks with auction {self.auction} and {self.peers.len()} peers"
+            f"{self._name}: Starting main loop with auction {self.auction} and {self.peers.len()} peers"
         )
 
-        self._logger.info(f"{self._name}: Holding initial election")
+        self._logger.info(
+            f"{self._name}: MAIN LOOP: ELECTION: Triggering election process as new replica"
+        )
         self.reelection.set()
         self._election()
-
-        self._logger.info(f"{self._name}: Starting main auction loop")
         self._main_auction_loop()
 
-        self._logger.info(f"{self._name}: Releasing resources")
+        self._logger.info(f"{self._name}: END: Releasing resources")
 
         self._handle_stop()
 
-        self._logger.info(f"{self._name}: Stopped")
+        self._logger.info(f"{self._name}: END: Stopped")
 
     def stop(self) -> None:
         """Stops the replica."""
@@ -171,10 +166,17 @@ class Replica(Process):
         """Handles the main auction tasks of the replica."""
         assert self.auction is not None
 
-        while not self._exit.is_set() or self.auction.is_running():
+        self._logger.info(
+            f"{self._name}: MAIN LOOP: Started for auction {self.auction}"
+        )
+        while not self._exit.is_set() and not (
+            self.auction.is_ended() or self.auction.is_cancelled()
+        ):
             # Start Leader tasks
             if self._is_leader():
-                self._logger.info(f"{self._name}: LEADER: Starting auction manager")
+                self._logger.info(
+                    f"{self._name}: MAIN LOOP: LEADER: Starting auction manager"
+                )
                 self._auction_manager = AuctionManager(self.auction)
                 self._auction_manager.start()
 
@@ -182,21 +184,29 @@ class Replica(Process):
 
             # Stop Leader tasks
             if self._is_leader() and self._auction_manager is not None:
-                self._logger.info(f"{self._name}: LEADER: Stopping auction manager")
+                self._logger.info(
+                    f"{self._name}: MAIN LOOP: LEADER: Stopping auction manager"
+                )
                 self._auction_manager.stop()
                 self._auction_manager.join()
 
             if self._replica_finder is not None and self._replica_finder.is_alive():
-                self._logger.info(f"{self._name}: LEADER: Stopping replica finder")
+                self._logger.info(
+                    f"{self._name}: MAIN LOOP: LEADER: Stopping replica finder"
+                )
                 self._replica_finder.stop()
                 self._replica_finder.join()
 
             # Start Election
             while self.reelection.is_set():
-                self._logger.info(f"{self._name}: REELECTION: Started")
+                self._logger.info(f"{self._name}: MAIN LOOP: REELECTION: Started")
                 self._election()
                 self.reelection.clear()
-                self._logger.info(f"{self._name}: REELECTION: Stopped")
+                self._logger.info(f"{self._name}: MAIN LOOP: REELECTION: Stopped")
+
+        # Auction has ended
+        self._logger.info(f"{self._name}: MAIN LOOP: Auction ended")
+        self._logger.info(f"{self._name}: MAIN LOOP: Stopped")
 
     # === PRELUDE ===
 
@@ -253,10 +263,10 @@ class Replica(Process):
         Raises:
             TimeoutError: If the auctioneer did not send the state of the auction in time.
         """
-        with Timeout(TIMEOUT_REPLICATION, throw_exception=True):
+        with Timeout(REPLICA_REPLICATION_TIMEOUT, throw_exception=True):
             while not self._exit.is_set():
                 try:
-                    message, address = self._unicast.receive(BUFFER_SIZE)
+                    message, address = self._unicast.receive(COMMUNICATION_BUFFER_SIZE)
                 except TimeoutError:
                     continue
 
@@ -294,20 +304,29 @@ class Replica(Process):
         assert self.peers is not None
 
         # Wait till initial peers are received
-        self._logger.info(f"{self._name}: Waiting for peers")
-        while not self._exit.is_set() and self.peer_change.is_set():
-            sleep(SLEEP_TIME)
+        self._logger.info(f"{self._name}: PEERS: Waiting for initial peers")
+        try:
+            with Timeout(REPLICA_REPLICATION_TIMEOUT, throw_exception=True):
+                while not self._exit.is_set() and self.peer_change.is_set():
+                    sleep(SLEEP_TIME)
+        except TimeoutError:
+            self._logger.info(f"{self._name}: PEERS: Peers not received; Exiting")
+            self.stop()
+            return
 
         if self._exit.is_set():
             self._logger.info(
-                f"{self._name}: Replica received stop signal during peer wait"
+                f"{self._name}: PEERS: Replica received stop signal during peer wait"
             )
             self._handle_stop()
             return
 
         assert self.peers.len() > 0, "No peers received, yet process event was set"
         self.peer_change.clear()
-        self._logger.info(f"{self._name}: Initial peers received")
+        sleep(SLEEP_TIME)
+        self._logger.info(
+            f"{self._name}: PEERS: Initial peers received: {[peer for peer in self.peers.iter()]}"
+        )
 
         self._logger.info(f"{self._name}: PRELUDE: Prelude finalized")
 
@@ -332,7 +351,7 @@ class Replica(Process):
             responses: dict[tuple[IPv4Address, int], bool] = {
                 replica: False
                 for replica in self.peers.iter()
-                if replica != self._unicast.get_host()
+                if replica != self._unicast.get_address()
             }
 
             # Emit heartbeat and listen for responses
@@ -358,6 +377,11 @@ class Replica(Process):
                 )
                 self._handle_unresponsive_replicas(unresponsive_peers)
 
+            self._logger.info(
+                f"{self._name}: HEARTBEAT SENDER: Sleeping one heartbeat period {REPLICA_HEARTBEAT_PERIOD}s before next heartbeat"
+            )
+            sleep(REPLICA_HEARTBEAT_PERIOD)
+
         self._logger.info(f"{self._name}: HEARTBEAT SENDER: Stopped")
 
     def _heartbeat_emit(self, replicas: dict[tuple[IPv4Address, int], bool]) -> str:
@@ -380,8 +404,8 @@ class Replica(Process):
         )
         for replica in replicas.keys():
             self._unicast.usend(heartbeat, replica)
-            self._logger.error(
-                f"{self._name}: HEARTBEAT SENDER: Timeout; Heartbeat not sent to {replica}"
+            self._logger.info(
+                f"{self._name}: HEARTBEAT SENDER: Sent heartbeat {heartbeat_id} to {replica}"
             )
 
         self._logger.info(f"{self._name}: HEARTBEAT SENDER: Heartbeats emitted")
@@ -400,14 +424,16 @@ class Replica(Process):
         self._logger.info(
             f"{self._name}: HEARTBEAT SENDER: Listening for heartbeat responses from {replicas.keys()}"
         )
-        with Timeout(TIMEOUT_HEARTBEAT, throw_exception=True):
+        with Timeout(REPLICA_HEARTBEAT_PERIOD, throw_exception=True):
             while (
                 not self.reelection.is_set()
                 and not self._exit.is_set()
                 and not all(replicas.values())
             ):
                 try:
-                    response, address = self._unicast.ureceive(BUFFER_SIZE)
+                    response, address = self._unicast.ureceive(
+                        COMMUNICATION_BUFFER_SIZE
+                    )
                 except TimeoutError:
                     continue
 
@@ -445,10 +471,12 @@ class Replica(Process):
         self._logger.info(f"{self._name}: HEARTBEAT LISTENER: Started")
         while not self.reelection.is_set() and not self._exit.is_set():
             try:
-                with Timeout(TIMEOUT_HEARTBEAT, throw_exception=True):
+                with Timeout(REPLICA_HEARTBEAT_PERIOD, throw_exception=True):
                     while not self.reelection.is_set() and not self._exit.is_set():
                         try:
-                            response, address = self._unicast.receive(BUFFER_SIZE)
+                            response, address = self._unicast.receive(
+                                COMMUNICATION_BUFFER_SIZE
+                            )
                         except TimeoutError:
                             continue
 
@@ -472,6 +500,7 @@ class Replica(Process):
                         )
 
                         break
+
             except TimeoutError:
                 self._logger.info(
                     f"{self._name}: HEARTBEAT LISTENER: Timeout; Starting election"
@@ -479,6 +508,11 @@ class Replica(Process):
                 # Initiate reelection if leader is not responding
                 self.reelection.set()
                 break
+
+            self._logger.info(
+                f"{self._name}: HEARTBEAT LISTENER: Sleeping one heartbeat period {REPLICA_HEARTBEAT_PERIOD}s before next heartbeat"
+            )
+            sleep(REPLICA_HEARTBEAT_PERIOD)
 
     # === HANDLERS ===
 
@@ -501,13 +535,13 @@ class Replica(Process):
             self.peers.remove(*replica)
 
         # Start replica finder in background if there are not enough replicas
-        if self.peers.len() <= REPLICA_AUCTION_POOL_SIZE:
+        if self.peers.len() <= AUCTION_POOL_SIZE:
             if self._replica_finder is None or not self._replica_finder.is_alive():
                 self._logger.info(
                     f"{self._name}: HEARTBEAT SENDER: Starting replica finder"
                 )
                 self._replica_finder = ReplicationManager(
-                    self.auction, self.peers, REPLICA_EMITTER_PERIOD
+                    self.auction, self.peers, REPLICA_REPLICATION_PERIOD
                 )
             else:
                 self._logger.info(
@@ -591,12 +625,14 @@ class Replica(Process):
         )
 
         # Election Listener
-        self._reelection_listener: Optional[Process] = AuctionReelectionListener(
-            self.get_id(),
-            self.leader,
-            self.reelection,
-            self.coordinator,
-            self.auction.get_id(),
+        self._reelection_listener: Optional[AuctionReelectionListener] = (
+            AuctionReelectionListener(
+                self.get_id(),
+                self.leader,
+                self.reelection,
+                self.coordinator,
+                self.auction.get_id(),
+            )
         )
 
         # Start listeners
@@ -633,6 +669,13 @@ class Replica(Process):
             self._auction_bid_listener.stop()
             self._auction_bid_listener.join()
 
+        if (
+            self._reelection_listener is not None
+            and self._reelection_listener.is_alive()
+        ):
+            self._reelection_listener.stop()
+            self._reelection_listener.join()
+
         self._logger.info(f"{self._name}: Listeners stopped")
 
     def _is_leader(self) -> bool:
@@ -647,13 +690,26 @@ class Replica(Process):
 
         The election is triggered either by the reelection signal or by the absence of a heartbeat from the leader.
         """
-        assert self.auction is not None
-        assert self.peers is not None
-        assert self.leader is not None
+        if self.auction is None or self.peers is None or self.leader is None:
+            self._logger.error(
+                f"{self._name}: ELECTION: Auction, peers or leader is None"
+            )
+            exit(1)
 
-        assert self.reelection.is_set()
-        assert self._reelection_listener is not None
-        assert self._reelection_listener.is_alive()
+        if not self.reelection.is_set():
+            self._logger.error(
+                f"{self._name}: ELECTION: Received election signal without reelection signal set"
+            )
+            return
+
+        if (
+            self._reelection_listener is None
+            or not self._reelection_listener.is_alive()
+        ):
+            self._logger.error(
+                f"{self._name}: ELECTION: Reelection listener is None or not alive"
+            )
+            exit(1)
 
         self._logger.info(f"{self._name}: ELECTION: Started")
         self.reelection.clear()  # Clear reelection signal to track if reelection needs to be started again
@@ -717,10 +773,12 @@ class Replica(Process):
             _id=generate_message_id(self.auction.get_id()), req_id=self.get_id()
         )
         for replica in self.peers.iter():
+            if replica == self._unicast.get_address():
+                continue
             try:
                 self._unicast.send(
                     message=coordinator_message.encode(),
-                    address=(replica[0], ELECTION_PORT),
+                    address=(replica[0], REPLICA_ELECTION_PORT),
                 )
             except TimeoutError:
                 self._logger.error(
@@ -746,7 +804,7 @@ class Replica(Process):
             try:
                 self._unicast.send(
                     message=election_message.encode(),
-                    address=(replica[0], ELECTION_PORT),
+                    address=(replica[0], REPLICA_ELECTION_PORT),
                 )
             except TimeoutError:
                 self._logger.error(
@@ -766,10 +824,10 @@ class Replica(Process):
         Raises:
             TimeoutError: raised if no response is received from the higher priority replicas.
         """
-        with Timeout(TIMEOUT_RESPONSE, throw_exception=False):
+        with Timeout(REPLICA_ELECTION_TIMEOUT, throw_exception=False):
             while not self._exit.is_set():
                 try:
-                    response, address = self._unicast.receive(BUFFER_SIZE)
+                    response, address = self._unicast.receive(COMMUNICATION_BUFFER_SIZE)
                 except TimeoutError:
                     continue
 
@@ -785,6 +843,8 @@ class Replica(Process):
                 if answer.req_id < self.get_id():
                     continue
 
+                break
+
     def _wait_coordinator_message(self) -> None:
         """Waits for a coordinator message from the higher priority replica.
 
@@ -792,7 +852,7 @@ class Replica(Process):
             TimeoutError: raised if no coordinator message is received from the higher priority replica.
         """
         self._logger.info(f"{self._name}: ELECTION: Waiting for coordinator message")
-        self.coordinator.wait(TIMEOUT_ELECTION)
+        self.coordinator.wait(REPLICA_ELECTION_TIMEOUT)
         if not self.coordinator.is_set():
             raise TimeoutError
         self.coordinator.clear()

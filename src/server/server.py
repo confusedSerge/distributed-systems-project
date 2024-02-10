@@ -12,11 +12,11 @@ from util import create_logger
 
 from constant import (
     communication as com,
-    TIMEOUT_RECEIVE,
-    BUFFER_SIZE,
+    COMMUNICATION_TIMEOUT,
+    COMMUNICATION_BUFFER_SIZE,
     MULTICAST_DISCOVERY_GROUP,
     MULTICAST_DISCOVERY_PORT,
-    REPLICA_LOCAL_POOL_SIZE,
+    SERVER_POOL_SIZE,
 )
 
 # === Local Modules ===
@@ -55,20 +55,20 @@ class Server(Process):
         mc: Multicast = Multicast(
             group=MULTICAST_DISCOVERY_GROUP,
             port=MULTICAST_DISCOVERY_PORT,
-            timeout=TIMEOUT_RECEIVE,
+            timeout=COMMUNICATION_TIMEOUT,
         )
 
         self._logger.info(f"{self._prefix}: Listening for replica requests")
         while not self._exit.is_set():
             try:
-                message, address = mc.receive(BUFFER_SIZE)
+                message, address = mc.receive(COMMUNICATION_BUFFER_SIZE)
             except TimeoutError:
                 continue
 
             # Ignore if message is not a replica request, if the pool is full, or if the message has already been seen
             if (
                 not MessageSchema.of(com.HEADER_FIND_REPLICA_REQ, message)
-                or len(self._replica_pool) >= REPLICA_LOCAL_POOL_SIZE
+                or len(self._replica_pool) >= SERVER_POOL_SIZE
                 or MessageSchema.get_id(message) in self._seen_message_ids
             ):
                 continue

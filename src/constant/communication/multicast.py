@@ -10,12 +10,22 @@ DISCOVERY_PORT: int = int(_config["discovery"]["port"])
 DISCOVERY_TTL: int = int(_config["discovery"]["ttl"])
 
 # Multicast Auction
-AUCTION_GROUP_BASE: IPv4Network = IPv4Network(_config["auction"]["group_base"])
-AUCTION_PORT: int = int(_config["auction"]["port"])
-AUCTION_TTL: int = int(_config["auction"]["ttl"])
+_auction = _config["auction"]
 
-# Multicast Auction Discovery
-ANNOUNCEMENT_PERIOD: float = float(_config["auction"]["announcement_period"])
-HIGH_FREQUENCY_ANNOUNCEMENT_PERIOD: float = float(
-    _config["auction"]["high_frequency_announcement_period"]
-)
+AUCTION_GROUP_BASE: IPv4Network = IPv4Network(_auction["group_base"])
+AUCTION_PORT: int = int(_auction["port"])
+AUCTION_TTL: int = int(_auction["ttl"])
+
+# Auction Announcement
+AUCTION_ANNOUNCEMENT_PORT: int = int(_auction["announcement"]["port"])
+AUCTION_ANNOUNCEMENT_PERIOD: int = int(_auction["announcement"]["period_base"])
+AUCTION_ANNOUNCEMENT_PERIOD_HF: int = int(_auction["announcement"]["period_hf"])
+
+# Auction Peers Announcement
+AUCTION_PEERS_ANNOUNCEMENT_PORT: int = int(_auction["peers"]["port"])
+
+# Auction State Announcement
+AUCTION_STATE_ANNOUNCEMENT_PORT: int = int(_auction["state"]["port"])
+
+# Auction Bid
+AUCTION_BID_PORT: int = int(_auction["bid"]["port"])
