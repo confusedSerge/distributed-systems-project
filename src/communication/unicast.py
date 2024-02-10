@@ -74,6 +74,9 @@ class Unicast:
         Returns:
             bytes: The received message.
             tuple[str, int]: The address of the sender.
+
+        Raises:
+            TimeoutError: If no message is received on time and timeout is set.
         """
         assert not self._no_bind, "Cannot receive on unbound socket"
         message, address = self._socket.recvfrom(buffer_size)
@@ -170,15 +173,14 @@ class ReliableUnicast:
         for _ in range(self._retry):
             try:
                 self._unicast.send(wrapped_message, address)
-                with Timeout(self._timeout, throw_exception=True):
-                    message, from_address = self._unicast.receive()
+                message, from_address = self._unicast.receive()
 
-                    if (
-                        address == from_address
-                        and MessageSchema.of(HEADER_RELIABLE_RES, message=message)
-                        and MessageSchema.get_id(message=message) == message_id
-                    ):
-                        return
+                if (
+                    address == from_address
+                    and MessageSchema.of(HEADER_RELIABLE_RES, message=message)
+                    and MessageSchema.get_id(message=message) == message_id
+                ):
+                    return
             except TimeoutError:
                 pass
 

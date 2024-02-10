@@ -243,9 +243,7 @@ class Replica(Process):
 
         # Wait for auctioneer to send auction information, or timeout
         self._logger.info(f"{self._prefix}: PRELUDE: Waiting for auction information")
-        try:
-            self._wait_information()
-        except TimeoutError:
+        if self._wait_information():
             self._logger.info(
                 f"{self._prefix}: PRELUDE: Auction information not received; Exiting"
             )
@@ -257,39 +255,43 @@ class Replica(Process):
 
         self._logger.info(f"{self._prefix}: PRELUDE: Prelude concluded")
 
-    def _wait_information(self) -> None:
+    def _wait_information(self) -> bool:
         """Waits for the auctioneer to send the state of the auction.
 
         Raises:
             TimeoutError: If the auctioneer did not send the state of the auction in time.
         """
-        with Timeout(REPLICA_REPLICATION_TIMEOUT, throw_exception=True):
-            while not self._exit.is_set():
-                try:
-                    message, address = self._unicast.receive(COMMUNICATION_BUFFER_SIZE)
-                except TimeoutError:
-                    continue
+        self._logger.info(f"{self._prefix}: PRELUDE: Waiting for auction information")
 
-                if (
-                    not MessageSchema.of(
-                        com.HEADER_AUCTION_INFORMATION_REPLICATION, message
-                    )
-                    or MessageSchema.get_id(message) != self._initial_request._id
-                    or address != self._initial_sender
-                ):
-                    continue
+        end_time = time() + REPLICA_REPLICATION_TIMEOUT
 
-                response: MessageAuctionInformationReplication = (
-                    MessageAuctionInformationReplication.decode(message)
+        while not self._exit.is_set() and time() <= end_time:
+            try:
+                message, address = self._unicast.receive(COMMUNICATION_BUFFER_SIZE)
+            except TimeoutError:
+                continue
+
+            if (
+                not MessageSchema.of(
+                    com.HEADER_AUCTION_INFORMATION_REPLICATION, message
                 )
+                or MessageSchema.get_id(message) != self._initial_request._id
+                or address != self._initial_sender
+            ):
+                continue
 
-                self._handle_auction_information_message(response)
+            response: MessageAuctionInformationReplication = (
+                MessageAuctionInformationReplication.decode(message)
+            )
 
-                break
+            self._handle_auction_information_message(response)
 
             self._logger.info(
                 f"{self._prefix}: PRELUDE: Auction information received: {self.auction}"
             )
+            return True
+
+        return False
 
     def _finalize_prelude(self) -> None:
         """Finalizes the prelude by starting the listeners and
@@ -305,11 +307,15 @@ class Replica(Process):
 
         # Wait till initial peers are received
         self._logger.info(f"{self._prefix}: PEERS: Waiting for initial peers")
-        try:
-            with Timeout(REPLICA_REPLICATION_TIMEOUT, throw_exception=True):
-                while not self._exit.is_set() and self.peer_change.is_set():
-                    sleep(SLEEP_TIME)
-        except TimeoutError:
+        end_time = time() + REPLICA_REPLICATION_TIMEOUT
+        while (
+            not self._exit.is_set()
+            and not self.peer_change.is_set()
+            and time() <= end_time
+        ):
+            sleep(SLEEP_TIME)
+
+        if not self.peer_change.is_set():
             self._logger.info(f"{self._prefix}: PEERS: Peers not received; Exiting")
             self.stop()
             return
@@ -356,12 +362,7 @@ class Replica(Process):
 
             # Emit heartbeat and listen for responses
             heartbeat_id: str = self._heartbeat_emit(responses)
-            try:
-                self._heartbeat_response_listener(heartbeat_id, responses)
-            except TimeoutError:
-                self._logger.info(
-                    f"{self._prefix}: HEARTBEAT SENDER: Timeout; Certain peers are unresponsive"
-                )
+            self._heartbeat_response_listener(heartbeat_id, responses)
 
             # Check if peer change or exit signal was set during heartbeat
             if self.reelection.is_set() or self._exit.is_set():
@@ -424,42 +425,42 @@ class Replica(Process):
         self._logger.info(
             f"{self._prefix}: HEARTBEAT SENDER: Listening for heartbeat responses from {replicas.keys()}"
         )
-        with Timeout(REPLICA_HEARTBEAT_PERIOD, throw_exception=True):
-            while (
-                not self.reelection.is_set()
-                and not self._exit.is_set()
-                and not all(replicas.values())
-            ):
-                try:
-                    response, address = self._unicast.ureceive(
-                        COMMUNICATION_BUFFER_SIZE
-                    )
-                except TimeoutError:
-                    continue
 
-                if not MessageSchema.of(com.HEADER_HEARTBEAT_RES, response):
-                    continue
+        end_time = time() + REPLICA_HEARTBEAT_PERIOD
+        while (
+            not self.reelection.is_set()
+            and not self._exit.is_set()
+            and not all(replicas.values())
+            and time() <= end_time
+        ):
+            try:
+                response, address = self._unicast.ureceive(COMMUNICATION_BUFFER_SIZE)
+            except TimeoutError:
+                continue
 
-                heartbeat_response: MessageHeartbeatResponse = (
-                    MessageHeartbeatResponse.decode(response)
-                )
+            if not MessageSchema.of(com.HEADER_HEARTBEAT_RES, response):
+                continue
 
-                if heartbeat_response._id != heartbeat_id:
-                    self._logger.info(
-                        f"{self._prefix}: HEARTBEAT SENDER: Received heartbeat {heartbeat_response._id} for another heartbeat {heartbeat_id}"
-                    )
-                    continue
+            heartbeat_response: MessageHeartbeatResponse = (
+                MessageHeartbeatResponse.decode(response)
+            )
 
-                if address not in replicas.keys():
-                    self._logger.error(
-                        f"{self._prefix}: HEARTBEAT SENDER: Received heartbeat from unknown replica {address}"
-                    )
-                    continue
-
+            if heartbeat_response._id != heartbeat_id:
                 self._logger.info(
-                    f"{self._prefix}: HEARTBEAT SENDER: Received heartbeat {heartbeat_response._id} from {address}"
+                    f"{self._prefix}: HEARTBEAT SENDER: Received heartbeat {heartbeat_response._id} for another heartbeat {heartbeat_id}"
                 )
-                replicas[address] = True
+                continue
+
+            if address not in replicas.keys():
+                self._logger.error(
+                    f"{self._prefix}: HEARTBEAT SENDER: Received heartbeat from unknown replica {address}"
+                )
+                continue
+
+            self._logger.info(
+                f"{self._prefix}: HEARTBEAT SENDER: Received heartbeat {heartbeat_response._id} from {address}"
+            )
+            replicas[address] = True
 
     def _heartbeat_listener(self) -> None:
         """Handles the heartbeat listener of the replica.
@@ -470,49 +471,55 @@ class Replica(Process):
 
         self._logger.info(f"{self._prefix}: HEARTBEAT LISTENER: Started")
         while not self.reelection.is_set() and not self._exit.is_set():
-            try:
-                with Timeout(REPLICA_HEARTBEAT_PERIOD, throw_exception=True):
-                    while not self.reelection.is_set() and not self._exit.is_set():
-                        try:
-                            response, address = self._unicast.ureceive(
-                                COMMUNICATION_BUFFER_SIZE
-                            )
-                        except TimeoutError:
-                            continue
+            end_time = time() + REPLICA_HEARTBEAT_PERIOD
 
-                        if (
-                            not MessageSchema.of(com.HEADER_HEARTBEAT_REQ, response)
-                            or address != self.leader
-                        ):
-                            continue
+            while (
+                not self.reelection.is_set()
+                and not self._exit.is_set()
+                and time() <= end_time
+            ):
+                try:
+                    response, address = self._unicast.ureceive(
+                        COMMUNICATION_BUFFER_SIZE
+                    )
+                except TimeoutError:
+                    continue
 
-                        heartbeat: MessageHeartbeatRequest = (
-                            MessageHeartbeatRequest.decode(response)
-                        )
-                        # For heartbeats, it is enough to just respond without reliability
-                        self._unicast.usend(
-                            MessageHeartbeatResponse(_id=heartbeat._id).encode(),
-                            self.leader.get(),
-                        )
+                if (
+                    not MessageSchema.of(com.HEADER_HEARTBEAT_REQ, response)
+                    or address != self.leader
+                ):
+                    continue
 
-                        self._logger.info(
-                            f"{self._prefix}: HEARTBEAT LISTENER: Received heartbeat {heartbeat._id} from {address}; Responded"
-                        )
-
-                        break
-
-            except TimeoutError:
-                self._logger.info(
-                    f"{self._prefix}: HEARTBEAT LISTENER: Timeout; Starting election"
+                heartbeat: MessageHeartbeatRequest = MessageHeartbeatRequest.decode(
+                    response
                 )
-                # Initiate reelection if leader is not responding
-                self.reelection.set()
-                break
+                # For heartbeats, it is enough to just respond without reliability
+                self._unicast.usend(
+                    MessageHeartbeatResponse(_id=heartbeat._id).encode(),
+                    self.leader.get(),
+                )
+
+                self._logger.info(
+                    f"{self._prefix}: HEARTBEAT LISTENER: Received heartbeat {heartbeat._id} from {address}; Responded"
+                )
+
+                self._logger.info(
+                    f"{self._prefix}: HEARTBEAT LISTENER: Sleeping one heartbeat period {REPLICA_HEARTBEAT_PERIOD}s before next heartbeat"
+                )
+
+                sleep(REPLICA_HEARTBEAT_PERIOD)
+                end_time = time() + REPLICA_HEARTBEAT_PERIOD
+
+            if self.reelection.is_set() or self._exit.is_set():
+                return
 
             self._logger.info(
-                f"{self._prefix}: HEARTBEAT LISTENER: Sleeping one heartbeat period {REPLICA_HEARTBEAT_PERIOD}s before next heartbeat"
+                f"{self._prefix}: HEARTBEAT LISTENER: Timeout; Starting election"
             )
-            sleep(REPLICA_HEARTBEAT_PERIOD)
+            # Initiate reelection if leader is not responding
+            self.reelection.set()
+            break
 
     # === HANDLERS ===
 
@@ -820,11 +827,8 @@ class Replica(Process):
         self._logger.info(
             f"{self._prefix}: ELECTION: Waiting for election responses from higher priority replicas"
         )
-        start_time = time()
-        answer_received_higher_priority_replicas: bool = False
-        while (
-            not self._exit.is_set() and start_time + REPLICA_ELECTION_TIMEOUT > time()
-        ):
+        end_time = time() + REPLICA_ELECTION_TIMEOUT
+        while not self._exit.is_set() and time() <= end_time:
             try:
                 response, address = self._unicast.receive(COMMUNICATION_BUFFER_SIZE)
             except TimeoutError:
@@ -848,9 +852,10 @@ class Replica(Process):
             self._logger.info(
                 f"{self._prefix}: ELECTION: Received election answer from {address} with higher id ({self.get_id()}, (Stopping)): {answer}"
             )
-            answer_received_higher_priority_replicas = True
-            break
-        return answer_received_higher_priority_replicas
+
+            return True
+
+        return False
 
     def _wait_coordinator_message(self) -> None:
         """Waits for a coordinator message from the higher priority replica.

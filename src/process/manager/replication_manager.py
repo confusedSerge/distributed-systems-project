@@ -2,7 +2,7 @@ from ipaddress import IPv4Address
 
 from multiprocessing import Process, Event as ProcessEvent
 from multiprocessing.synchronize import Event
-from time import sleep
+from time import sleep, time
 
 from logging import Logger
 
@@ -19,7 +19,7 @@ from communication import (
     MessageAuctionInformationReplication,
 )
 from model import Auction, AuctionPeersStore
-from util import create_logger, generate_message_id, Timeout
+from util import create_logger, generate_message_id
 
 from constant import (
     communication as com,
@@ -163,35 +163,36 @@ class ReplicationManager(Process):
         new_replicas: list[tuple[IPv4Address, int]] = []
 
         self._logger.info(f"{self._prefix}: Finding replicas")
-        with Timeout(REPLICA_REPLICATION_TIMEOUT, throw_exception=True):
-            while (
-                self._peers.len() + len(new_replicas) < AUCTION_POOL_SIZE
-                and not self._exit.is_set()
+        end_time = time() + REPLICA_REPLICATION_TIMEOUT
+        while (
+            self._peers.len() + len(new_replicas) < AUCTION_POOL_SIZE
+            and time() <= end_time
+            and not self._exit.is_set()
+        ):
+            # Receive find replica response
+            try:
+                message, address = uc.receive(COMMUNICATION_BUFFER_SIZE)
+            except TimeoutError:
+                continue
+
+            # Ignore if message is not a find replica response or if the message is not for this replica finder
+            if (
+                not MessageSchema.of(com.HEADER_FIND_REPLICA_RES, message)
+                or MessageSchema.get_id(message) != message_id
+                or address in seen_addresses
             ):
-                # Receive find replica response
-                try:
-                    message, address = uc.receive(COMMUNICATION_BUFFER_SIZE)
-                except TimeoutError:
-                    continue
+                continue
 
-                # Ignore if message is not a find replica response or if the message is not for this replica finder
-                if (
-                    not MessageSchema.of(com.HEADER_FIND_REPLICA_RES, message)
-                    or MessageSchema.get_id(message) != message_id
-                    or address in seen_addresses
-                ):
-                    continue
+            response: MessageFindReplicaResponse = MessageFindReplicaResponse.decode(
+                message
+            )
 
-                response: MessageFindReplicaResponse = (
-                    MessageFindReplicaResponse.decode(message)
-                )
-
-                # Send find replica acknowledgement and add replica to list
-                self._logger.info(
-                    f"{self._prefix}: Received find replica response {response} from {address}. Adding to list of new replicas."
-                )
-                new_replicas.append(address)
-                seen_addresses.append(address)
+            # Send find replica acknowledgement and add replica to list
+            self._logger.info(
+                f"{self._prefix}: Received find replica response {response} from {address}. Adding to list of new replicas."
+            )
+            new_replicas.append(address)
+            seen_addresses.append(address)
 
         return new_replicas
 
