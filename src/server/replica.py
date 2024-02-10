@@ -719,9 +719,9 @@ class Replica(Process):
 
         # Get the id of this replica
         # Check if there's any replica with higher priority
-        my_priority: int = self._unicast.get_address()[1]
+        my_priority: tuple[IPv4Address, int] = self._unicast.get_address()
         higher_priority_replicas = [
-            replica for replica in self.peers.iter() if replica[1] > my_priority
+            replica for replica in self.peers.iter() if replica > my_priority
         ]
 
         if not higher_priority_replicas:
@@ -821,10 +821,13 @@ class Replica(Process):
         Returns:
             bool: True if an answer was received from a higher priority replica, False otherwise.
         """
+        self._logger.info(
+            f"{self._prefix}: ELECTION: Waiting for election responses from higher priority replicas"
+        )
         start_time = time()
         answer_received_higher_priority_replicas: bool = False
         while (
-            not self._exit.is_set() and time() - start_time < REPLICA_ELECTION_TIMEOUT
+            not self._exit.is_set() and start_time + REPLICA_ELECTION_TIMEOUT < time()
         ):
             try:
                 response, address = self._unicast.receive(COMMUNICATION_BUFFER_SIZE)
