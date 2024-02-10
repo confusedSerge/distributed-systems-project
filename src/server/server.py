@@ -43,7 +43,7 @@ class Server(Process):
         self._prefix: str = f"{self._name}"
         self._logger: Logger = create_logger(self._name.lower())
 
-        self._replica_pool: list[Replica] = []
+        self._replica_pool: list[tuple[Replica, Event]] = []
         self._seen_auctions: list[str] = []
 
         self._logger.info(f"{self._prefix}: Initialized")
@@ -64,6 +64,14 @@ class Server(Process):
             try:
                 message, address = mc.receive(COMMUNICATION_BUFFER_SIZE)
             except TimeoutError:
+                # Check if process can be removed from pool
+                for replica, stopped in self._replica_pool:
+                    if stopped.is_set():
+                        self._logger.info(
+                            f"{self._prefix}: Replica stopped and removed from pool: {replica.get_id()}"
+                        )
+                        self._replica_pool.remove((replica, stopped))
+                        break
                 continue
 
             # Ignore if message is not a replica request, if the pool is full, or if the message has already been seen
@@ -96,11 +104,14 @@ class Server(Process):
                 continue
 
             # Create replica and add to pool
+            stopped_processes: Event = ProcessEvent()
             replica = Replica(
-                request=find_req, sender=(IPv4Address(address[0]), find_req.port)
+                request=find_req,
+                sender=(IPv4Address(address[0]), find_req.port),
+                stopped=stopped_processes,
             )
             replica.start()
-            self._replica_pool.append(replica)
+            self._replica_pool.append((replica, stopped_processes))
             self._seen_auctions.append(auction_id)
 
             self._logger.info(
@@ -116,10 +127,10 @@ class Server(Process):
         mc.close()
 
         # Release all replicas
-        for replica in self._replica_pool:
+        for replica, stopped in self._replica_pool:
             replica.stop()
 
-        for replica in self._replica_pool:
+        for replica, stopped in self._replica_pool:
             replica.join()
 
         self._logger.info(f"{self._prefix}: Stopped")

@@ -57,10 +57,14 @@ class Replica(Process):
     """
 
     def __init__(
-        self, request: MessageFindReplicaRequest, sender: tuple[IPv4Address, int]
+        self,
+        request: MessageFindReplicaRequest,
+        sender: tuple[IPv4Address, int],
+        stopped: Event,
     ) -> None:
         """Initializes the replica class."""
         super(Replica, self).__init__()
+        self.stopped: Event = stopped
         self._exit: Event = ProcessEvent()
 
         self._name: str = self.__class__.__name__.lower()
@@ -142,7 +146,8 @@ class Replica(Process):
             f"{self._prefix}: MAIN LOOP: ELECTION: Triggering election process as new replica"
         )
         self.reelection.set()
-        self._election()
+        while self.reelection.is_set():
+            self._election()
         self._main_auction_loop()
 
         self._logger.info(f"{self._prefix}: END: Releasing resources")
@@ -194,7 +199,6 @@ class Replica(Process):
             while self.reelection.is_set():
                 self._logger.info(f"{self._prefix}: MAIN LOOP: REELECTION: Started")
                 self._election()
-                self.reelection.clear()
                 self._logger.info(f"{self._prefix}: MAIN LOOP: REELECTION: Stopped")
 
         # Auction has ended
@@ -626,6 +630,8 @@ class Replica(Process):
 
         self.manager_running.clear()
         self.manager.shutdown()
+
+        self.stopped.set()
 
     # === HELPERS ===
 
