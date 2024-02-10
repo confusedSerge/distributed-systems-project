@@ -451,14 +451,12 @@ class AdjustedIsisRMulticast:
     """Adjusted ISIS R-Multicast class for sending and receiving reliable messages over multicast.
 
     This class implements an adjusted ISIS protocol for reliable total order multicast.
-    Adjusted is due to the changes in the protocol to fit 'open' multicast groups.
+    Adjusted is due to the changes in the protocol to fit open multicast groups.
 
     This 'open' group can be seen when a client sends messages inside an auction group.
-    Also, this open group is not actually open, as clients do join the group.
-    However, a client does not participate in ordering messages of other clients.
-    Only replicas participate in ordering messages of clients and replicas.
-
-    This allows for a more efficient protocol, as clients do not need to participate in ordering messages.
+    A client does not participate in ordering messages of other clients, it does not even receive them.
+    Only replicas participate in receiving and ordering messages of clients and replicas.
+    This allows for a more efficient protocol.
     Futhermore, there is no need for an internal heartbeat, as replicas are managed by the leader with heartbeats.
     This allows to upper bound responses to 2 * HEARTBEAT_TIMEOUT, as at that point, a replica is considered dead.
     Also, a client non agreed message can be removed after 2 * HEARTBEAT_TIMEOUT, as at this point, the client can be considered dead if it did not send the agreed message.
