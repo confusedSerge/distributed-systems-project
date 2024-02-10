@@ -162,12 +162,12 @@ class AuctionReelectionListener(Process):
         """
         if self._own_id < message.req_id:
             self._logger.info(
-                f"{self._prefix}: Received election request with higher id ({self._own_id}, (Ignored)): {message}"
+                f"{self._prefix}: Received election request with higher id (own: {self._own_id}, other: {message.req_id}, (Ignored)): {message}"
             )
             return
 
         self._logger.info(
-            f"{self._prefix}: Received election request with lower id ({self._own_id}, (Answered)): {message}"
+            f"{self._prefix}: Received election request with lower id (own: {self._own_id}, other: {message.req_id}, (Answered)): {message}"
         )
         answer: MessageElectionAnswer = MessageElectionAnswer(
             _id=message._id,
@@ -191,13 +191,13 @@ class AuctionReelectionListener(Process):
         """
         if self._own_id < message.req_id:
             self._logger.info(
-                f"{self._prefix}: Received coordinator message with higher id ({self._own_id}, (New Leader)): {message}"
+                f"{self._prefix}: Received coordinator message with higher id (own: {self._own_id}, other: {message.req_id}, (New Leader)): {message}"
             )
             self._leader.set(*address)
             self._coordinator.set()
             return
 
         self._logger.info(
-            f"{self._prefix}: Received coordinator message with lower id ({self._own_id}, (Reelection)): {message}"
+            f"{self._prefix}: Received coordinator message with lower id (own: {self._own_id}, other: {message.req_id}, (Reelection)): {message}"
         )
         self._reelect.set()
