@@ -142,14 +142,7 @@ class Replica(Process):
             f"{self._prefix}: MAIN LOOP: ELECTION: Triggering election process as new replica"
         )
         self.reelection.set()
-        # sleep_time = (
-        #     time()
-        #     + COMMUNICATION_RELIABLE_RETRIES
-        #     * COMMUNICATION_RELIABLE_RETRIES
-        #     * len(REPLICA_ELECTION_PORTS)
-        # )
         self._election()
-        # sleep(sleep_time - time())
         self._main_auction_loop()
 
         self._logger.info(f"{self._prefix}: END: Releasing resources")
@@ -207,14 +200,7 @@ class Replica(Process):
             # Start Election
             while self.reelection.is_set():
                 self._logger.info(f"{self._prefix}: MAIN LOOP: REELECTION: Started")
-                # sleep_time = (
-                #     time()
-                #     + COMMUNICATION_RELIABLE_RETRIES
-                #     * COMMUNICATION_RELIABLE_RETRIES
-                #     * len(REPLICA_ELECTION_PORTS)
-                # )
                 self._election()
-                # sleep(sleep_time - time())
                 self.reelection.clear()
                 self._logger.info(f"{self._prefix}: MAIN LOOP: REELECTION: Stopped")
 
@@ -502,8 +488,11 @@ class Replica(Process):
 
                 if (
                     not MessageSchema.of(com.HEADER_HEARTBEAT_REQ, response)
-                    or address != self.leader
+                    or address != self.leader.get()
                 ):
+                    self._logger.info(
+                        f"{self._prefix}: HEARTBEAT LISTENER: Received heartbeat from unknown replica {address} (({self.leader.get()}), (Ignoring)): {response}"
+                    )
                     continue
 
                 heartbeat: MessageHeartbeatRequest = MessageHeartbeatRequest.decode(
