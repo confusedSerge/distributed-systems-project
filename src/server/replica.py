@@ -190,13 +190,6 @@ class Replica(Process):
                 self._auction_manager.stop()
                 self._auction_manager.join()
 
-            if self._replica_finder is not None and self._replica_finder.is_alive():
-                self._logger.info(
-                    f"{self._prefix}: MAIN LOOP: LEADER: Stopping replica finder"
-                )
-                self._replica_finder.stop()
-                self._replica_finder.join()
-
             # Start Election
             while self.reelection.is_set():
                 self._logger.info(f"{self._prefix}: MAIN LOOP: REELECTION: Started")
@@ -340,10 +333,12 @@ class Replica(Process):
 
     def _heartbeat(self) -> None:
         """Handles the heartbeat of the replica."""
-        if self._is_leader():
-            self._heartbeat_sender()
-        else:
-            self._heartbeat_listener()
+        while not self._exit.is_set() and not self.reelection.is_set():
+            self.coordinator.clear()
+            if self._is_leader():
+                self._heartbeat_sender()
+            else:
+                self._heartbeat_listener()
 
     def _heartbeat_sender(self) -> None:
         """Handles the heartbeat emission of heartbeats and removal of unresponsive replicas."""
@@ -354,6 +349,7 @@ class Replica(Process):
 
         while (
             not self.reelection.is_set()
+            and not self.coordinator.is_set()
             and not self._exit.is_set()
             and (not self.auction.is_ended() or not self.auction.is_cancelled())
         ):
@@ -388,6 +384,9 @@ class Replica(Process):
             )
             sleep(REPLICA_HEARTBEAT_PERIOD)
 
+        if self._replica_finder is not None and self._replica_finder.is_alive():
+            self._replica_finder.stop()
+            self._replica_finder.join()
         self._logger.info(f"{self._prefix}: HEARTBEAT SENDER: Stopped")
 
     def _heartbeat_emit(self, replicas: dict[tuple[IPv4Address, int], bool]) -> str:
@@ -436,6 +435,7 @@ class Replica(Process):
         end_time = time() + REPLICA_HEARTBEAT_PERIOD
         while (
             not self.reelection.is_set()
+            and not self.coordinator.is_set()
             and not self._exit.is_set()
             and not all(replicas.values())
             and time() <= end_time
@@ -480,11 +480,16 @@ class Replica(Process):
         assert self.peers is not None
 
         self._logger.info(f"{self._prefix}: HEARTBEAT LISTENER: Started")
-        while not self.reelection.is_set() and not self._exit.is_set():
+        while (
+            not self.reelection.is_set()
+            and not self.coordinator.is_set()
+            and not self._exit.is_set()
+        ):
             end_time = time() + REPLICA_HEARTBEAT_PERIOD
 
             while (
                 not self.reelection.is_set()
+                and not self.coordinator.is_set()
                 and not self._exit.is_set()
                 and time() <= end_time
                 and (not self.auction.is_ended() or not self.auction.is_cancelled())
@@ -525,7 +530,11 @@ class Replica(Process):
                 sleep(REPLICA_HEARTBEAT_PERIOD)
                 end_time = time() + REPLICA_HEARTBEAT_PERIOD
 
-            if self.reelection.is_set() or self._exit.is_set():
+            if (
+                self.reelection.is_set()
+                or self.coordinator.is_set()
+                or self._exit.is_set()
+            ):
                 return
 
             self._logger.info(
