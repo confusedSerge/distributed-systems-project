@@ -79,7 +79,9 @@ class AuctionReelectionListener(Process):
 
     def run(self) -> None:
         """Runs the auction reelection listener process."""
-        self._logger.info(f"{self._prefix}: Initialized for {self._auction_id}")
+        self._logger.info(
+            f"{self._prefix}: Initialized for {self._auction_id} with id {self._own_id}"
+        )
 
         self._logger.info(f"{self._prefix}: Started")
         uc: ReliableUnicast = ReliableUnicast(

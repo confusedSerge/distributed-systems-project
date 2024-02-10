@@ -4,7 +4,7 @@ from ipaddress import IPv4Address
 
 from multiprocessing import Process, Event as ProcessEvent
 from multiprocessing.synchronize import Event
-from time import sleep
+from time import sleep, time
 
 from logging import Logger
 
@@ -735,9 +735,8 @@ class Replica(Process):
         message_id: str = self._send_election_request(higher_priority_replicas)
 
         # wait for responses
-        try:
-            self._wait_election_responses(higher_priority_replicas, message_id)
-        except TimeoutError:
+        ans_recv = self._wait_election_responses(higher_priority_replicas, message_id)
+        if not ans_recv:
             self._logger.info(
                 f"{self._prefix}: ELECTION: Won the election, broadcasting victory"
             )
@@ -813,35 +812,43 @@ class Replica(Process):
 
     def _wait_election_responses(
         self, higher_priority_replicas: list[tuple[IPv4Address, int]], message_id: str
-    ) -> None:
+    ) -> bool:
         """Waits for election responses from the higher priority replicas.
 
         Args:
             higher_priority_replicas (list[tuple[IPv4Address, int]]): The higher priority replicas.
 
-        Raises:
-            TimeoutError: raised if no response is received from the higher priority replicas.
+        Returns:
+            bool: True if an answer was received from a higher priority replica, False otherwise.
         """
-        with Timeout(REPLICA_ELECTION_TIMEOUT, throw_exception=False):
-            while not self._exit.is_set():
-                try:
-                    response, address = self._unicast.receive(COMMUNICATION_BUFFER_SIZE)
-                except TimeoutError:
-                    continue
+        start_time = time()
+        answer_received_higher_priority_replicas: bool = False
+        while (
+            not self._exit.is_set() and time() - start_time < REPLICA_ELECTION_TIMEOUT
+        ):
+            try:
+                response, address = self._unicast.receive(COMMUNICATION_BUFFER_SIZE)
+            except TimeoutError:
+                continue
 
-                if (
-                    not MessageSchema.of(com.HEADER_ELECTION_ANS, response)
-                    or MessageSchema.get_id(response) != message_id
-                    or address not in higher_priority_replicas
-                ):
-                    continue
+            if (
+                not MessageSchema.of(com.HEADER_ELECTION_ANS, response)
+                or MessageSchema.get_id(response) != message_id
+                or address not in higher_priority_replicas
+            ):
+                continue
 
-                answer: MessageElectionAnswer = MessageElectionAnswer.decode(response)
+            answer: MessageElectionAnswer = MessageElectionAnswer.decode(response)
 
-                if answer.req_id < self.get_id():
-                    continue
+            if answer.req_id < self.get_id():
+                continue
 
-                break
+            self._logger.info(
+                f"{self._prefix}: ELECTION: Received election answer from {address} with higher id ({self.get_id()}, (Ignored)): {answer}"
+            )
+            answer_received_higher_priority_replicas = True
+            break
+        return answer_received_higher_priority_replicas
 
     def _wait_coordinator_message(self) -> None:
         """Waits for a coordinator message from the higher priority replica.
