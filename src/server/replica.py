@@ -834,7 +834,7 @@ class Replica(Process):
         for replica in self.peers.iter():
             if replica == self._unicast.get_address():
                 continue
-            _received = self._unicast.send_to_all(
+            _received = self._unicast.send_to_first(
                 message=coordinator_message.encode(),
                 addresses=[(replica[0], port) for port in REPLICA_ELECTION_PORTS],
             )
@@ -858,7 +858,7 @@ class Replica(Process):
         message_id = generate_message_id(self.auction_id)
         election_message = MessageElectionRequest(_id=message_id, req_id=self.get_id())
         for replica in higher_priority_replicas:
-            _received = self._unicast.send_to_all(
+            _received = self._unicast.send_to_first(
                 message=election_message.encode(),
                 addresses=[(replica[0], port) for port in REPLICA_ELECTION_PORTS],
             )

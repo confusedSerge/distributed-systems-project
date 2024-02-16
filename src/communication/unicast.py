@@ -186,10 +186,10 @@ class ReliableUnicast:
 
         raise TimeoutError
 
-    def send_to_all(
+    def send_to_first(
         self, message: bytes, addresses: list[tuple[IPv4Address, int]]
-    ) -> list[tuple[IPv4Address, int]]:
-        """Send a message to multiple unicast hosts.
+    ) -> tuple[IPv4Address, int]:
+        """Send a message to multiple to first possible address.
 
         Args:
             message (bytes): The message to send.
@@ -198,14 +198,13 @@ class ReliableUnicast:
         Returns:
             list[tuple[IPv4Address, int]]: The addresses that the message was sent to.
         """
-        sent_to: list[tuple[IPv4Address, int]] = []
         for address in addresses:
             try:
                 self.send(message, address)
-                sent_to.append(address)
+                return address
             except TimeoutError:
                 pass
-        return sent_to
+        return (None, 0)
 
     def usend(self, message: bytes, address: tuple[IPv4Address, int]) -> None:
         """Send a message to the unicast host without any reliability guarantees.
