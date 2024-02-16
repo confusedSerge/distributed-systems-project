@@ -61,7 +61,7 @@ period = 10
 
 [communication.replica.election]
 ports = [7713, 7714, 7715]
-timeout = 30
+timeout = 5
 
 [communication.header]
 reliable-req = "RELIABLE_REQUEST"
