@@ -620,6 +620,7 @@ class Replica(Process):
 
         assert self.auction is not None
         self.auction.from_other(rcv_auction)
+        sleep(SLEEP_TIME)  # Sleep to allow for shared memory update
 
     def _handle_stop(self) -> None:
         """Handles the stopping of the replica."""
