@@ -189,12 +189,11 @@ class Replica(Process):
             self._heartbeat()
 
             # Stop Leader tasks
-            if self._is_leader() and self._replica_finder is not None:
+            if self._is_leader() and self._auction_manager is not None:
                 self._logger.info(
                     f"{self._prefix}: MAIN LOOP: LEADER: Stopping auction manager"
                 )
-                self._replica_finder.stop()
-                self._replica_finder.join()
+                self._auction_manager.terminate()
 
             # Start Election
             while self.reelection.is_set():
@@ -390,8 +389,7 @@ class Replica(Process):
             sleep(REPLICA_HEARTBEAT_PERIOD)
 
         if self._replica_finder is not None and self._replica_finder.is_alive():
-            self._replica_finder.stop()
-            self._replica_finder.join()
+            self._replica_finder.terminate()
         self._logger.info(f"{self._prefix}: HEARTBEAT SENDER: Stopped")
 
     def _heartbeat_emit(self, replicas: dict[tuple[IPv4Address, int], bool]) -> str:
@@ -577,7 +575,7 @@ class Replica(Process):
         # Start replica finder in background if there are not enough replicas
 
         self._logger.info(
-            f"{self._prefix}: HEARTBEAT SENDER: Starting replica finder if necessary {self.peers.len()} < {AUCTION_POOL_SIZE} and {self._replica_finder} is None or not alive"
+            f"{self._prefix}: HEARTBEAT SENDER: Starting replica finder if necessary {self.peers.len()} < {AUCTION_POOL_SIZE}"
         )
         if self.peers.len() < AUCTION_POOL_SIZE:
             if self._replica_finder is None or not self._replica_finder.is_alive():
@@ -703,28 +701,28 @@ class Replica(Process):
             self._auction_state_listener is not None
             and self._auction_state_listener.is_alive()
         ):
-            self._auction_state_listener.stop()
+            self._auction_state_listener.terminate()
             self._auction_state_listener.join()
 
         if (
             self._auction_peers_listener is not None
             and self._auction_peers_listener.is_alive()
         ):
-            self._auction_peers_listener.stop()
+            self._auction_peers_listener.terminate()
             self._auction_peers_listener.join()
 
         if (
             self._auction_bid_listener is not None
             and self._auction_bid_listener.is_alive()
         ):
-            self._auction_bid_listener.stop()
+            self._auction_bid_listener.terminate()
             self._auction_bid_listener.join()
 
         if (
             self._reelection_listener is not None
             and self._reelection_listener.is_alive()
         ):
-            self._reelection_listener.stop()
+            self._reelection_listener.terminate()
             self._reelection_listener.join()
 
         self._logger.info(f"{self._prefix}: Listeners stopped")
