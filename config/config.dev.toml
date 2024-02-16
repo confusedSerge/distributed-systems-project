@@ -14,7 +14,7 @@ format_pid = "[%(levelname)s] - %(asctime)s - %(process)d: %(message)s"
 sleep_time = 0.5
 
 [auction]
-pool_size = 2
+pool_size = 3
 
 [server]
 pool_size = 3
@@ -22,7 +22,7 @@ pool_size = 3
 [communication] # general communication settings
 buffer_size = 1024
 timeout = 1
-reliable_timeout = 0.1
+reliable_timeout = 0.5
 reliable_retries = 5
 
 [communication.multicast.discovery]
@@ -57,11 +57,11 @@ period = 1
 timeout = 5 # timeout for the replication manager to wait for a response from the replicas
 
 [communication.replica.heartbeat]
-period = 2
+period = 5
 
 [communication.replica.election]
 ports = [7713, 7714, 7715]
-timeout = 1
+timeout = 3
 
 [communication.header]
 reliable-req = "RELIABLE_REQUEST"
