@@ -24,6 +24,7 @@ from util import create_logger, generate_message_id
 
 from constant import (
     communication as com,
+    SLEEP_TIME,
     AUCTION_POOL_SIZE,
     REPLICA_REPLICATION_TIMEOUT,
     COMMUNICATION_BUFFER_SIZE,
@@ -125,7 +126,7 @@ class ReplicationManager(Process):
             self._logger.info(f"{self._prefix}: Duplicate replica found; Exiting")
             return
 
-        sleep(0.01)  # Sleep to allow for shared memory update
+        sleep(SLEEP_TIME)  # Sleep to allow for shared memory update
         self._announce_peers(message_id)
 
         self._logger.info(f"{self._prefix}: Releasing resources")

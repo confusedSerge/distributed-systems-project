@@ -11,7 +11,7 @@ format = "[%(levelname)s] - %(asctime)s: %(message)s"
 format_pid = "[%(levelname)s] - %(asctime)s - %(process)d: %(message)s"
 
 [general]
-sleep_time = 0.5
+sleep_time = 1
 
 [auction]
 pool_size = 3
@@ -61,7 +61,7 @@ period = 5
 
 [communication.replica.election]
 ports = [7713, 7714, 7715]
-timeout = 3
+timeout = 2
 
 [communication.header]
 reliable-req = "RELIABLE_REQUEST"
