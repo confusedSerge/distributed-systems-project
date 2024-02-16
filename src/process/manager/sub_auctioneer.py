@@ -190,7 +190,6 @@ class SubAuctioneer(Process):
 
         if high_freq_auction_listener.is_alive():
             self._logger.info(f"{self._prefix}: Stopping listener")
-            high_freq_auction_listener.stop()
-            high_freq_auction_listener.join()
+            high_freq_auction_listener.terminate()
 
         self._logger.info(f"{self._prefix}: Listener stopped")

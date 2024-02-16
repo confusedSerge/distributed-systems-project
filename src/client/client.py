@@ -132,7 +132,7 @@ class Client:
         self._auctioneer.stop()
         self._bidder.stop()
 
-        self._auction_announcement_process.stop()
+        self._auction_announcement_process.terminate()
 
         self.manager_running.clear()
         self.manager.shutdown()

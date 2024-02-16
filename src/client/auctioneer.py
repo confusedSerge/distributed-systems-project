@@ -70,10 +70,7 @@ class Auctioneer:
         self._logger.info(f"{self._prefix}: Releasing resources")
 
         for sub_auctioneer in self._sub_auctioneers.values():
-            sub_auctioneer.stop()
-
-        for sub_auctioneer in self._sub_auctioneers.values():
-            sub_auctioneer.join()
+            sub_auctioneer.terminate()
 
         self._logger.info(f"{self._prefix}: Stopped")
 

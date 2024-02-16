@@ -79,11 +79,7 @@ class Bidder:
 
         for listener in self._joined_auction_announcement_listeners.values():
             if listener.is_alive():
-                listener.stop()
-
-        for listener in self._joined_auction_announcement_listeners.values():
-            if listener.is_alive():
-                listener.join()
+                listener.terminate()
 
         self._logger.info(f"{self._prefix}: Stopped")
 

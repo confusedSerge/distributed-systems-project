@@ -702,28 +702,24 @@ class Replica(Process):
             and self._auction_state_listener.is_alive()
         ):
             self._auction_state_listener.terminate()
-            self._auction_state_listener.join()
 
         if (
             self._auction_peers_listener is not None
             and self._auction_peers_listener.is_alive()
         ):
             self._auction_peers_listener.terminate()
-            self._auction_peers_listener.join()
 
         if (
             self._auction_bid_listener is not None
             and self._auction_bid_listener.is_alive()
         ):
             self._auction_bid_listener.terminate()
-            self._auction_bid_listener.join()
 
         if (
             self._reelection_listener is not None
             and self._reelection_listener.is_alive()
         ):
             self._reelection_listener.terminate()
-            self._reelection_listener.join()
 
         self._logger.info(f"{self._prefix}: Listeners stopped")
 

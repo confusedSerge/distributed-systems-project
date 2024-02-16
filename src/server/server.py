@@ -128,10 +128,7 @@ class Server(Process):
 
         # Release all replicas
         for replica, stopped in self._replica_pool:
-            replica.stop()
-
-        for replica, stopped in self._replica_pool:
-            replica.join()
+            replica.terminate()
 
         self._logger.info(f"{self._prefix}: Stopped")
 
