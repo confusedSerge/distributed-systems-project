@@ -771,7 +771,9 @@ class Replica(Process):
 
         if not higher_priority_replicas:
             self._logger.info(f"{self._prefix}: ELECTION: No higher priority replicas")
+            end_time = time() + REPLICA_ELECTION_TIMEOUT
             self._send_election_coordinator()
+            sleep(end_time - time())
 
             self.leader.set(*self._unicast.get_address())
             self.coordinator.set()
