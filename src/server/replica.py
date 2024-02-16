@@ -879,12 +879,7 @@ class Replica(Process):
         )
         end_time = time() + REPLICA_ELECTION_TIMEOUT
         received_answer: bool = False
-        received_answer_num: int = 0
-        while (
-            not self._exit.is_set()
-            and time() <= end_time
-            and received_answer_num < answers
-        ):
+        while not self._exit.is_set() and time() <= end_time:
             try:
                 response, address = self._unicast.receive(COMMUNICATION_BUFFER_SIZE)
             except TimeoutError:
@@ -909,7 +904,6 @@ class Replica(Process):
                 f"{self._prefix}: ELECTION: Received election answer from {address} with higher id ({self.get_id()}, (Stopping)): {answer}"
             )
 
-            received_answer_num += 1
             received_answer = True
 
         return received_answer
