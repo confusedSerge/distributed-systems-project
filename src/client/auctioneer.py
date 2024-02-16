@@ -70,7 +70,7 @@ class Auctioneer:
         self._logger.info(f"{self._prefix}: Releasing resources")
 
         for sub_auctioneer in self._sub_auctioneers.values():
-            sub_auctioneer.terminate()
+            sub_auctioneer.stop()
 
         self._logger.info(f"{self._prefix}: Stopped")
 

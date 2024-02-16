@@ -17,5 +17,5 @@ if __name__ == "__main__":
     client.run()
 
     # Terminate client and server processes when client interaction is done
-    server.terminate()
+    server.stop()
     server.join()

@@ -14,7 +14,7 @@ format_pid = "[%(levelname)s] - %(asctime)s - %(process)d: %(message)s"
 sleep_time = 1
 
 [auction]
-pool_size = 1
+pool_size = 3
 
 [server]
 pool_size = 3
