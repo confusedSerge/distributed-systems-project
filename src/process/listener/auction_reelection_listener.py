@@ -173,10 +173,15 @@ class AuctionReelectionListener(Process):
             _id=message._id,
             req_id=self._own_id,
         )
-        uc.send(
-            message=answer.encode(),
-            address=address,
-        )
+        try:
+            uc.send(
+                message=answer.encode(),
+                address=address,
+            )
+        except TimeoutError:
+            self._logger.error(
+                f"{self._prefix}: Timeout while sending election answer to {address}"
+            )
 
         self._reelect.set()
 
