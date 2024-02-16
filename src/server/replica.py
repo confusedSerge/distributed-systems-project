@@ -784,7 +784,7 @@ class Replica(Process):
         message_id: str = self._send_election_request(higher_priority_replicas)
 
         # wait for responses
-        if not self._wait_election_responses(message_id):
+        if not self._wait_election_responses(message_id, len(higher_priority_replicas)):
             self._logger.info(
                 f"{self._prefix}: ELECTION: Won the election, broadcasting victory"
             )
@@ -866,7 +866,7 @@ class Replica(Process):
 
         return message_id
 
-    def _wait_election_responses(self, message_id: str) -> bool:
+    def _wait_election_responses(self, message_id: str, answers: int) -> bool:
         """Waits for election responses from the higher priority replicas.
 
         Returns:
@@ -876,7 +876,13 @@ class Replica(Process):
             f"{self._prefix}: ELECTION: Waiting for election responses from higher priority replicas"
         )
         end_time = time() + REPLICA_ELECTION_TIMEOUT
-        while not self._exit.is_set() and time() <= end_time:
+        received_answer: bool = False
+        received_answer_num: int = 0
+        while (
+            not self._exit.is_set()
+            and time() <= end_time
+            and received_answer_num < answers
+        ):
             try:
                 response, address = self._unicast.receive(COMMUNICATION_BUFFER_SIZE)
             except TimeoutError:
@@ -901,9 +907,9 @@ class Replica(Process):
                 f"{self._prefix}: ELECTION: Received election answer from {address} with higher id ({self.get_id()}, (Stopping)): {answer}"
             )
 
-            return True
+            received_answer = True
 
-        return False
+        return received_answer
 
     def _wait_coordinator_message(self) -> None:
         """Waits for a coordinator message from the higher priority replica.
