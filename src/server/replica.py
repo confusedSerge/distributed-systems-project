@@ -85,6 +85,7 @@ class Replica(Process):
         self.manager: Manager = Manager()
         self.manager_running: Event = ProcessEvent()
 
+        self.auction_id: Optional[str] = None
         self.auction: Optional[Auction] = None
         self.peers: Optional[AuctionPeersStore] = None
         self.leader: Optional[Leader] = None
@@ -405,7 +406,7 @@ class Replica(Process):
         """
         assert self.auction is not None
 
-        heartbeat_id = generate_message_id(self.auction.get_id())
+        heartbeat_id = generate_message_id(self.auction_id)
         heartbeat: bytes = MessageHeartbeatRequest(_id=heartbeat_id).encode()
 
         self._logger.info(
@@ -620,6 +621,7 @@ class Replica(Process):
 
         assert self.auction is not None
         self.auction.from_other(rcv_auction)
+        self.auction_id = message.auction._id
         sleep(SLEEP_TIME)  # Sleep to allow for shared memory update
 
     def _handle_stop(self) -> None:
@@ -680,7 +682,7 @@ class Replica(Process):
                 self.leader,
                 self.reelection,
                 self.coordinator,
-                self.auction.get_id(),
+                self.auction_id,
             )
         )
 
@@ -827,7 +829,7 @@ class Replica(Process):
         assert self.peers is not None
 
         coordinator_message = MessageElectionCoordinator(
-            _id=generate_message_id(self.auction.get_id()), req_id=self.get_id()
+            _id=generate_message_id(self.auction_id), req_id=self.get_id()
         )
         for replica in self.peers.iter():
             if replica == self._unicast.get_address():
@@ -853,7 +855,7 @@ class Replica(Process):
         """
         assert self.auction is not None
 
-        message_id = generate_message_id(self.auction.get_id())
+        message_id = generate_message_id(self.auction_id)
         election_message = MessageElectionRequest(_id=message_id, req_id=self.get_id())
         for replica in higher_priority_replicas:
             _received = self._unicast.send_to_all(
