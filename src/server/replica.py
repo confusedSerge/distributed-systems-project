@@ -907,6 +907,7 @@ class Replica(Process):
                 f"{self._prefix}: ELECTION: Received election answer from {address} with higher id ({self.get_id()}, (Stopping)): {answer}"
             )
 
+            received_answer_num += 1
             received_answer = True
 
         return received_answer
