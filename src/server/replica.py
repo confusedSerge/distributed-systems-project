@@ -189,12 +189,12 @@ class Replica(Process):
             self._heartbeat()
 
             # Stop Leader tasks
-            if self._is_leader() and self._auction_manager is not None:
+            if self._is_leader() and self._replica_finder is not None:
                 self._logger.info(
                     f"{self._prefix}: MAIN LOOP: LEADER: Stopping auction manager"
                 )
-                self._auction_manager.stop()
-                self._auction_manager.join()
+                self._replica_finder.stop()
+                self._replica_finder.join()
 
             # Start Election
             while self.reelection.is_set():
