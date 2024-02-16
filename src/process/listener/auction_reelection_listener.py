@@ -86,7 +86,7 @@ class AuctionReelectionListener(Process):
         self._logger.info(f"{self._prefix}: Started")
         uc: ReliableUnicast = ReliableUnicast(
             timeout=COMMUNICATION_RELIABLE_TIMEOUT,
-            retry=COMMUNICATION_RELIABLE_RETRIES * len(REPLICA_ELECTION_PORTS),
+            retry=COMMUNICATION_RELIABLE_RETRIES,
             ports=REPLICA_ELECTION_PORTS,
         )
 
