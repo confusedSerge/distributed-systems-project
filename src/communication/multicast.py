@@ -385,10 +385,7 @@ class RMulticast:
             if sender == self._sender_id:
                 if not ack:
                     retransmission_queue.put(sequence_number)
-            elif (
-                sender not in _peer_sequence_numbers
-                or sequence_number > _peer_sequence_numbers[sender]
-            ):
+            elif sequence_number > _peer_sequence_numbers.get(sender, -1) + 1:
                 for needed in range(sequence_number - _peer_sequence_numbers[sender]):
                     acknowledgement_queue.put((sender, sequence_number - needed, False))
 
