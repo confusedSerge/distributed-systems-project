@@ -23,7 +23,7 @@ pool_size = 3
 buffer_size = 1024
 timeout = 1
 reliable_timeout = 1
-reliable_retries = 5
+reliable_retries = 3
 
 [communication.multicast.discovery]
 group = "224.1.1.1"
@@ -61,7 +61,7 @@ period = 10
 
 [communication.replica.election]
 ports = [7713, 7714, 7715]
-timeout = 10
+timeout = 30
 
 [communication.header]
 reliable-req = "RELIABLE_REQUEST"
